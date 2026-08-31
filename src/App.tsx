@@ -1,12 +1,14 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom"
 import { Layout } from "./components/layout/Layout"
 import { AuthLayout } from "./components/layout/AuthLayout"
+import { DashboardLayout } from "./components/layout/DashboardLayout"
 import { HomePage } from "./pages/HomePage"
 import { LoginPage } from "./pages/auth/LoginPage"
 import { RegisterPage } from "./pages/auth/RegisterPage"
 import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage"
 import { ResetPasswordPage } from "./pages/auth/ResetPasswordPage"
 import { VerifyEmailPage } from "./pages/auth/VerifyEmailPage"
+import { DashboardPage } from "./pages/dashboard/DashboardPage"
 
 function App() {
   return (
@@ -31,10 +33,19 @@ function App() {
           <Route path="/verify-email" element={<VerifyEmailPage />} />
         </Route>
 
-        {/* Protected dashboard routes (placeholder for now) */}
-        <Route path="/dashboard" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Dashboard - Coming Soon</h1></div>} />
-        <Route path="/patients" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Patients List - Coming Soon</h1></div>} />
-        <Route path="/settings" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Settings - Coming Soon</h1></div>} />
+        {/* Protected dashboard routes with dashboard layout */}
+        <Route element={<DashboardLayout />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/patients" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Patients List - Coming Soon</h1></div>} />
+          <Route path="/patient-cards" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Patient Cards - Coming Soon</h1></div>} />
+          <Route path="/archive" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Archive - Coming Soon</h1></div>} />
+          <Route path="/checkouts" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Active Checkouts - Coming Soon</h1></div>} />
+          <Route path="/hmo-approvals" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">HMO Approvals - Coming Soon</h1></div>} />
+          <Route path="/location-matrix" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Location Matrix - Coming Soon</h1></div>} />
+          <Route path="/settings" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Settings - Coming Soon</h1></div>} />
+          <Route path="/profile" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Profile - Coming Soon</h1></div>} />
+          <Route path="/notifications" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Notifications - Coming Soon</h1></div>} />
+        </Route>
       </Routes>
     </BrowserRouter>
   )
