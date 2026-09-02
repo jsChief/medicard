@@ -135,7 +135,7 @@ export function RegisterPage() {
           />
 
           <div>
-            <label className="label">Your role</label>
+            <label className="label">Your role j</label>
             <select
               {...register("role")}
               className="input"
