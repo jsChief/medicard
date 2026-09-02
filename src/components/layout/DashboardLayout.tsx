@@ -43,7 +43,7 @@ export function DashboardLayout() {
   const location = useLocation()
 
   return (
-    <div className="min-h-screen bg-bg">
+    <div className="min-h-screen bg-bg lg:flex">
       {/* Mobile sidebar overlay */}
       {mobileMenuOpen && (
         <div
@@ -101,7 +101,7 @@ export function DashboardLayout() {
                 title={sidebarOpen ? undefined : item.name}
                 aria-current={isActive ? "page" : undefined}
               >
-                <item.icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+                <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
                 {sidebarOpen && <span>{item.name}</span>}
               </NavLink>
             )
@@ -151,13 +151,13 @@ export function DashboardLayout() {
       {/* Main content */}
       <main
         className={cn(
-          "lg:pl-64 transition-all duration-300 min-h-screen",
-          sidebarOpen ? "lg:pl-64" : "lg:pl-20"
+          "transition-all duration-300 min-h-screen bg-pik-500 w-full",
+              { /*sidebarOpen? "lg:pl-4": "lg:pl-2" */}
         )}
       >
         {/* Top bar */}
-        <header className="sticky top-0 z-30 h-16 bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/60 border-b border-border">
-          <div className="flex h-full items-center justify-between px-4 lg:px-8">
+        <header className="sticky p-4 top-0 z-30 h-16 backdrop-blur supports-backdrop-filter:bg-surface/60 border-b border-border">
+          <div className="flex h-full items-center place-content-between px-2 lg:pl-8 lg:pr-4">
             <div className="flex items-center gap-4">
               <h1 className="text-xl font-semibold text-text">
                 {navigation.find((n) => location.pathname === n.href || location.pathname.startsWith(n.href + "/"))?.name || "Dashboard"}
