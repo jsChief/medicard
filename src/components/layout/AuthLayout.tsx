@@ -6,7 +6,7 @@ export function AuthLayout() {
   return (
     <div className="min-h-screen flex">
       {/* Brand Sidebar */}
-      <aside className="hidden lg:flex lg:w-1/2 bg-primary flex-col items-center justify-between p-12">
+      <aside className="hidden lg:flex lg:w-1/3 bg-gradient-to-br from-blue-400 to-blue-600 flex-col items-center justify-between p-12">
         <div className="w-full max-w-md">
           <Link to="/" className="flex items-center gap-3" aria-label="MediCard Home">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20">
