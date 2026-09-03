@@ -32,9 +32,11 @@ const navigation = [
   { name: "Settings", href: "/settings", icon: Settings },
 ]
 
+
+  /* name: "Notifications", href: "/notifications", icon: Bell */
+
 const userNavigation = [
   { name: "Profile", href: "/profile", icon: User },
-  { name: "Notifications", href: "/notifications", icon: Bell },
 ]
 
 export function DashboardLayout() {
@@ -43,7 +45,7 @@ export function DashboardLayout() {
   const location = useLocation()
 
   return (
-    <div className="min-h-screen bg-bg lg:flex">
+    <div className="min-h-screen bg-bg lg:flex place-content-between">
       {/* Mobile sidebar overlay */}
       {mobileMenuOpen && (
         <div
@@ -56,8 +58,8 @@ export function DashboardLayout() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed lg:static z-50 h-full bg-surface border-r border-border transition-all duration-300 ease-in-out flex flex-col",
-          sidebarOpen ? "w-64" : "w-20",
+          "fixed lg:fixed lg:left-0 lg:top-0 z-50 h-full bg-surface border-r border-border transition-all duration-300 ease-in-out flex flex-col",
+          sidebarOpen ? "w-[24%]" : "w-[10%]",
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
         aria-label="Main navigation"
@@ -149,9 +151,10 @@ export function DashboardLayout() {
       </button>
 
       {/* Main content */}
+      <div className="flex-1 flex place-content-end w-full transition-all duration-300 ease-in-out">
       <main
         className={cn(
-          "transition-all duration-300 min-h-screen bg-pik-500 w-full",
+          "transition-all duration-300 min-h-screen w-[76%]",
               { /*sidebarOpen? "lg:pl-4": "lg:pl-2" */}
         )}
       >
@@ -183,6 +186,7 @@ export function DashboardLayout() {
           <Outlet />
         </div>
       </main>
+      </div>
     </div>
   )
 }
