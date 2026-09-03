@@ -15,9 +15,9 @@ export function Navbar() {
   ]
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/60">
+    <header className="sticky top-0 left-0 z-50 w-full border-b border-border bg-surface/95 backdrop-blur supports-backdrop-filter:bg-surface/60">
       <nav className="container-app" aria-label="Main navigation">
-        <div className="flex h-16 items-center justify-between">
+        <div className="flex h-16 items-center justify-between ml-2">
           <Link to="/" className="flex items-center gap-2" aria-label="MediCard Home">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
               <Hospital className="h-5 w-5 text-white" aria-hidden="true" />
@@ -37,7 +37,7 @@ export function Navbar() {
             ))}
           </div>
 
-          <div className="hidden md:flex md:items-center md:gap-3">
+          <div className="hidden md:flex md:items-center md:gap-3 md:mr-2">
             <Link to="/login">
               <Button variant="ghost" size="sm">Sign In</Button>
             </Link>

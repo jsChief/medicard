@@ -108,7 +108,7 @@ export function HomePage() {
   return (
     <div className="flex flex-col">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-primary/5 via-surface to-surface py-20 lg:py-32">
+      <section className="relative overflow-hidden bg-linear-to-b from-primary/5 via-surface to-surface py-20 lg:py-32">
         <div className="container-app">
           <div className="mx-auto max-w-4xl text-center">
             <Badge variant="primary" className="mb-6 inline-flex items-center gap-2">
@@ -164,7 +164,7 @@ export function HomePage() {
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-20 lg:py-28 bg-surface">
+      <section id="features" className="py-20 lg:py-28 bg-surface px-2">
         <div className="container-app">
           <div className="mx-auto max-w-2xl text-center mb-16">
             <Badge variant="secondary" className="mb-4">Key Features</Badge>
@@ -192,10 +192,10 @@ export function HomePage() {
             ))}
           </div>
         </div>
-      </section>
+      </section> 
 
       {/* How It Works Section */}
-      <section id="how-it-works" className="py-20 lg:py-28 bg-bg">
+      <section id="how-it-works" className="py-20 lg:py-28 bg-bg px-2">
         <div className="container-app">
           <div className="mx-auto max-w-2xl text-center mb-16">
             <Badge variant="secondary" className="mb-4">How It Works</Badge>
@@ -213,9 +213,9 @@ export function HomePage() {
               {steps.map((step) => (
                 <div
                   key={step.number}
-                  className="relative flex gap-6 lg:gap-8"
+                  className="relative flex gap-6 lg:gap-8 items-center"
                 >
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-white font-bold text-lg lg:h-16 lg:w-16 lg:text-xl">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/50 to-primary text-white font-bold text-lg lg:size-12 lg:text-xl">
                     {step.number}
                   </div>
                   <div className="flex-1 pt-1">
@@ -227,10 +227,10 @@ export function HomePage() {
             </div>
           </div>
         </div>
-      </section>
+      </section> 
 
       {/* Security & Compliance */}
-      <section className="py-20 lg:py-28 bg-surface">
+      <section className="py-20 lg:py-28 bg-surface px-2">
         <div className="container-app">
           <div className="grid gap-12 lg:grid-cols-2 items-center">
             <div>
@@ -261,10 +261,10 @@ export function HomePage() {
               </div>
             </div>
             <div className="relative">
-              <div className="aspect-square rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 flex items-center justify-center">
+              <div className="aspect-square rounded-2xl bg-linear-to-br from-primary/10 to-primary/5 border border-primary/20 flex items-center justify-center">
                 <Shield className="h-32 w-32 text-primary/30" />
               </div>
-              <div className="absolute -bottom-6 -right-6 bg-surface border border-border rounded-xl p-6 shadow-lg max-w-xs">
+              <div className="absolute -bottom-6 -right-1 bg-surface border border-border rounded-xl p-6 shadow-lg max-w-xs">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10 text-success">
                     <CheckCircle className="h-5 w-5" />
@@ -278,10 +278,10 @@ export function HomePage() {
             </div>
           </div>
         </div>
-      </section>
+      </section> 
 
       {/* Testimonials */}
-      <section className="py-20 lg:py-28 bg-bg">
+      <section className="py-20 lg:py-28 bg-bg px-2">
         <div className="container-app">
           <div className="mx-auto max-w-2xl text-center mb-16">
             <Badge variant="secondary" className="mb-4">Trusted by Healthcare Leaders</Badge>
@@ -293,7 +293,7 @@ export function HomePage() {
           <div className="grid gap-6 md:grid-cols-3">
             {testimonials.map((testimonial) => (
               <Card key={testimonial.author} className="relative">
-                <Quote className="absolute top-6 right-6 h-12 w-12 text-primary/10" />
+                <Quote className="absolute top-4 right-6 h-12 w-12 text-primary/10" />
                 <CardContent className="relative">
                   <div className="flex gap-1 mb-4">
                     {[...Array(5)].map((_, i) => (
@@ -316,7 +316,7 @@ export function HomePage() {
             ))}
           </div>
         </div>
-      </section>
+      </section> 
 
       {/* CTA Section */}
       <section className="py-20 lg:py-28">
@@ -336,7 +336,7 @@ export function HomePage() {
                 </Button>
               </Link>
               <Link to="/contact">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto border-white text-white hover:bg-white/10">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto border-white text-white bg-primary hover:bg-white/10">
                   Contact Sales
                 </Button>
               </Link>
@@ -346,7 +346,7 @@ export function HomePage() {
             </p>
           </div>
         </div>
-      </section>
+      </section> 
     </div>
   )
 }

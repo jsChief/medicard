@@ -3,17 +3,17 @@
 ## Suggested Screens
 
 ### Authentication
-- [ ] **Login Page** - Hospital staff login with email/password
-- [ ] **Register Page** - Hospital account creation
-- [ ] **Forgot Password** - Password reset flow
-- [ ] **Email Verification** - Verify hospital email
+- [x] **Login Page** - Hospital staff login with email/password
+- [x] **Register Page** - Hospital account creation
+- [x] **Forgot Password** - Password reset flow
+- [x] **Email Verification** - Verify hospital email
 
 ### Dashboard (Authenticated)
-- [ ] **Dashboard Home** - Overview stats, recent patients, quick actions
-- [ ] **Patient List** - Searchable, filterable table of all patient cards
-- [ ] **Patient Detail View** - Full patient card with medical history, medications, allergies
-- [ ] **Add Patient** - Form to create new patient card
-- [ ] **Edit Patient** - Form to update patient information
+- [x] **Dashboard Home** - Overview stats, recent patients, quick actions
+- [x] **Patient List** - Searchable, filterable table of all patient cards
+- [x] **Patient Detail View** - Full patient card with medical history, medications, allergies
+- [x] **Add Patient** - Form to create new patient card
+- [x] **Edit Patient** - Form to update patient information
 
 ### Patient Card Management
 - [ ] **Patient Card Form** - Multi-step form (Personal Info, Medical History, Emergency Contacts, Insurance)
