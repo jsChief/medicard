@@ -9,6 +9,10 @@ import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage"
 import { ResetPasswordPage } from "./pages/auth/ResetPasswordPage"
 import { VerifyEmailPage } from "./pages/auth/VerifyEmailPage"
 import { DashboardPage } from "./pages/dashboard/DashboardPage"
+import { PatientsListPage } from "./pages/patients/PatientsListPage"
+import { AddPatientPage } from "./pages/patients/AddPatientPage"
+import { PatientDetailPage } from "./pages/patients/PatientDetailPage"
+import { EditPatientPage } from "./pages/patients/EditPatientPage"
 
 function App() {
   return (
@@ -36,7 +40,10 @@ function App() {
         {/* Protected dashboard routes with dashboard layout */}
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/patients" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Patients List - Coming Soon</h1></div>} />
+          <Route path="/patients" element={<PatientsListPage />} />
+          <Route path="/patients/new" element={<AddPatientPage />} />
+          <Route path="/patients/:id" element={<PatientDetailPage />} />
+          <Route path="/patients/:id/edit" element={<EditPatientPage />} />
           <Route path="/patient-cards" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Patient Cards - Coming Soon</h1></div>} />
           <Route path="/archive" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Archive - Coming Soon</h1></div>} />
           <Route path="/checkouts" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Active Checkouts - Coming Soon</h1></div>} />

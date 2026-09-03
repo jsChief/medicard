@@ -33,7 +33,6 @@ const navigation = [
 ]
 
 
-  /* name: "Notifications", href: "/notifications", icon: Bell */
 
 const userNavigation = [
   { name: "Profile", href: "/profile", icon: User },
