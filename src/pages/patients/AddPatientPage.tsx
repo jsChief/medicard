@@ -1,13 +1,13 @@
+import { useState, Fragment } from "react"
 import { useForm } from "react-hook-form"
+import type { Resolver, SubmitHandler } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useState } from "react"
-import { ArrowLeft, ArrowRight, Check, X, User, Heart, Phone, Shield, ChevronLeft, ChevronRight } from "lucide-react"
+import { ArrowRight, Check, X, User, Heart, Phone, Shield, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select"
-import { Badge } from "@/components/ui/Badge"
+import { Select } from "@/components/ui/Select"
 import { cn } from "@/lib/utils"
 import { useNavigate } from "react-router-dom"
 
@@ -111,10 +111,9 @@ export function AddPatientPage() {
     handleSubmit,
     watch,
     setValue,
-    formState: { errors, isValid },
-    control,
+    formState: { errors },
   } = useForm<PatientFormData>({
-    resolver: zodResolver(fullSchema),
+    resolver: zodResolver(fullSchema) as unknown as Resolver<PatientFormData>,
     defaultValues: {
       firstName: "",
       lastName: "",
@@ -158,10 +157,10 @@ export function AddPatientPage() {
     mode: "onChange",
   })
 
-  const watchedContacts = watch("contacts", [{ name: "", relationship: "", phone: "", email: "", address: "", isPrimary: true }])
-  const watchedConditions = watch("conditions", [])
-  const watchedMedications = watch("medications", [])
-  const watchedAllergies = watch("allergies", [])
+  const watchedContacts = watch("contacts", [{ name: "", relationship: "", phone: "", email: "", address: "", isPrimary: true }]) as PatientFormData["contacts"]
+  const watchedConditions = watch("conditions", []) as PatientFormData["conditions"]
+  const watchedMedications = watch("medications", []) as PatientFormData["medications"]
+  const watchedAllergies = watch("allergies", []) as PatientFormData["allergies"]
 
   const nextStep = () => {
     if (currentStep < steps.length) {
@@ -175,24 +174,64 @@ export function AddPatientPage() {
     }
   }
 
-  const addArrayItem = (field: string, defaultValue: any) => {
-    const current = watch(field) || []
-    setValue(field, [...current, defaultValue], { shouldValidate: true })
+  // Field-specific helpers to avoid complex generic types
+  const addCondition = (value = "") => {
+    setValue("conditions", [...watchedConditions, value], { shouldValidate: true })
   }
 
-  const removeArrayItem = (field: string, index: number) => {
-    const current = watch(field) || []
-    setValue(field, current.filter((_, i) => i !== index), { shouldValidate: true })
+  const removeCondition = (index: number) => {
+    setValue("conditions", watchedConditions.filter((_, i) => i !== index), { shouldValidate: true })
   }
 
-  const updateArrayItem = (field: string, index: number, value: any) => {
-    const current = watch(field) || []
-    const updated = [...current]
+  const updateCondition = (index: number, value: string) => {
+    const updated = [...watchedConditions]
     updated[index] = value
-    setValue(field, updated, { shouldValidate: true })
+    setValue("conditions", updated, { shouldValidate: true })
   }
 
-  const onSubmit = async (data: PatientFormData) => {
+  const addMedication = (value = "") => {
+    setValue("medications", [...watchedMedications, value], { shouldValidate: true })
+  }
+
+  const removeMedication = (index: number) => {
+    setValue("medications", watchedMedications.filter((_, i) => i !== index), { shouldValidate: true })
+  }
+
+  const updateMedication = (index: number, value: string) => {
+    const updated = [...watchedMedications]
+    updated[index] = value
+    setValue("medications", updated, { shouldValidate: true })
+  }
+
+  const addAllergy = (value = "") => {
+    setValue("allergies", [...watchedAllergies, value], { shouldValidate: true })
+  }
+
+  const removeAllergy = (index: number) => {
+    setValue("allergies", watchedAllergies.filter((_, i) => i !== index), { shouldValidate: true })
+  }
+
+  const updateAllergy = (index: number, value: string) => {
+    const updated = [...watchedAllergies]
+    updated[index] = value
+    setValue("allergies", updated, { shouldValidate: true })
+  }
+
+  const addContact = (contact: PatientFormData["contacts"][number] = { name: "", relationship: "", phone: "", email: "", address: "", isPrimary: false }) => {
+    setValue("contacts", [...watchedContacts, contact], { shouldValidate: true })
+  }
+
+  const removeContact = (index: number) => {
+    setValue("contacts", watchedContacts.filter((_, i) => i !== index), { shouldValidate: true })
+  }
+
+  const updateContact = (index: number, contact: PatientFormData["contacts"][number]) => {
+    const updated = [...watchedContacts]
+    updated[index] = contact
+    setValue("contacts", updated, { shouldValidate: true })
+  }
+
+  const onSubmit: SubmitHandler<PatientFormData> = async (_data) => {
     setIsSubmitting(true)
     await new Promise((resolve) => setTimeout(resolve, 1500))
     setIsSubmitting(false)
@@ -200,7 +239,6 @@ export function AddPatientPage() {
   }
 
   const isLastStep = currentStep === steps.length
-  const stepErrors = errors
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -264,20 +302,16 @@ export function AddPatientPage() {
                     <Input
                       placeholder="e.g., Hypertension, Diabetes Type 2"
                       value={condition}
-                      onChange={(e) => {
-                        const updated = [...watchedConditions]
-                        updated[index] = e.target.value
-                        setValue("conditions", updated)
-                      }}
+                      onChange={(e) => updateCondition(index, e.target.value)}
                     />
                     {watchedConditions.length > 1 && (
-                      <Button type="button" variant="ghost" size="icon" className="h-10 text-danger" onClick={() => removeArrayItem("conditions", index)}>
+                      <Button type="button" variant="ghost" size="sm" className="h-10 text-danger" onClick={() => removeCondition(index)}>
                         <X className="h-4 w-4" />
                       </Button>
                     )}
                   </div>
                 ))}
-                <Button type="button" variant="outline" onClick={() => addArrayItem("conditions", "")} className="w-full justify-start gap-2">
+                <Button type="button" variant="outline" onClick={() => addCondition("")} className="w-full justify-start gap-2">
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                     <path d="M12 5v14M5 12h14" />
                   </svg>
@@ -293,20 +327,16 @@ export function AddPatientPage() {
                     <Input
                       placeholder="e.g., Metformin 500mg BID"
                       value={med}
-                      onChange={(e) => {
-                        const updated = [...watchedMedications]
-                        updated[index] = e.target.value
-                        setValue("medications", updated)
-                      }}
+                      onChange={(e) => updateMedication(index, e.target.value)}
                     />
                     {watchedMedications.length > 1 && (
-                      <Button type="button" variant="ghost" size="icon" className="h-10 text-danger" onClick={() => removeArrayItem("medications", index)}>
+                      <Button type="button" variant="ghost" size="sm" className="h-10 text-danger" onClick={() => removeMedication(index)}>
                         <X className="h-4 w-4" />
                       </Button>
                     )}
                   </div>
                 ))}
-                <Button type="button" variant="outline" onClick={() => addArrayItem("medications", "")} className="w-full justify-start gap-2">
+                <Button type="button" variant="outline" onClick={() => addMedication("")} className="w-full justify-start gap-2">
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                     <path d="M12 5v14M5 12h14" />
                   </svg>
@@ -322,20 +352,16 @@ export function AddPatientPage() {
                     <Input
                       placeholder="e.g., Penicillin, Latex"
                       value={allergy}
-                      onChange={(e) => {
-                        const updated = [...watchedAllergies]
-                        updated[index] = e.target.value
-                        setValue("allergies", updated)
-                      }}
+                      onChange={(e) => updateAllergy(index, e.target.value)}
                     />
                     {watchedAllergies.length > 1 && (
-                      <Button type="button" variant="ghost" size="icon" className="h-10 text-danger" onClick={() => removeArrayItem("allergies", index)}>
+                      <Button type="button" variant="ghost" size="sm" className="h-10 text-danger" onClick={() => removeAllergy(index)}>
                         <X className="h-4 w-4" />
                       </Button>
                     )}
                   </div>
                 ))}
-                <Button type="button" variant="outline" onClick={() => addArrayItem("allergies", "")} className="w-full justify-start gap-2">
+                <Button type="button" variant="outline" onClick={() => addAllergy("")} className="w-full justify-start gap-2">
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                     <path d="M12 5v14M5 12h14" />
                   </svg>
@@ -361,7 +387,7 @@ export function AddPatientPage() {
               <label className="label">Additional Notes</label>
               <textarea
                 {...register("notes")}
-                className="input border rounded-lg p-2 min-h-[100px] resize-y"
+                className="input border rounded-lg p-2 min-h-25 resize-y"
                 placeholder="Any additional medical history notes..."
               />
             </div>
@@ -378,7 +404,7 @@ export function AddPatientPage() {
                     <div className="flex items-center gap-2">
                       <span className="text-lg font-medium text-text">Contact #{index + 1}</span>
                       {watchedContacts.length > 1 && (
-                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-danger" onClick={() => removeArrayItem("contacts", index)}>
+                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 text-danger" onClick={() => removeContact(index)}>
                           <X className="h-4 w-4" />
                         </Button>
                       )}
@@ -404,13 +430,13 @@ export function AddPatientPage() {
                       label="Full Name *"
                       placeholder="Maria Santos"
                       value={contact.name}
-                      onChange={(e) => updateArrayItem("contacts", index, { ...contact, name: e.target.value })}
+                      onChange={(e) => updateContact(index, { ...contact, name: e.target.value })}
                     />
                     <Input
                       label="Relationship *"
                       placeholder="Spouse, Parent, Child, etc."
                       value={contact.relationship}
-                      onChange={(e) => updateArrayItem("contacts", index, { ...contact, relationship: e.target.value })}
+                      onChange={(e) => updateContact(index, { ...contact, relationship: e.target.value })}
                     />
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -418,27 +444,27 @@ export function AddPatientPage() {
                       label="Phone *"
                       placeholder="+63 9XX XXX XXXX"
                       value={contact.phone}
-                      onChange={(e) => updateArrayItem("contacts", index, { ...contact, phone: e.target.value })}
+                      onChange={(e) => updateContact(index, { ...contact, phone: e.target.value })}
                     />
                     <Input
                       label="Email"
                       type="email"
                       placeholder="maria@example.com"
                       value={contact.email}
-                      onChange={(e) => updateArrayItem("contacts", index, { ...contact, email: e.target.value })}
+                      onChange={(e) => updateContact(index, { ...contact, email: e.target.value })}
                     />
                   </div>
                   <Input
                     label="Address"
                     placeholder="123 Main Street, City, Province"
                     value={contact.address}
-                    onChange={(e) => updateArrayItem("contacts", index, { ...contact, address: e.target.value })}
+                    onChange={(e) => updateContact(index, { ...contact, address: e.target.value })}
                   />
                 </Card>
               ))}
             </div>
             {watchedContacts.length < 5 && (
-              <Button type="button" variant="outline" onClick={() => addArrayItem("contacts", { name: "", relationship: "", phone: "", email: "", address: "", isPrimary: false })} className="w-full justify-center gap-2">
+              <Button type="button" variant="outline" onClick={() => addContact({ name: "", relationship: "", phone: "", email: "", address: "", isPrimary: false })} className="w-full justify-center gap-2">
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <path d="M12 5v14M5 12h14" />
                 </svg>
@@ -476,7 +502,7 @@ export function AddPatientPage() {
               <label className="label">Coverage Notes</label>
               <textarea
                 {...register("coverageNotes")}
-                className="input border rounded-lg p-2 min-h-[80px] resize-y"
+                className="input border rounded-lg p-2 min-h-20 resize-y"
                 placeholder="Coverage details, limitations, special instructions..."
               />
             </div>
@@ -514,7 +540,7 @@ export function AddPatientPage() {
               const isActive = index + 1 === currentStep
               const isCompleted = index + 1 < currentStep
               return (
-                <React.Fragment key={step.id}>
+                <Fragment key={step.id}>
                   <div className="flex flex-col items-center">
                     <div className={cn(
                       "relative flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium transition-colors",
@@ -534,7 +560,7 @@ export function AddPatientPage() {
                       isCompleted ? "bg-success" : "bg-border"
                     )} />
                   )}
-                </React.Fragment>
+                </Fragment>
               )
             })}
           </div>
@@ -609,4 +635,4 @@ export function AddPatientPage() {
   )
 }
 
-import React from "react"
+ 

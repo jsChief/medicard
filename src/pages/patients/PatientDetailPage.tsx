@@ -1,10 +1,10 @@
 import { useState } from "react"
 import { useParams, Link } from "react-router-dom"
 import {
-  User, Heart, Pill, AlertTriangle, Phone, Shield, FileText, Calendar, MapPin, Mail, Edit, MoreHorizontal, ArrowLeft, ChevronDown, ChevronUp, Printer, Download, Share2, Clock, Stethoscope, Hospital, Bed, Building2, Shield as ShieldIcon, AlertCircle, CheckCircle2, XCircle, Info, ExternalLink,
+  User, Heart, Pill, AlertTriangle, Phone, Shield, FileText, Calendar, MapPin, Mail, Edit, ArrowLeft, Printer, Download, Share2, Clock, Stethoscope, Building2, Shield as ShieldIcon, AlertCircle, CheckCircle2, XCircle, Info, ExternalLink,
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar"
@@ -156,7 +156,7 @@ export function PatientDetailPage() {
     <div className="space-y-6">
       {/* Header with back button */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => window.history.back()} className="h-10 w-10">
+        <Button variant="ghost" size="sm" onClick={() => window.history.back()} className="h-10 w-10">
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
@@ -586,10 +586,10 @@ export function PatientDetailPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Button variant="ghost" size="sm" className="h-8 w-8">
                         <ExternalLink className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Button variant="ghost" size="sm" className="h-8 w-8">
                         <Download className="h-4 w-4" />
                       </Button>
                     </div>

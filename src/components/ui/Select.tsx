@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ChevronDown, ChevronUp, Check } from "lucide-react"
+import { ChevronDown, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
@@ -78,7 +78,7 @@ const SelectTrigger = React.forwardRef<HTMLButtonElement, SelectTriggerProps>(
     <button
       ref={ref}
       className={cn(
-        "w-full rounded-lg border border-border bg-surface px-4 py-2.5 pr-10 text-sm text-left focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors disabled:bg-bg disabled:cursor-not-allowed",
+        "w-full rounded-lg border border-border bg-surface px-4 py-2.5 pr-10 text-sm text-left focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors disabled:bg-gray-200 disabled:cursor-not-allowed",
         className
       )}
       {...props}

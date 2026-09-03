@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, type ChangeEvent } from "react"
 import { Search, Filter, ChevronDown, ChevronUp, MoreHorizontal, Eye, Edit, Download, Plus, ChevronLeft, ChevronRight } from "lucide-react"
 import { Link } from "react-router-dom"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
@@ -104,6 +104,19 @@ export function PatientsListPage() {
 
   const totalPages = Math.ceil(filteredPatients.length / pageSize)
   const paginatedPatients = filteredPatients.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  const exportCSV = () => {
+    const headers: (keyof Patient)[] = ["id","mrn","name","dob","age","gender","phone","email","department","attendingPhysician","status","admissionDate","lastVisit"]
+    const rows = filteredPatients.map((p) => headers.map((h) => String(p[h] ?? "")).join(","))
+    const csv = [headers.join(","), ...rows].join("\n")
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "patients.csv"
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const handleSort = (field: keyof Patient) => {
     if (sortBy === field) {
@@ -337,7 +350,7 @@ export function PatientsListPage() {
                   </SelectContent>
                 </Select>
                 <div className="hidden sm:block">
-                  <Select value={String(sortBy)} onChange={(e: any) => { setSortBy(e.target.value as keyof Patient); setCurrentPage(1) }} options={[]}>
+                  <Select value={String(sortBy)} onChange={(e: ChangeEvent<HTMLSelectElement>) => { setSortBy(e.target.value as keyof Patient); setCurrentPage(1) }} options={[]}>
                     <SelectTrigger className="w-auto h-8 px-2">
                       <SelectValue placeholder="Sort" />
                     </SelectTrigger>
@@ -348,6 +361,9 @@ export function PatientsListPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <Button variant="ghost" size="sm" onClick={exportCSV} className="hidden md:inline-flex">
+                  <Download className="h-4 w-4 mr-2" />Export
+                </Button>
               </div>
               <div className="flex items-center gap-2">
                 <Button
