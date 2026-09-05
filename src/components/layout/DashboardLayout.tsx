@@ -181,7 +181,7 @@ export function DashboardLayout() {
         </header>
 
         {/* Page content */}
-        <div className="p-4 lg:p-8">
+        <div className="">
           <Outlet />
         </div>
       </main>

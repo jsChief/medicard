@@ -165,7 +165,7 @@ export function EditPatientPage() {
     formState: { errors },
     reset,
   } = useForm<PatientFormData>({
-    resolver: zodResolver(fullSchema) as any,
+    resolver: zodResolver<PatientFormData>(fullSchema),
     defaultValues: mockPatientData,
     mode: "onChange",
   })
@@ -178,10 +178,10 @@ export function EditPatientPage() {
     return () => subscription.unsubscribe()
   }, [watch])
 
-  const watchedContacts = watch("contacts", [{ name: "", relationship: "", phone: "", email: "", address: "", isPrimary: true }])
-  const watchedConditions = watch("conditions", [])
-  const watchedMedications = watch("medications", [])
-  const watchedAllergies = watch("allergies", [])
+  const watchedContacts = watch("contacts", [{ name: "", relationship: "", phone: "", email: "", address: "", isPrimary: true }]) as PatientFormData["contacts"]
+  const watchedConditions = watch("conditions", []) as PatientFormData["conditions"]
+  const watchedMedications = watch("medications", []) as PatientFormData["medications"]
+  const watchedAllergies = watch("allergies", []) as PatientFormData["allergies"]
 
   const nextStep = () => {
     if (currentStep < steps.length) {
@@ -195,23 +195,33 @@ export function EditPatientPage() {
     }
   }
 
-  const addArrayItem = (field: string, defaultValue: unknown) => {
-    const current = ((watch() as any)[field] as any[]) || []
-    ;(setValue as any)(field, [...current, defaultValue], { shouldValidate: true })
+  const addArrayItem = <T extends keyof PatientFormData>(
+    field: T,
+    defaultValue: PatientFormData[T] extends Array<infer U> ? U : never,
+  ) => {
+    const current = (watch(field) as Array<typeof defaultValue>) || []
+    setValue(field as any, [...current, defaultValue] as any, { shouldValidate: true })
     setHasChanges(true)
   }
 
-  const removeArrayItem = (field: string, index: number) => {
-    const current = ((watch() as any)[field] as any[]) || []
-    ;(setValue as any)(field, current.filter((_, i) => i !== index), { shouldValidate: true })
+  const removeArrayItem = <T extends keyof PatientFormData>(
+    field: T,
+    index: number,
+  ) => {
+    const current = (watch(field) as Array<PatientFormData[T] extends Array<infer U> ? U : never>) || []
+    setValue(field as any, current.filter((_, i) => i !== index) as any, { shouldValidate: true })
     setHasChanges(true)
   }
 
-  const updateArrayItem = (field: string, index: number, value: unknown) => {
-    const current = ((watch() as any)[field] as any[]) || []
+  const updateArrayItem = <T extends keyof PatientFormData>(
+    field: T,
+    index: number,
+    value: PatientFormData[T] extends Array<infer U> ? U : never,
+  ) => {
+    const current = (watch(field) as Array<typeof value>) || []
     const updated = [...current]
     updated[index] = value
-    ;(setValue as any)(field, updated, { shouldValidate: true })
+    setValue(field as any, updated as any, { shouldValidate: true })
     setHasChanges(true)
   }
 
