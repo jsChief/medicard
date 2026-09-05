@@ -398,7 +398,7 @@ export function EditPatientPage() {
               <label className="label">Additional Notes</label>
               <textarea
                 {...register("notes")}
-                className="input border rounded-lg p-2 min-h-[100px] resize-y"
+                className="input border rounded-lg p-2 min-h-25 resize-y"
                 placeholder="Any additional medical history notes..."
               />
             </div>
@@ -513,7 +513,7 @@ export function EditPatientPage() {
               <label className="label">Coverage Notes</label>
               <textarea
                 {...register("coverageNotes")}
-                className="input border rounded-lg p-2 min-h-[80px] resize-y"
+                className="input border rounded-lg p-2 min-h-20 resize-y"
                 placeholder="Coverage details, limitations, special instructions..."
               />
             </div>
@@ -543,7 +543,7 @@ export function EditPatientPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-100">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-text-muted">Loading patient data...</p>
@@ -553,7 +553,7 @@ export function EditPatientPage() {
   }
 
   return (
-    <form onSubmit={handleSubmit((d) => onSubmit(d as PatientFormData))} className="space-y-6" noValidate>
+    <form onSubmit={handleSubmit((d) => onSubmit(d as unknown as PatientFormData))} className="space-y-6" noValidate>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text">Edit Patient</h1>
