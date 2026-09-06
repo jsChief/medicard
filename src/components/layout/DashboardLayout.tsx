@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useLocation, Link } from "react-router-dom"
+import { Outlet, NavLink, useLocation, Link, useNavigate } from "react-router-dom"
 import {
   LayoutDashboard,
   Users,
@@ -20,6 +20,7 @@ import {
 import { useState } from "react"
 import { Button } from "@/components/ui/Button"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/context/AuthContext"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -42,6 +43,13 @@ export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
+  const { logout } = useAuth()
+
+  const handleLogout = async () => {
+    await logout()
+    navigate("/login")
+  }
 
   return (
     <div className="min-h-screen bg-bg lg:flex place-content-between">
@@ -131,7 +139,7 @@ export function DashboardLayout() {
                 <span>{item.name}</span>
               </NavLink>
             ))}
-            <Button variant="ghost" className="w-full justify-start gap-3 px-3 py-2 text-text-muted hover:text-danger hover:bg-danger/10">
+            <Button variant="ghost" className="w-full justify-start gap-3 px-3 py-2 text-text-muted hover:text-danger hover:bg-danger/10" onClick={handleLogout}>
               <LogOut className="h-5 w-5" aria-hidden="true" />
               <span>Sign out</span>
             </Button>

@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { useNavigate, useLocation } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import type { User as FirebaseUser } from "firebase/auth"
 import { onAuthStateChanged } from "firebase/auth"
 import { auth } from "@/lib/firebase"
@@ -44,11 +44,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
 
   useEffect(() => {
+    if (!auth) {
+      console.warn("Firebase Auth not initialized, skipping auth state listener")
+      setIsLoading(false)
+      return
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setFirebaseUser(firebaseUser)
       if (firebaseUser) {
-        const profile = await getUserProfile(firebaseUser.uid)
-        setUser(profile)
+        try {
+          const profile = await getUserProfile(firebaseUser.uid)
+          setUser(profile)
+        } catch (error) {
+          console.error("Failed to get user profile:", error)
+          // Keep user authenticated even if profile fetch fails
+          setUser({ id: firebaseUser.uid, email: firebaseUser.email || "", name: firebaseUser.displayName || "User", role: "admin", hospitalId: "default" })
+        }
       } else {
         setUser(null)
       }
@@ -132,62 +144,7 @@ export function useAuth() {
 
 export async function getToken(): Promise<string | null> {
   if (typeof window === "undefined") return null
-  const user = auth.currentUser
+  const user = auth?.currentUser
   if (!user) return null
   return user.getIdToken()
-}
-
-export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { user, isLoading, isAuthenticated } = useAuth()
-  const location = useLocation()
-  const navigate = useNavigate()
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent" />
-      </div>
-    )
-  }
-
-  if (!isAuthenticated) {
-    navigate("/login", { state: { from: location }, replace: true })
-    return null
-  }
-
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    navigate("/dashboard", { replace: true })
-    return null
-  }
-
-  return <>{children}</>
-}
-
-export function PublicRoute({ children }: PublicRouteProps) {
-  const { isAuthenticated, isLoading } = useAuth()
-  const navigate = useNavigate()
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent" />
-      </div>
-    )
-  }
-
-  if (isAuthenticated) {
-    navigate("/dashboard", { replace: true })
-    return null
-  }
-
-  return <>{children}</>
-}
-
-interface ProtectedRouteProps {
-  children: ReactNode
-  allowedRoles?: User["role"][]
-}
-
-interface PublicRouteProps {
-  children: ReactNode
 }

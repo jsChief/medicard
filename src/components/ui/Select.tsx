@@ -4,17 +4,25 @@ import * as React from "react"
 import { ChevronDown, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "onChange"> {
   label?: string
   error?: string
   helperText?: string
   placeholder?: string
   options: { value: string; label: string }[]
+  value?: string
+  onChange?: (value: string) => void
 }
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, label, error, helperText, placeholder, options, id, children, ...props }, ref) => {
+  ({ className, label, error, helperText, placeholder, options, id, children, value, onChange, ...props }, ref) => {
     const selectId = id || label?.toLowerCase().replace(/\s+/g, "-")
+
+    const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      if (onChange) {
+        onChange(e.target.value)
+      }
+    }
 
     return (
       <div className="w-full">
@@ -27,6 +35,8 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           <select
             ref={ref}
             id={selectId}
+            value={value}
+            onChange={handleChange}
             className={cn(
               "w-full rounded-lg border border-border bg-surface px-4 py-2.5 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors disabled:bg-bg disabled:cursor-not-allowed appearance-none",
               error && "border-danger focus:border-danger focus:ring-danger/20",

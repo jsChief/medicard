@@ -5,7 +5,7 @@ import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Download, Search, Fi
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select"
+import { Select } from "@/components/ui/Select"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
 
 export interface Column<T> {
@@ -210,7 +210,7 @@ export function DataTable<T extends Record<string, unknown>>({
                 <Select
                   key={String(filter.key)}
                   value={filterValues[String(filter.key)] || "All"}
-                  onChange={(e) => handleFilterChange(String(filter.key), e.target.value)}
+                  onChange={(value) => handleFilterChange(String(filter.key), value)}
                   options={[{ value: "All", label: filter.placeholder || "All" }, ...filter.options]}
                 />
               ))}
@@ -348,18 +348,9 @@ export function DataTable<T extends Record<string, unknown>>({
                     </span>
                     <Select
                       value={String(pageSizeState)}
-                      onChange={(e) => { setPageSizeState(Number(e.target.value)); setCurrentPage(1) }}
+                      onChange={(value) => { setPageSizeState(Number(value)); setCurrentPage(1) }}
                       options={pageSizeOptions.map((size) => ({ value: String(size), label: `${size} per page` }))}
-                    >
-                      <SelectTrigger className="w-auto h-8 px-2">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {pageSizeOptions.map((size) => (
-                          <SelectItem key={size} value={String(size)}>{size} per page</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
                   </div>
                   <div className="flex items-center gap-2">
                     <Button

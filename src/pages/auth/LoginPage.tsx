@@ -7,6 +7,8 @@ import { useState } from "react"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
+import { toast } from "@/components/ui/Toast"
+import { useAuth } from "@/context/AuthContext"
 
 const loginSchema = z.object({
   email: z.string().min(1, "Email is required").email("Invalid email address"),
@@ -18,6 +20,7 @@ type LoginFormData = z.infer<typeof loginSchema>
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const { login } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -34,12 +37,26 @@ export function LoginPage() {
     },
   })
 
-  const onSubmit = async (/* _data: LoginFormData */) => {
+  const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true)
-    // TODO: Replace with actual API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setIsLoading(false)
-    navigate("/dashboard")
+    try {
+      await login(data.email, data.password, data.rememberMe)
+      toast({
+        title: "Welcome back!",
+        description: "You have been signed in successfully.",
+        variant: "success",
+      })
+      navigate("/dashboard")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to sign in. Please try again."
+      toast({
+        title: "Sign in failed",
+        description: message,
+        variant: "error",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (

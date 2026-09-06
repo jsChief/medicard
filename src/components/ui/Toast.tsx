@@ -5,7 +5,7 @@ import * as ToastPrimitives from "@radix-ui/react-toast"
 import { X, CheckCircle, AlertCircle, AlertTriangle, Info, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-const ToastProvider = ToastPrimitives.Provider
+const RadixToastProvider = ToastPrimitives.Provider
 
 const ToastViewport = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Viewport>,
@@ -14,7 +14,7 @@ const ToastViewport = React.forwardRef<
   <ToastPrimitives.Viewport
     ref={ref}
     className={cn(
-      "fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]",
+      "fixed top-0 z-100 flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-105",
       className
     )}
     {...props}
@@ -42,7 +42,7 @@ const Toast = React.forwardRef<React.ElementRef<typeof ToastPrimitives.Root>, To
     }
 
     const iconColors = {
-      default: "text-text-muted",
+      default: "text-text",
       success: "text-success",
       error: "text-danger",
       warning: "text-warning",
@@ -61,11 +61,11 @@ const Toast = React.forwardRef<React.ElementRef<typeof ToastPrimitives.Root>, To
 
     const bgColors = {
       default: "bg-surface",
-      success: "bg-success/5",
-      error: "bg-danger/5",
-      warning: "bg-warning/5",
-      info: "bg-primary/5",
-      loading: "bg-primary/5",
+      success: "bg-success/95",
+      error: "bg-danger/95",
+      warning: "bg-warning/95",
+      info: "bg-primary/95",
+      loading: "bg-primary/95",
     }
 
     const Icon = icons[variant]
@@ -74,7 +74,7 @@ const Toast = React.forwardRef<React.ElementRef<typeof ToastPrimitives.Root>, To
       <ToastPrimitives.Root
         ref={ref}
         className={cn(
-          "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-lg border p-4 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full",
+          "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-lg border p-4 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--radix-toast-swipe-end-x) data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full",
           bgColors[variant],
           borderColors[variant],
           className
@@ -89,10 +89,10 @@ const Toast = React.forwardRef<React.ElementRef<typeof ToastPrimitives.Root>, To
           )}
           <div className="flex-1 min-w-0">
             {title && (
-              <div className="text-sm font-medium text-text">{title}</div>
+              <div className="text-sm font-medium text-white">{title}</div>
             )}
             {description && (
-              <div className="text-sm text-text-muted mt-0.5">{description}</div>
+              <div className="text-sm text-white/90 mt-0.5">{description}</div>
             )}
           </div>
           {action && (
@@ -101,8 +101,8 @@ const Toast = React.forwardRef<React.ElementRef<typeof ToastPrimitives.Root>, To
         </div>
         <ToastPrimitives.Close
           className={cn(
-            "absolute right-2 top-2 rounded-md p-1 text-text-muted/50 opacity-0 transition-opacity hover:text-text-muted focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100",
-            "sm:text-text-muted/40"
+            "absolute right-2 top-2 rounded-md p-1 text-white/60 opacity-0 transition-opacity hover:text-white focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100",
+            "sm:text-white/40"
           )}
           onClick={onClose}
         >
@@ -149,10 +149,56 @@ interface ToastOptions {
   onClose?: () => void
 }
 
-function useToast() {
+interface ToastState {
+  toasts: Array<ToastOptions & { id: string }>
+  addToast: (options: ToastOptions) => string
+  dismiss: (id: string) => void
+  dismissAll: () => void
+}
+
+const ToastContext = React.createContext<ToastState | null>(null)
+
+export function useToast() {
+  const context = React.useContext(ToastContext)
+  if (!context) {
+    throw new Error("useToast must be used within a ToastProvider")
+  }
+  return context
+}
+
+// Global toast state registry
+let globalToastState: ToastState | null = null
+
+function __registerToastState(state: ToastState | null) {
+  globalToastState = state
+}
+
+export function toast(options: ToastOptions): string {
+  if (globalToastState) {
+    return globalToastState.addToast(options)
+  }
+  // Fallback: show native alert if toast system not initialized
+  console.warn("Toast system not initialized, falling back to console")
+  console.log(`[${options.variant?.toUpperCase() || "INFO"}] ${options.title}: ${options.description}`)
+  return ""
+}
+
+export function dismissToast(id: string) {
+  if (globalToastState) {
+    globalToastState.dismiss(id)
+  }
+}
+
+export function dismissAllToasts() {
+  if (globalToastState) {
+    globalToastState.dismissAll()
+  }
+}
+
+export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = React.useState<Array<ToastOptions & { id: string }>>([])
 
-  const toast = React.useCallback((options: ToastOptions) => {
+  const addToast = React.useCallback((options: ToastOptions) => {
     const id = Math.random().toString(36).substring(2, 9)
     const newToast = { ...options, id }
     setToasts((prev) => [...prev, newToast])
@@ -174,43 +220,44 @@ function useToast() {
     setToasts([])
   }, [])
 
-  return { toasts, toast, dismiss, dismissAll }
-}
+  // Register the current toast state for global access after render.
+  React.useEffect(() => {
+    const state: ToastState = {
+      toasts,
+      addToast,
+      dismiss,
+      dismissAll,
+    }
+    __registerToastState(state)
+    return () => __registerToastState(null)
+  }, [toasts, addToast, dismiss, dismissAll])
 
-const ToastContainer = () => {
-  const { toasts, dismiss } = useToast()
+  const value = React.useMemo(() => ({ 
+    toasts, 
+    addToast, 
+    dismiss, 
+    dismissAll 
+  }), [toasts, addToast, dismiss, dismissAll])
 
   return (
-    <ToastProvider>
-      {toasts.map((toast) => (
-        <Toast
-          key={toast.id}
-          variant={toast.variant}
-          title={toast.title}
-          description={toast.description}
-          action={toast.action}
-          onClose={() => dismiss(toast.id)}
-        />
-      ))}
-      <ToastViewport />
-    </ToastProvider>
+    <RadixToastProvider>
+      <ToastContext.Provider value={value}>
+        {children}
+        <ToastViewport>
+          {toasts.map((toast) => (
+            <Toast
+              key={toast.id}
+              variant={toast.variant}
+              title={toast.title}
+              description={toast.description}
+              action={toast.action}
+              onClose={() => dismiss(toast.id)}
+            />
+          ))}
+        </ToastViewport>
+      </ToastContext.Provider>
+    </RadixToastProvider>
   )
 }
 
-export function useToastStore() {
-  return useToast()
-}
-
-export function toast(options: ToastOptions) {
-  return useToast().toast(options)
-}
-
-export function dismissToast(id: string) {
-  return useToast().dismiss(id)
-}
-
-export function dismissAllToasts() {
-  return useToast().dismissAll()
-}
-
-export { Toast, ToastAction, ToastClose, ToastViewport, ToastProvider, ToastContainer }
+export { Toast, ToastAction, ToastClose, ToastViewport, __registerToastState }

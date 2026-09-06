@@ -7,6 +7,8 @@ import { useState } from "react"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
+import { toast } from "@/components/ui/Toast"
+import { useAuth } from "@/context/AuthContext"
 
 const forgotPasswordSchema = z.object({
   email: z.string().min(1, "Email is required").email("Invalid email address"),
@@ -15,30 +17,63 @@ const forgotPasswordSchema = z.object({
 type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>
 
 export function ForgotPasswordPage() {
+  const { forgotPassword } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [isSent, setIsSent] = useState(false)
+  const [sentEmail, setSentEmail] = useState("")
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-    reset,
   } = useForm<ForgotPasswordFormData>({
     resolver: zodResolver(forgotPasswordSchema),
     defaultValues: { email: "" },
   })
 
-  const onSubmit = async (/* _data: ForgotPasswordFormData */) => {
+  const onSubmit = async (data: ForgotPasswordFormData) => {
     setIsLoading(true)
-    // TODO: Replace with actual API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setIsLoading(false)
-    setIsSent(true)
+    try {
+      await forgotPassword(data.email)
+      setIsSent(true)
+      setSentEmail(data.email)
+      toast({
+        title: "Reset link sent",
+        description: `Check your email at ${data.email} for password reset instructions.`,
+        variant: "success",
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to send reset link. Please try again."
+      toast({
+        title: "Failed to send reset link",
+        description: message,
+        variant: "error",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleResend = () => {
-    setIsSent(false)
-    reset()
+  const handleResend = async () => {
+    if (!sentEmail) return
+    setIsLoading(true)
+    try {
+      await forgotPassword(sentEmail)
+      toast({
+        title: "Reset link resent",
+        description: `Check your email at ${sentEmail} for password reset instructions.`,
+        variant: "success",
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to resend reset link. Please try again."
+      toast({
+        title: "Failed to resend",
+        description: message,
+        variant: "error",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   if (isSent) {
@@ -51,10 +86,10 @@ export function ForgotPasswordPage() {
             </div>
             <h2 className="text-2xl font-bold text-text mb-2">Check your email</h2>
             <p className="text-text-muted mb-6">
-              We've sent a password reset link to <strong className="text-text">{watch("email")}</strong>.
+              We've sent a password reset link to <strong className="text-text">{sentEmail}</strong>.
               The link will expire in 1 hour.
             </p>
-            <Button variant="outline" onClick={handleResend} className="w-full sm:w-auto">
+            <Button variant="outline" onClick={handleResend} className="w-full sm:w-auto" isLoading={isLoading}>
               <Mail className="h-4 w-4 mr-2" />
               Resend email
             </Button>
@@ -111,10 +146,4 @@ export function ForgotPasswordPage() {
       </CardFooter>
     </Card>
   )
-}
-
-// Helper to watch form values outside the form
-function watch(name: string) {
-  // This is a placeholder - in real implementation use useWatch from react-hook-form
-  return name === "email" ? "you@hospital.com" : ""
 }

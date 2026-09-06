@@ -12,20 +12,35 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
-let app: FirebaseApp
-let auth: Auth
-let db: Firestore
-let storage: FirebaseStorage
+// Validate required config
+const requiredKeys = ["apiKey", "authDomain", "projectId", "appId"] as const
+const missingKeys = requiredKeys.filter((key) => !firebaseConfig[key])
 
-if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig)
-} else {
-  app = getApps()[0]
+if (missingKeys.length > 0) {
+  console.warn(`Firebase config missing: ${missingKeys.join(", ")}. Firebase features will be disabled.`)
 }
 
-auth = getAuth(app)
-db = getFirestore(app)
-storage = getStorage(app)
+let app: FirebaseApp | null = null
+let auth: Auth | null = null
+let db: Firestore | null = null
+let storage: FirebaseStorage | null = null
+
+if (missingKeys.length === 0) {
+  try {
+    if (getApps().length === 0) {
+      app = initializeApp(firebaseConfig)
+    } else {
+      app = getApps()[0]
+    }
+    auth = getAuth(app)
+    db = getFirestore(app)
+    storage = getStorage(app)
+  } catch (error) {
+    console.error("Failed to initialize Firebase:", error)
+  }
+} else {
+  console.warn("Firebase not initialized due to missing configuration")
+}
 
 export { app, auth, db, storage }
 export default app

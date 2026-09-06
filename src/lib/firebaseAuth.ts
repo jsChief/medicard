@@ -9,8 +9,18 @@ import {
   onAuthStateChanged,
   type UserCredential,
 } from "firebase/auth"
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore"
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp, collection, addDoc } from "firebase/firestore"
 import { auth, db } from "./firebase"
+
+function getAuth() {
+  if (!auth) throw new Error("Firebase Auth not initialized. Check your Firebase configuration.")
+  return auth
+}
+
+function getDb() {
+  if (!db) throw new Error("Firebase Firestore not initialized. Check your Firebase configuration.")
+  return db
+}
 
 export interface User {
   id: string
@@ -26,7 +36,7 @@ export interface User {
 const USERS_COLLECTION = "users"
 
 export async function loginWithEmail(email: string, password: string): Promise<UserCredential> {
-  return signInWithEmailAndPassword(auth, email, password)
+  return signInWithEmailAndPassword(getAuth(), email, password)
 }
 
 export async function registerWithEmail(
@@ -36,7 +46,8 @@ export async function registerWithEmail(
   role: User["role"],
   hospitalName: string
 ): Promise<UserCredential> {
-  const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+  
+  const userCredential = await createUserWithEmailAndPassword(auth!, email, password)
   
   await updateProfile(userCredential.user, { displayName: name })
   
@@ -55,8 +66,7 @@ export async function registerWithEmail(
 }
 
 async function createHospital(name: string, ownerId: string): Promise<string> {
-  const { collection, addDoc } = await import("firebase/firestore")
-  const hospitalRef = await addDoc(collection(db, "hospitals"), {
+  const hospitalRef = await addDoc(collection(getDb(), "hospitals"), {
     name,
     ownerId,
     createdAt: serverTimestamp(),
@@ -70,7 +80,7 @@ async function createHospital(name: string, ownerId: string): Promise<string> {
 }
 
 async function createUserProfile(uid: string, data: Partial<User>): Promise<void> {
-  await setDoc(doc(db, USERS_COLLECTION, uid), {
+  await setDoc(doc(getDb(), USERS_COLLECTION, uid), {
     ...data,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -78,30 +88,34 @@ async function createUserProfile(uid: string, data: Partial<User>): Promise<void
 }
 
 export async function getUserProfile(uid: string): Promise<User | null> {
-  const userDoc = await getDoc(doc(db, USERS_COLLECTION, uid))
+  const userDoc = await getDoc(doc(getDb(), USERS_COLLECTION, uid))
   if (!userDoc.exists()) return null
   return { id: userDoc.id, ...userDoc.data() } as User
 }
 
 export async function updateUserProfile(uid: string, data: Partial<User>): Promise<void> {
-  await updateDoc(doc(db, USERS_COLLECTION, uid), {
+  await updateDoc(doc(getDb(), USERS_COLLECTION, uid), {
     ...data,
     updatedAt: serverTimestamp(),
   })
 }
 
 export async function logout(): Promise<void> {
-  await firebaseSignOut(auth)
+  await firebaseSignOut(getAuth())
 }
 
 export async function forgotPassword(email: string): Promise<void> {
-  await sendPasswordResetEmail(auth, email)
+  await sendPasswordResetEmail(getAuth(), email)
 }
 
 export function onAuthStateChange(callback: (user: FirebaseUser | null) => void) {
+  if (!auth) {
+    callback(null)
+    return () => {}
+  }
   return onAuthStateChanged(auth, callback)
 }
 
 export function getCurrentUser(): FirebaseUser | null {
-  return auth.currentUser
+  return auth?.currentUser ?? null
 }

@@ -20,6 +20,11 @@ import {
 } from "firebase/firestore"
 import { db } from "./firebase"
 
+function getDb() {
+  if (!db) throw new Error("Firebase Firestore not initialized. Check your Firebase configuration.")
+  return db
+}
+
 export function timestampToDate(timestamp: Timestamp | Date | undefined): Date | undefined {
   if (!timestamp) return undefined
   if (timestamp instanceof Date) return timestamp
@@ -133,14 +138,16 @@ const patientConverter: FirestoreDataConverter<Patient> = {
 }
 
 export async function createPatient(patient: Omit<Patient, "id" | "createdAt" | "updatedAt">): Promise<string> {
-  const patientsRef = collection(db, PATIENTS_COLLECTION).withConverter(patientConverter)
+  
+  const patientsRef = collection(getDb(), PATIENTS_COLLECTION).withConverter(patientConverter)
   const docRef = doc(patientsRef)
   await setDoc(docRef, patient as Patient)
   return docRef.id
 }
 
 export async function getPatient(id: string): Promise<Patient | null> {
-  const patientRef = doc(db, PATIENTS_COLLECTION, id).withConverter(patientConverter)
+  
+  const patientRef = doc(getDb(), PATIENTS_COLLECTION, id).withConverter(patientConverter)
   const snapshot = await getDoc(patientRef)
   return snapshot.exists() ? snapshot.data() : null
 }
@@ -148,7 +155,8 @@ export async function getPatient(id: string): Promise<Patient | null> {
 import type { FieldValue } from "firebase/firestore"
 
 export async function updatePatient(id: string, data: Partial<Patient>): Promise<void> {
-  const patientRef = doc(db, PATIENTS_COLLECTION, id).withConverter(patientConverter)
+  
+  const patientRef = doc(getDb(), PATIENTS_COLLECTION, id).withConverter(patientConverter)
   await updateDoc(patientRef, {
     ...data,
     updatedAt: serverTimestamp(),
@@ -156,7 +164,8 @@ export async function updatePatient(id: string, data: Partial<Patient>): Promise
 }
 
 export async function deletePatient(id: string): Promise<void> {
-  const patientRef = doc(db, PATIENTS_COLLECTION, id)
+  
+  const patientRef = doc(getDb(), PATIENTS_COLLECTION, id)
   await deleteDoc(patientRef)
 }
 
@@ -174,6 +183,7 @@ export interface PatientQueryOptions {
 export async function queryPatients(
   options: PatientQueryOptions = {}
 ): Promise<{ patients: Patient[]; lastDoc: DocumentSnapshot | null }> {
+  
   const constraints: QueryConstraint[] = []
   
   if (options.hospitalId) {
@@ -197,7 +207,7 @@ export async function queryPatients(
     constraints.push(startAfter(options.startAfterDoc))
   }
   
-  const patientsRef = collection(db, PATIENTS_COLLECTION).withConverter(patientConverter)
+  const patientsRef = collection(getDb(), PATIENTS_COLLECTION).withConverter(patientConverter)
   const q = query(patientsRef, ...constraints)
   const snapshot = await getDocs(q)
   
@@ -208,7 +218,8 @@ export async function queryPatients(
 }
 
 export async function searchPatients(hospitalId: string, searchTerm: string): Promise<Patient[]> {
-  const patientsRef = collection(db, PATIENTS_COLLECTION).withConverter(patientConverter)
+  
+  const patientsRef = collection(getDb(), PATIENTS_COLLECTION).withConverter(patientConverter)
   const q = query(
     patientsRef,
     where("hospitalId", "==", hospitalId),
@@ -221,25 +232,28 @@ export async function searchPatients(hospitalId: string, searchTerm: string): Pr
 }
 
 export async function getPatientsByPhysician(physicianId: string): Promise<Patient[]> {
-  const patientsRef = collection(db, PATIENTS_COLLECTION).withConverter(patientConverter)
+  
+  const patientsRef = collection(getDb(), PATIENTS_COLLECTION).withConverter(patientConverter)
   const q = query(patientsRef, where("attendingPhysician", "==", physicianId))
   const snapshot = await getDocs(q)
   return snapshot.docs.map((doc) => doc.data())
 }
 
 export async function bulkUpdatePatients(ids: string[], data: Partial<Patient>): Promise<void> {
-  const batch = writeBatch(db)
+  
+  const batch = writeBatch(getDb())
   ids.forEach((id) => {
-    const patientRef = doc(db, PATIENTS_COLLECTION, id)
+    const patientRef = doc(getDb(), PATIENTS_COLLECTION, id)
     batch.update(patientRef, { ...data, updatedAt: serverTimestamp() } as Partial<Patient> & { updatedAt: FieldValue })
   })
   await batch.commit()
 }
 
 export async function bulkDeletePatients(ids: string[]): Promise<void> {
-  const batch = writeBatch(db)
+  
+  const batch = writeBatch(getDb())
   ids.forEach((id) => {
-    const patientRef = doc(db, PATIENTS_COLLECTION, id)
+    const patientRef = doc(getDb(), PATIENTS_COLLECTION, id)
     batch.delete(patientRef)
   })
   await batch.commit()
@@ -269,13 +283,15 @@ export interface HospitalSettings {
 const HOSPITALS_COLLECTION = "hospitals"
 
 export async function getHospital(id: string): Promise<Hospital | null> {
-  const hospitalRef = doc(db, HOSPITALS_COLLECTION, id)
+  
+  const hospitalRef = doc(getDb(), HOSPITALS_COLLECTION, id)
   const snapshot = await getDoc(hospitalRef)
   return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } as Hospital : null
 }
 
 export async function updateHospital(id: string, data: Partial<Hospital>): Promise<void> {
-  const hospitalRef = doc(db, HOSPITALS_COLLECTION, id)
+  
+  const hospitalRef = doc(getDb(), HOSPITALS_COLLECTION, id)
   await updateDoc(hospitalRef, { ...data, updatedAt: serverTimestamp() })
 }
 
@@ -299,7 +315,8 @@ export interface StaffMember {
 const STAFF_COLLECTION = "staff"
 
 export async function createStaffMember(staff: Omit<StaffMember, "id" | "createdAt" | "updatedAt">): Promise<string> {
-  const staffRef = collection(db, STAFF_COLLECTION)
+  
+  const staffRef = collection(getDb(), STAFF_COLLECTION)
   const docRef = doc(staffRef)
   await setDoc(docRef, {
     ...staff,
@@ -310,18 +327,21 @@ export async function createStaffMember(staff: Omit<StaffMember, "id" | "created
 }
 
 export async function getStaffByHospital(hospitalId: string): Promise<StaffMember[]> {
-  const staffRef = collection(db, STAFF_COLLECTION)
+  
+  const staffRef = collection(getDb(), STAFF_COLLECTION)
   const q = query(staffRef, where("hospitalId", "==", hospitalId), where("isActive", "==", true))
   const snapshot = await getDocs(q)
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as StaffMember))
 }
 
 export async function updateStaffMember(id: string, data: Partial<StaffMember>): Promise<void> {
-  const staffRef = doc(db, STAFF_COLLECTION, id)
+  
+  const staffRef = doc(getDb(), STAFF_COLLECTION, id)
   await updateDoc(staffRef, { ...data, updatedAt: serverTimestamp() })
 }
 
 export async function deleteStaffMember(id: string): Promise<void> {
-  const staffRef = doc(db, STAFF_COLLECTION, id)
+  
+  const staffRef = doc(getDb(), STAFF_COLLECTION, id)
   await deleteDoc(staffRef)
 }
