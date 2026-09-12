@@ -8,6 +8,7 @@ export interface InputProps
   helperText?: string
 }
 
+
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, label, error, helperText, id, ...props }, ref) => {
     const inputId = id || label?.toLowerCase().replace(/\s+/g, "-")

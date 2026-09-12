@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useParams, Link } from "react-router-dom"
 import {
   User, Heart, Pill, AlertTriangle, Phone, Shield, FileText, Calendar, MapPin, Mail, Edit, ArrowLeft, Printer, Download, Share2, Clock, Stethoscope, Building2, Shield as ShieldIcon, AlertCircle, CheckCircle2, XCircle, Info, ExternalLink, Menu, X,
@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar"
 import { Separator } from "@/components/ui/Separator"
 import { cn, formatDate } from "@/lib/utils"
+import { getPatient, type Patient as FirestorePatient } from "@/lib/firestore"
 
 interface Patient {
   id: string
@@ -66,55 +67,71 @@ interface Patient {
   }
 }
 
-const mockPatient: Patient = {
-  id: "1",
-  mrn: "MRN-2024-001234",
-  name: "Maria Santos",
-  dob: "1985-03-15",
-  age: 39,
-  gender: "F",
-  phone: "+63 917 123 4567",
-  email: "maria.santos@email.com",
-  address: "123 Main Street, Barangay 123",
-  city: "Manila",
-  state: "Metro Manila",
-  postalCode: "1000",
-  country: "Philippines",
-  bloodType: "O+",
-  maritalStatus: "married",
-  occupation: "Teacher",
-  nationality: "Filipino",
-  department: "Cardiology",
-  attendingPhysician: "Dr. James Doe",
-  status: "active",
-  admissionDate: "2024-01-10",
-  lastVisit: "2024-01-20",
-  conditions: ["Hypertension", "Type 2 Diabetes", "Hyperlipidemia"],
-  medications: ["Metformin 500mg BID", "Lisinopril 10mg Daily", "Atorvastatin 20mg HS", "Aspirin 81mg Daily"],
-  allergies: ["Penicillin", "Sulfa drugs"],
-  surgeries: ["Appendectomy (2010)", "Cholecystectomy (2018)"],
-  familyHistory: ["Father: Coronary artery disease", "Mother: Type 2 diabetes", "Brother: Hypertension"],
-  immunizations: ["COVID-19 mRNA (2023)", "Influenza (2024)", "Hepatitis B series (2015)", "Tdap (2020)"],
-  notes: "Patient is compliant with medications. Blood pressure well-controlled on current regimen. HbA1c 7.2% last check. Recommended annual eye exam and foot exam for diabetes monitoring.",
-  emergencyContacts: [
-    { name: "Jose Santos", relationship: "Husband", phone: "+63 918 234 5678", email: "jose.santos@email.com", address: "123 Main Street, Barangay 123, Manila", isPrimary: true },
-    { name: "Ana Santos", relationship: "Daughter", phone: "+63 919 345 6789", email: "ana.santos@email.com", address: "456 Oak Avenue, Quezon City", isPrimary: false },
-  ],
-  insurance: {
-    provider: "PhilHealth",
-    policyNumber: "PH-2024-123456789",
-    groupNumber: "GRP-987654321",
-    memberId: "MID-111222333",
-    planType: "HMO",
-    effectiveDate: "2024-01-01",
-    expiryDate: "2024-12-31",
-    copayAmount: "₱500",
-    deductibleAmount: "₱10,000",
-    coverageNotes: "Covers inpatient, outpatient, and emergency services. Pre-authorization required for elective procedures.",
-    secondaryInsurance: true,
-    secondaryProvider: "Maxicare",
-    secondaryPolicyNumber: "MAX-2024-987654321",
-  },
+function mapFirestorePatient(fp: FirestorePatient): Patient {
+  const now = new Date()
+  const dob = fp.dob instanceof Date ? fp.dob : new Date(fp.dob)
+  const age = now.getFullYear() - dob.getFullYear() - (now.getMonth() < dob.getMonth() || (now.getMonth() === dob.getMonth() && now.getDate() < dob.getDate()) ? 1 : 0)
+
+  const formatDateStr = (date: Date | undefined): string => {
+    if (!date) return ""
+    const d = date instanceof Date ? date : new Date(date)
+    return d.toISOString().split("T")[0]
+  }
+
+  return {
+    id: fp.id,
+    mrn: fp.mrn,
+    name: `${fp.firstName} ${fp.lastName}`.trim(),
+    dob: formatDateStr(fp.dob),
+    age,
+    gender: fp.gender,
+    phone: fp.phone,
+    email: fp.email || "",
+    address: fp.address,
+    city: fp.city,
+    state: fp.state,
+    postalCode: fp.postalCode,
+    country: fp.country,
+    bloodType: fp.bloodType,
+    maritalStatus: fp.maritalStatus,
+    occupation: fp.occupation || "",
+    nationality: fp.nationality || "Filipino",
+    department: fp.department,
+    attendingPhysician: fp.attendingPhysician,
+    status: fp.status,
+    admissionDate: formatDateStr(fp.admissionDate),
+    lastVisit: formatDateStr(fp.lastVisit),
+    conditions: fp.conditions || [],
+    medications: fp.medications || [],
+    allergies: fp.allergies || [],
+    surgeries: fp.surgeries || [],
+    familyHistory: fp.familyHistory || [],
+    immunizations: fp.immunizations || [],
+    notes: fp.notes || "",
+    emergencyContacts: (fp.emergencyContacts || []).map(ec => ({
+      name: ec.name,
+      relationship: ec.relationship,
+      phone: ec.phone,
+      email: ec.email || "",
+      address: ec.address || "",
+      isPrimary: ec.isPrimary,
+    })),
+    insurance: {
+      provider: fp.insurance?.provider || "",
+      policyNumber: fp.insurance?.policyNumber || "",
+      groupNumber: fp.insurance?.groupNumber || "",
+      memberId: fp.insurance?.memberId || "",
+      planType: fp.insurance?.planType || "",
+      effectiveDate: formatDateStr(fp.insurance?.effectiveDate),
+      expiryDate: formatDateStr(fp.insurance?.expiryDate),
+      copayAmount: fp.insurance?.copayAmount || "",
+      deductibleAmount: fp.insurance?.deductibleAmount || "",
+      coverageNotes: fp.insurance?.coverageNotes || "",
+      secondaryInsurance: fp.insurance?.secondaryInsurance || false,
+      secondaryProvider: fp.insurance?.secondaryProvider || "",
+      secondaryPolicyNumber: fp.insurance?.secondaryPolicyNumber || "",
+    },
+  }
 }
 
 function getStatusConfig(status: Patient["status"]) {
@@ -189,13 +206,66 @@ export function PatientDetailPage() {
   const { id } = useParams()
   const [activeTab, setActiveTab] = useState("overview")
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const patient = mockPatient
-  const statusConfig = getStatusConfig(patient.status)
+  const [patient, setPatient] = useState<Patient | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!id) return
+
+    const fetchPatient = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const firestorePatient = await getPatient(id)
+        if (firestorePatient) {
+          setPatient(mapFirestorePatient(firestorePatient))
+        } else {
+          setError("Patient not found")
+        }
+      } catch (err) {
+        console.error("Failed to fetch patient:", err)
+        setError("Failed to load patient data")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchPatient()
+  }, [id])
+
+  const statusConfig = patient ? getStatusConfig(patient.status) : { label: "", variant: "secondary" as const, icon: Info, color: "" }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent" />
+          <p className="text-text-muted">Loading patient data...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !patient) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-danger mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-text mb-2">{error || "Patient not found"}</h2>
+          <Button variant="outline" onClick={() => window.history.back()}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Go Back
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-bg">
       {/* Sticky Header */}
-      <header className="sticky top-0 z-40 w- border-b border-border bg-surfac/95 backdrop-blur suppots-backdrop-filter:bg-surface/60">
+      <header className="sticky top-0 z-40 w-full border-b border-border bg-surface/95 backdrop-blur supports-backdrop-filter:bg-surface/60">
         <div className="container w-full px-4">
           <div className="flex h-16 items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -223,7 +293,7 @@ export function PatientDetailPage() {
                 </Button>
               </Link>
               <Button variant="ghost" size="sm" className="sm:hidden" onClick={() => setMobileMenuOpen(true)}>
-                <Menu className="h-5 w-5" />
+                <Menu className="h-5 w-5 stroke-current" />
               </Button>
             </div>
           </div>

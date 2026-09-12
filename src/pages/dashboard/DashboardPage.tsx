@@ -63,14 +63,13 @@ export function DashboardPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-text">Dashboard</h1>
-          <p className="text-text-muted mt-1">Overview of hospital operations and patient card status</p>
+          <p className="text-text-muted mt-1 pl-4 text-xl">Overview of hospital operations and patient card status</p>
         </div>
         <div className="flex items-center gap-2">
-          <select className="input w-auto px-3 py-2 text-sm">
+          <select className="input w-auto px-3 py-2 text-sm" defaultValue="month">
             <option value="today">Today</option>
             <option value="week">This Week</option>
-            <option value="month" selected>This Month</option>
+            <option value="month">This Month</option>
             <option value="quarter">This Quarter</option>
           </select>
         </div>
@@ -87,14 +86,14 @@ export function DashboardPage() {
       <HMOBottleneckCallout />
 
       {/* Main Content Grid */}
-      <div className="grid gap-6 lg:grid-cols-12">
+      <div className="grd gap-6 lg:grd-cols-12">
         {/* Location Matrix - 8 cols */}
         <div className="lg:col-span-8">
           <LocationMatrix />
         </div>
 
         {/* Action Watchlist - 4 cols */}
-        <div className="lg:col-span-4 space-y-6">
+        <div className="lg:col-span-4 space-y-6 w-full">
           <ActionWatchlist />
 
           {/* Quick Stats Sidebar */}

@@ -10,6 +10,9 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Select } from "@/components/ui/Select"
 import { cn } from "@/lib/utils"
 import { useNavigate } from "react-router-dom"
+import { useAuth } from "@/context/AuthContext"
+import { createPatient, type Patient } from "@/lib/firestore"
+import { toast } from "sonner"
 
 const steps = [
   { id: 1, title: "Personal Info", icon: User, description: "Basic patient information" },
@@ -103,6 +106,7 @@ const planTypes = [
 
 export function AddPatientPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [currentStep, setCurrentStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -113,6 +117,7 @@ export function AddPatientPage() {
     setValue,
     formState: { errors },
   } = useForm<PatientFormData>({
+    mode: "onChange",
     resolver: zodResolver(fullSchema) as unknown as Resolver<PatientFormData>,
     defaultValues: {
       firstName: "",
@@ -154,7 +159,6 @@ export function AddPatientPage() {
       secondaryProvider: "",
       secondaryPolicyNumber: "",
     },
-    mode: "onChange",
   })
 
   const watchedContacts = watch("contacts", [{ name: "", relationship: "", phone: "", email: "", address: "", isPrimary: true }]) as PatientFormData["contacts"]
@@ -231,11 +235,83 @@ export function AddPatientPage() {
     setValue("contacts", updated, { shouldValidate: true })
   }
 
-  const onSubmit: SubmitHandler<PatientFormData> = async (_data) => {
+  const onSubmit: SubmitHandler<PatientFormData> = async (data) => {
+    console.log("🔵 [onSubmit] Called with data:", data)
+    console.log("🔵 [onSubmit] Current errors:", errors)
+    console.log("🔵 [onSubmit] Form state:", { isValid: Object.keys(errors).length === 0 })
+    if (!user?.hospitalId) {
+      console.log("🔴 [onSubmit] No hospitalId for user:", user)
+      toast.error("User hospital not found")
+      return
+    }
+    console.log("🟢 [onSubmit] User has hospitalId:", user.hospitalId)
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setIsSubmitting(false)
-    navigate("/patients")
+    try {
+      const now = new Date()
+      const dob = new Date(data.dob)
+      console.log("🟡 [onSubmit] Building patientData...")
+      
+      const patientData: Omit<Patient, "id" | "createdAt" | "updatedAt"> = {
+        mrn: data.mrn || `MRN-${now.getFullYear()}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        middleName: data.middleName,
+        dob,
+        gender: data.gender,
+        phone: data.phone,
+        email: data.email || undefined,
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        postalCode: data.postalCode,
+        country: data.country,
+        bloodType: data.bloodType,
+        maritalStatus: data.maritalStatus,
+        occupation: data.occupation,
+        nationality: data.nationality,
+        conditions: data.conditions,
+        medications: data.medications,
+        allergies: data.allergies,
+        surgeries: data.surgeries,
+        familyHistory: data.familyHistory,
+        immunizations: data.immunizations,
+        notes: data.notes,
+        emergencyContacts: data.contacts,
+        insurance: {
+          provider: data.provider,
+          policyNumber: data.policyNumber,
+          groupNumber: data.groupNumber,
+          memberId: data.memberId,
+          planType: data.planType,
+          effectiveDate: new Date(data.effectiveDate),
+          expiryDate: new Date(data.expiryDate),
+          copayAmount: data.copayAmount,
+          deductibleAmount: data.deductibleAmount,
+          coverageNotes: data.coverageNotes,
+          secondaryInsurance: data.secondaryInsurance,
+          secondaryProvider: data.secondaryProvider,
+          secondaryPolicyNumber: data.secondaryPolicyNumber,
+        },
+        attendingPhysician: user.name,
+        department: "General",
+        status: "pending",
+        admissionDate: now,
+        lastVisit: now,
+        createdBy: user.id,
+        hospitalId: user.hospitalId,
+      }
+
+      console.log("🟡 [onSubmit] Calling createPatient...")
+      await createPatient(patientData)
+      console.log("🟢 [onSubmit] Patient created successfully")
+      toast.success("Patient created successfully")
+      navigate("/patients")
+    } catch (error) {
+      console.error("🔴 [onSubmit] Error:", error)
+      toast.error("Failed to create patient. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const isLastStep = currentStep === steps.length
@@ -255,13 +331,15 @@ export function AddPatientPage() {
               <Select
                 label="Gender *"
                 options={genders}
-                {...register("gender")}
+                value={watch("gender")}
+                onChange={(value) => setValue("gender", value as "M" | "F" | "O", { shouldValidate: true })}
                 error={errors.gender?.message}
               />
               <Select
                 label="Blood Type *"
                 options={bloodTypes.map((b) => ({ value: b, label: b }))}
-                {...register("bloodType")}
+                value={watch("bloodType")}
+                onChange={(value) => setValue("bloodType", value as "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-" | "Unknown", { shouldValidate: true })}
                 error={errors.bloodType?.message}
               />
             </div>
@@ -283,7 +361,8 @@ export function AddPatientPage() {
               <Select
                 label="Marital Status *"
                 options={maritalStatuses}
-                {...register("maritalStatus")}
+                value={watch("maritalStatus")}
+                onChange={(value) => setValue("maritalStatus", value as "single" | "married" | "divorced" | "widowed" | "other", { shouldValidate: true })}
                 error={errors.maritalStatus?.message}
               />
               <Input label="Occupation" placeholder="Software Engineer" {...register("occupation")} error={errors.occupation?.message} />
@@ -481,7 +560,8 @@ export function AddPatientPage() {
               <Select
                 label="Plan Type *"
                 options={planTypes}
-                {...register("planType")}
+                value={watch("planType")}
+                onChange={(value) => setValue("planType", value as "HMO" | "PPO" | "EPO" | "POS" | "Medicare" | "Medicaid" | "Other", { shouldValidate: true })}
                 error={errors.planType?.message}
               />
             </div>
@@ -531,7 +611,13 @@ export function AddPatientPage() {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+    <form onSubmit={(e) => {
+      console.log("🔵 [Form] onSubmit triggered")
+      e.preventDefault()
+      console.log("🔵 [Form] Calling handleSubmit...")
+      handleSubmit(onSubmit)(e)
+      console.log("🔵 [Form] handleSubmit returned")
+    }} className="space-y-6" noValidate>
       {/* Progress Steps */}
       <Card>
         <CardContent className="pt-6">
@@ -605,7 +691,7 @@ export function AddPatientPage() {
 
       {/* Mobile Step Navigation */}
       <div className="lg:hidden flex items-center justify-between">
-        <Button variant="outline" onClick={prevStep} disabled={currentStep === 1} className="gap-1">
+        <Button type="button" variant="outline" onClick={prevStep} disabled={currentStep === 1} className="gap-1">
           <ChevronLeft className="h-4 w-4" />
           Back
         </Button>
@@ -626,7 +712,7 @@ export function AddPatientPage() {
             />
           ))}
         </div>
-        <Button variant="outline" onClick={nextStep} disabled={currentStep === steps.length} className="gap-1">
+        <Button type="button" variant="outline" onClick={nextStep} disabled={currentStep === steps.length} className="gap-1">
           Next
           <ChevronRight className="h-4 w-4" />
         </Button>

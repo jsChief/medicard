@@ -139,9 +139,12 @@ const patientConverter: FirestoreDataConverter<Patient> = {
 
 export async function createPatient(patient: Omit<Patient, "id" | "createdAt" | "updatedAt">): Promise<string> {
   
+  console.log("🟡 [createPatient] Starting, hospitalId:", patient.hospitalId)
   const patientsRef = collection(getDb(), PATIENTS_COLLECTION).withConverter(patientConverter)
   const docRef = doc(patientsRef)
+  console.log("🟡 [createPatient] Doc ref:", docRef.id)
   await setDoc(docRef, patient as Patient)
+  console.log("🟢 [createPatient] Success, ID:", docRef.id)
   return docRef.id
 }
 
@@ -174,7 +177,7 @@ export interface PatientQueryOptions {
   department?: string
   status?: Patient["status"]
   search?: string
-  sortBy?: keyof Patient
+  sortBy?: string
   sortOrder?: "asc" | "desc"
   pageSize?: number
   startAfterDoc?: DocumentSnapshot

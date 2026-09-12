@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { AuthProvider, useAuth } from "@/context/AuthContext"
+import { ThemeProvider } from "@/context/ThemeContext"
 import { Layout } from "./components/layout/Layout"
 import { AuthLayout } from "./components/layout/AuthLayout"
 import { DashboardLayout } from "./components/layout/DashboardLayout"
@@ -14,6 +15,12 @@ import { PatientsListPage } from "./pages/patients/PatientsListPage"
 import { AddPatientPage } from "./pages/patients/AddPatientPage"
 import { PatientDetailPage } from "./pages/patients/PatientDetailPage"
 import { EditPatientPage } from "./pages/patients/EditPatientPage"
+import { SettingsPage } from "./pages/settings/SettingsPage"
+import { PatientCardsPage } from "./pages/patient-cards/PatientCardsPage"
+import { ArchivePage } from "./pages/archive/ArchivePage"
+import { CheckoutsPage } from "./pages/checkouts/CheckoutsPage"
+import { HMOApprovalsPage } from "./pages/hmo-approvals/HMOApprovalsPage"
+import { LocationMatrixPage } from "./pages/location-matrix/LocationMatrixPage"
 import React from "react"
 
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: ("admin" | "doctor" | "nurse" | "receptionist")[] }) {
@@ -59,8 +66,9 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <Routes>
+      <ThemeProvider>
+        <AuthProvider>
+          <Routes>
           {/* Public routes */}
           <Route element={<Layout />}>
             <Route path="/" element={<HomePage />} />
@@ -110,17 +118,18 @@ function App() {
             <Route path="/patients/new" element={<AddPatientPage />} />
             <Route path="/patients/:id" element={<PatientDetailPage />} />
             <Route path="/patients/:id/edit" element={<EditPatientPage />} />
-            <Route path="/patient-cards" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Patient Cards - Coming Soon</h1></div>} />
-            <Route path="/archive" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Archive - Coming Soon</h1></div>} />
-            <Route path="/checkouts" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Active Checkouts - Coming Soon</h1></div>} />
-            <Route path="/hmo-approvals" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">HMO Approvals - Coming Soon</h1></div>} />
-            <Route path="/location-matrix" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Location Matrix - Coming Soon</h1></div>} />
-            <Route path="/settings" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Settings - Coming Soon</h1></div>} />
+            <Route path="/patient-cards" element={<PatientCardsPage />} />
+            <Route path="/archive" element={<ArchivePage />} />
+            <Route path="/checkouts" element={<CheckoutsPage />} />
+            <Route path="/hmo-approvals" element={<HMOApprovalsPage />} />
+            <Route path="/location-matrix" element={<LocationMatrixPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="/profile" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Profile - Coming Soon</h1></div>} />
             <Route path="/notifications" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Notifications - Coming Soon</h1></div>} />
           </Route>
         </Routes>
       </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   )
 }

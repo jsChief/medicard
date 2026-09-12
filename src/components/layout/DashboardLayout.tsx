@@ -10,17 +10,35 @@ import {
   Settings,
   Hospital,
   LogOut,
-  ChevronLeft,
-  ChevronRight,
   Bell,
   Search,
   User,
   Menu,
+  Sun,
+  Moon,
 } from "lucide-react"
-import { useState } from "react"
+import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/Button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarHeader,
+  SidebarFooter,
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+  SidebarRail,
+  useSidebar,
+} from "@/components/ui/sidebar"
+import { AppSidebar } from "../ui/AppSidebar"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -33,18 +51,28 @@ const navigation = [
   { name: "Settings", href: "/settings", icon: Settings },
 ]
 
-
-
 const userNavigation = [
   { name: "Profile", href: "/profile", icon: User },
 ]
 
+function MobileMenuButton() {
+  const { toggleSidebar } = useSidebar()
+  return (
+    <button
+      className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-surface border border-border shadow-lg"
+      onClick={toggleSidebar}
+      aria-label="Open menu"
+    >
+      <Menu className="h-6 w-6 stroke-current" />
+    </button>
+  )
+}
+
 export function DashboardLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
+  const { theme, setTheme } = useTheme()
 
   const handleLogout = async () => {
     await logout()
@@ -52,123 +80,109 @@ export function DashboardLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-bg lg:flex place-content-between">
-      {/* Mobile sidebar overlay */}
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          "fixed lg:fixed lg:left-0 lg:top-0 z-50 h-full bg-surface border-r border-border transition-all duration-300 ease-in-out flex flex-col",
-          sidebarOpen ? "w-[24%]" : "w-[10%]",
-          mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        )}
-        aria-label="Main navigation"
-      >
-        {/* Logo & Toggle */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-border">
+    <SidebarProvider className="min-h-screen bg-bg">
+      <Sidebar collapsible="icon" variant="sidebar">
+        <SidebarHeader className="px-2 pb-6">
           <Link to="/dashboard" className="flex items-center gap-3" aria-label="MediCard Dashboard">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary">
               <Hospital className="h-5 w-5 text-white" aria-hidden="true" />
             </div>
-            {sidebarOpen && <span className="text-xl font-bold text-text">MediCard</span>}
+            <span className="text-xl font-bold text-text group-data-[collapsible=icon]:hidden">MediCard</span>
           </Link>
-          <button
-            className={cn(
-              "p-2 rounded-lg text-text-muted hover:bg-bg hover:text-text transition-colors",
-              sidebarOpen ? "lg:hidden" : "lg:flex"
-            )}
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-            aria-expanded={sidebarOpen}
-          >
-            {sidebarOpen ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-          </button>
-        </div>
+        </SidebarHeader>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto" role="navigation" aria-label="Dashboard navigation">
-          {navigation.map((item) => {
-            const isActive = location.pathname === item.href || location.pathname.startsWith(item.href + "/")
-            return (
-              <NavLink
-                key={item.name}
-                to={item.href}
-                className={({ isActive }) => cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-primary text-white"
-                    : "text-text-muted hover:bg-bg hover:text-text",
-                  !sidebarOpen && "justify-center px-2"
-                )}
-                title={sidebarOpen ? undefined : item.name}
-                aria-current={isActive ? "page" : undefined}
-              >
-                <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-                {sidebarOpen && <span>{item.name}</span>}
-              </NavLink>
-            )
-          })}
-        </nav>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+{navigation.map((item) => {
+                    const isActive = location.pathname === item.href || location.pathname.startsWith(item.href + "/")
+                    return (
+                      <SidebarMenuItem key={item.name}>
+                        <SidebarMenuButton asChild tooltip={item.name} isActive={isActive}>
+                          <NavLink
+                            to={item.href}
+                            className={cn(
+                              "flex items-center gap-3",
+                              isActive
+                                ? "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                                : "text-text-muted hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                            )}
+                            aria-current={isActive ? "page" : undefined}
+                          >
+                          <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+                          <span>{item.name}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
+</SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
 
-        {/* User section */}
-        <div className={cn("p-4 border-t border-border", !sidebarOpen && "hidden")}>
-          <div className="flex items-center gap-3 px-3 py-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-medium">
-              JD
+          <SidebarFooter className="p-2 border-t border-sidebar-border">
+            <div className="flex items-center gap-3 group-data-[collapsible=icon]:px-0 py-2">
+              {user?.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={user.name}
+                  className="h-10 w-10 shrink-0 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex size-10 group-data-[collapsible=icon]:size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-medium">
+                  {user?.name
+                    ?.split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2) || "U"}
+                </div>
+              )}
+              <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
+                <p className="text-sm font-medium text-text truncate">{user?.name || "User"}</p>
+                <p className="text-xs text-text-muted truncate capitalize">{user?.role || "user"}</p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-text truncate">Dr. James Doe</p>
-              <p className="text-xs text-text-muted truncate">Administrator</p>
-            </div>
-          </div>
-          <div className="mt-3 space-y-1">
+            <div className="mt-3 space-y-1">
             {userNavigation.map((item) => (
-              <NavLink
-                key={item.name}
-                to={item.href}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-text-muted hover:bg-bg hover:text-text transition-colors"
-              >
-                <item.icon className="h-5 w-5" aria-hidden="true" />
-                <span>{item.name}</span>
-              </NavLink>
+              <SidebarMenuItem key={item.name}>
+                <SidebarMenuButton asChild>
+                  <NavLink
+                    to={item.href}
+                    className="flex items-center gap-3 text-text-muted hover:text-sidebar-accent-foreground"
+                  >
+                    <item.icon className="h-5 w-5" aria-hidden="true" />
+                    <span>{item.name}</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             ))}
-            <Button variant="ghost" className="w-full justify-start gap-3 px-3 py-2 text-text-muted hover:text-danger hover:bg-danger/10" onClick={handleLogout}>
-              <LogOut className="h-5 w-5" aria-hidden="true" />
-              <span>Sign out</span>
-            </Button>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                variant="default"
+                className="w-full justify-start text-text-muted hover:text-danger hover:bg-danger/10"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-5 w-5" aria-hidden="true" />
+                <span>Sign out</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </div>
-        </div>
-      </aside>
+        </SidebarFooter>
+      </Sidebar>
 
-      {/* Mobile menu button */}
-      <button
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-surface border border-border shadow-lg"
-        onClick={() => setMobileMenuOpen(true)}
-        aria-label="Open menu"
-        aria-expanded={mobileMenuOpen}
-      >
-        <Menu className="h-6 w-6" />
-      </button>
+      <SidebarRail />
 
-      {/* Main content */}
-      <div className="flex-1 flex place-content-end w-full transition-all duration-300 ease-in-out">
-      <main
-        className={cn(
-          "transition-all duration-300 min-h-screen w-[76%]",
-              { /*sidebarOpen? "lg:pl-4": "lg:pl-2" */}
-        )}
-      >
+      <SidebarInset>
+        <MobileMenuButton />
+
         {/* Top bar */}
-        <header className="sticky p-4 top-0 z-30 h-16 backdrop-blur supports-backdrop-filter:bg-surface/60 border-b border-border">
-          <div className="flex h-full items-center place-content-between px-2 lg:pl-8 lg:pr-4">
-            <div className="flex items-center gap-4">
+        <header className="sticky top-0 z-30 h-16 backdrop-blur supports-backdrop-filter:bg-surface/60 border-b border-border">
+          <div className="flex h-full items-center justify-between px-4 lg:px-8">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger className="text-text" />
               <h1 className="text-xl font-semibold text-text">
                 {navigation.find((n) => location.pathname === n.href || location.pathname.startsWith(n.href + "/"))?.name || "Dashboard"}
               </h1>
@@ -184,16 +198,25 @@ export function DashboardLayout() {
               <Button variant="ghost" size="sm">
                 <Search className="h-5 w-5" />
               </Button>
+              <div className="hidden sm:flex h-8 w-px bg-border" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                aria-label="Toggle theme"
+              >
+                <Sun className="h-5 w-5 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
+                <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
+              </Button>
             </div>
           </div>
         </header>
 
         {/* Page content */}
-        <div className="">
+        <div className="p-4 lg:p-6">
           <Outlet />
         </div>
-      </main>
-      </div>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }
