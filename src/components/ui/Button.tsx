@@ -10,14 +10,14 @@ export interface ButtonProps
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "primary", size = "md", isLoading, children, disabled, ...props }, ref) => {
-    const baseStyles = "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+    const baseStyles = "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus:outline-none focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
     
     const variants = {
-      primary: "bg-primary text-white hover:bg-primary-hover focus:ring-primary",
-      secondary: "bg-secondary text-white hover:bg-slate-600 focus:ring-secondary",
-      outline: "border border-border bg-surface text-text hover:bg-bg focus:ring-primary",
-      ghost: "bg-transparent text-text hover:bg-bg focus:ring-primary",
-      danger: "bg-danger text-white hover:bg-red-700 focus:ring-danger",
+      primary: "bg-primary text-white hover:bg-primary-hover",
+      secondary: "bg-secondary text-white hover:bg-slate-600",
+      outline: "border border-border bg-surface text-text hover:bg-bg",
+      ghost: "bg-transparent text-text hover:bg-bg",
+      danger: "bg-danger text-white hover:bg-red-700",
     }
     
     const sizes = {

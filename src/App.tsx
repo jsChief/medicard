@@ -16,11 +16,13 @@ import { AddPatientPage } from "./pages/patients/AddPatientPage"
 import { PatientDetailPage } from "./pages/patients/PatientDetailPage"
 import { EditPatientPage } from "./pages/patients/EditPatientPage"
 import { SettingsPage } from "./pages/settings/SettingsPage"
+import { ProfilePage } from "./pages/profile/ProfilePage"
 import { PatientCardsPage } from "./pages/patient-cards/PatientCardsPage"
 import { ArchivePage } from "./pages/archive/ArchivePage"
 import { CheckoutsPage } from "./pages/checkouts/CheckoutsPage"
 import { HMOApprovalsPage } from "./pages/hmo-approvals/HMOApprovalsPage"
 import { LocationMatrixPage } from "./pages/location-matrix/LocationMatrixPage"
+import { PricingPage } from "./pages/pricing/PricingPage"
 import React from "react"
 
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: ("admin" | "doctor" | "nurse" | "receptionist")[] }) {
@@ -73,7 +75,7 @@ function App() {
           <Route element={<Layout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/features" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Features Page - Coming Soon</h1></div>} />
-            <Route path="/pricing" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Pricing Page - Coming Soon</h1></div>} />
+            <Route path="/pricing" element={<PricingPage />} />
             <Route path="/about" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">About Page - Coming Soon</h1></div>} />
             <Route path="/demo" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Demo Page - Coming Soon</h1></div>} />
             <Route path="/contact" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Contact Page - Coming Soon</h1></div>} />
@@ -124,7 +126,7 @@ function App() {
             <Route path="/hmo-approvals" element={<HMOApprovalsPage />} />
             <Route path="/location-matrix" element={<LocationMatrixPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/profile" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Profile - Coming Soon</h1></div>} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/notifications" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Notifications - Coming Soon</h1></div>} />
           </Route>
         </Routes>

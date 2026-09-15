@@ -1,11 +1,29 @@
-import React, { useState } from "react"
-import { Search, ChevronDown, ChevronUp, Building2, Home, Bed, UserCheck, AlertTriangle, Loader2, MapPin, RefreshCw, Download, Eye, Settings, Bell } from "lucide-react"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
+import { useState, Fragment } from "react"
+import {
+  Search,
+  ChevronDown,
+  Building2,
+  Home,
+  Bed,
+  UserCheck,
+  AlertTriangle,
+  Loader2,
+  MapPin,
+  RefreshCw,
+  Download,
+  Eye,
+  Settings,
+  Bell,
+  Grid,
+  List,
+  Table2,
+} from "lucide-react"
+import { Card, CardContent } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
-import { Select } from "@/components/ui/Select"
-import { useAuth } from "@/context/AuthContext"
+import { FilterDropdown } from "@/components/ui/FilterDropdown"
+import { SortableTh } from "@/components/ui/SortableTh"
 import { cn } from "@/lib/utils"
 
 interface Location {
@@ -25,11 +43,11 @@ interface Location {
 }
 
 const locationTypes = {
-  ward: { label: "Ward", icon: Building2, color: "bg-blue-500" },
-  icu: { label: "ICU", icon: AlertTriangle, color: "bg-red-500" },
-  er: { label: "ER", icon: Home, color: "bg-orange-500" },
-  clinic: { label: "Clinic", icon: Bed, color: "bg-green-500" },
-  ot: { label: "OT", icon: UserCheck, color: "bg-purple-500" },
+  ward: { label: "Ward", icon: Building2, container: "bg-blue-500/10", fg: "text-blue-500" },
+  icu: { label: "ICU", icon: AlertTriangle, container: "bg-red-500/10", fg: "text-red-500" },
+  er: { label: "ER", icon: Home, container: "bg-orange-500/10", fg: "text-orange-500" },
+  clinic: { label: "Clinic", icon: Bed, container: "bg-green-500/10", fg: "text-green-500" },
+  ot: { label: "OT", icon: UserCheck, container: "bg-purple-500/10", fg: "text-purple-500" },
 }
 
 const mockLocations: Location[] = [
@@ -54,6 +72,10 @@ function getOccupancyRate(occupied: number, capacity: number) {
   return Math.round((occupied / capacity) * 100)
 }
 
+function getOccupancyBarColor(rate: number) {
+  return rate >= 90 ? "bg-danger" : rate >= 75 ? "bg-warning" : "bg-primary"
+}
+
 function getStatusConfig(status: Location["status"]) {
   switch (status) {
     case "normal":
@@ -75,8 +97,24 @@ function getEquipmentConfig(status: Location["equipmentStatus"]) {
   }
 }
 
+function OccupancyBar({ occupied, capacity }: { occupied: number; capacity: number }) {
+  const rate = getOccupancyRate(occupied, capacity)
+  return (
+    <div>
+      <div className="h-2 overflow-hidden rounded-full bg-border">
+        <div
+          className={cn("h-full rounded-full transition-all duration-500", getOccupancyBarColor(rate))}
+          style={{ width: `${rate}%` }}
+        />
+      </div>
+      <p className={cn("mt-1 text-right font-mono text-xs", rate >= 90 ? "text-danger" : rate >= 75 ? "text-warning" : "text-text-muted")}>
+        {rate}%
+      </p>
+    </div>
+  )
+}
+
 export function LocationMatrixPage() {
-  const { user: _user } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("All")
   const [statusFilter, setStatusFilter] = useState("All")
@@ -90,6 +128,10 @@ export function LocationMatrixPage() {
   const types = ["All", "ward", "icu", "er", "clinic", "ot"]
   const statuses = ["All", "normal", "warning", "critical", "maintenance"]
   const floors = ["All", "1", "2", "3", "4", "5", "6", "7"]
+
+  const typeOptions = types.map(t => ({ value: t, label: t === "All" ? "All Types" : locationTypes[t as keyof typeof locationTypes]?.label || t }))
+  const statusOptions = statuses.map(s => ({ value: s, label: s === "All" ? "All Status" : s.charAt(0).toUpperCase() + s.slice(1) }))
+  const floorOptions = floors.map(f => ({ value: f, label: f === "All" ? "All Floors" : `Floor ${f}` }))
 
   const filteredLocations = mockLocations
     .filter(l => {
@@ -113,8 +155,6 @@ export function LocationMatrixPage() {
     else { setSortBy(field); setSortOrder("asc") }
   }
 
-  const SortIcon = sortOrder === "asc" ? ChevronUp : ChevronDown
-
   const toggleSelect = (id: string) => {
     setSelectedItems(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
@@ -132,81 +172,107 @@ export function LocationMatrixPage() {
   const warningCount = mockLocations.filter(l => l.status === "warning").length
   const maintenanceCount = mockLocations.filter(l => l.status === "maintenance").length
 
+  const stats = [
+    { label: "Total Beds", value: String(totalCapacity), icon: Building2, iconBg: "bg-primary/10 text-primary" },
+    { label: "Occupied", value: String(totalOccupied), icon: UserCheck, iconBg: "bg-success/10 text-success" },
+    { label: "Available", value: String(totalAvailable), icon: Bed, iconBg: "bg-blue-500/10 text-blue-500" },
+    { label: "Occupancy Rate", value: `${overallOccupancy}%`, icon: Bell, iconBg: "bg-primary/10 text-primary" },
+    { label: "Alerts", value: String(criticalCount + warningCount + maintenanceCount), icon: AlertTriangle, iconBg: "bg-danger/10 text-danger" },
+  ]
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Page header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text">Location Matrix</h1>
           <p className="text-text-muted mt-1">Real-time bed management and facility overview</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" className="gap-2" onClick={() => {}}><RefreshCw className="h-4 w-4" /> Refresh</Button>
-          <Button variant="outline" className="gap-2"><Download className="h-4 w-4" /> Export</Button>
-          <Button variant="outline" className="gap-2"><Settings className="h-4 w-4" /> Configure</Button>
-          <Button className="gap-2"><MapPin className="h-4 w-4" /> Add Location</Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center rounded-lg border border-border bg-surface p-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode("table")}
+              className={cn("h-8 w-8 p-0", viewMode === "table" && "bg-primary text-white hover:bg-primary-hover")}
+              aria-label="Table view"
+              aria-pressed={viewMode === "table"}
+            >
+              <Table2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode("grid")}
+              className={cn("h-8 w-8 p-0", viewMode === "grid" && "bg-primary text-white hover:bg-primary-hover")}
+              aria-label="Grid view"
+              aria-pressed={viewMode === "grid"}
+            >
+              <Grid className="h-4 w-4" />
+            </Button>
+          </div>
+          <Button variant="outline" className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+          <Button variant="outline" className="gap-2">
+            <Download className="h-4 w-4" />
+            Export
+          </Button>
+          <Button variant="outline" className="gap-2">
+            <Settings className="h-4 w-4" />
+            Configure
+          </Button>
+          <Button className="gap-2">
+            <MapPin className="h-4 w-4" />
+            Add Location
+          </Button>
         </div>
       </div>
 
+      {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Card className="border-border/50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><Building2 className="h-5 w-5" /></div>
-              <div><p className="text-sm text-text-muted">Total Beds</p><p className="text-2xl font-bold text-text">{totalCapacity}</p></div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-border/50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10 text-success"><UserCheck className="h-5 w-5" /></div>
-              <div><p className="text-sm text-text-muted">Occupied</p><p className="text-2xl font-bold text-text">{totalOccupied}</p></div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-border/50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500"><Bed className="h-5 w-5" /></div>
-              <div><p className="text-sm text-text-muted">Available</p><p className="text-2xl font-bold text-text">{totalAvailable}</p></div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-border/50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><Bell className="h-5 w-5" /></div>
-              <div><p className="text-sm text-text-muted">Occupancy Rate</p><p className="text-2xl font-bold text-text">{overallOccupancy}%</p></div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-border/50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-danger/10 text-danger"><AlertTriangle className="h-5 w-5" /></div>
-              <div><p className="text-sm text-text-muted">Alerts</p><p className="text-2xl font-bold text-text">{criticalCount + warningCount + maintenanceCount}</p></div>
-            </div>
-          </CardContent>
-        </Card>
+        {stats.map(stat => (
+          <Card key={stat.label} className="p-0">
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", stat.iconBg)}>
+                <stat.icon className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm text-text-muted">{stat.label}</p>
+                <p className="text-2xl font-bold text-text">{stat.value}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      <Card className="border-border/50">
-        <CardContent className="p-4 pt-0">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-            <div className="relative sm:col-span-2">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
-              <Input placeholder="Search locations..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-10" />
+      {/* Filters */}
+      <Card className="p-0">
+        <CardContent className="p-4">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_200px_170px]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+              <Input
+                placeholder="Search locations or wings..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
             </div>
-            <Select label="Type" value={typeFilter} onChange={setTypeFilter} options={types.map(t => ({ value: t, label: t === "All" ? "All Types" : locationTypes[t as keyof typeof locationTypes]?.label || t }))} />
-            <Select label="Status" value={statusFilter} onChange={setStatusFilter} options={statuses.map(s => ({ value: s, label: s === "All" ? "All Status" : s.charAt(0).toUpperCase() + s.slice(1) }))} />
-            <Select label="Floor" value={floorFilter} onChange={setFloorFilter} options={floors.map(f => ({ value: f, label: f === "All" ? "All Floors" : `Floor ${f}` }))} />
+            <FilterDropdown value={typeFilter} onChange={setTypeFilter} options={typeOptions} />
+            <FilterDropdown value={statusFilter} onChange={setStatusFilter} options={statusOptions} />
+            <FilterDropdown value={floorFilter} onChange={setFloorFilter} options={floorOptions} />
           </div>
         </CardContent>
       </Card>
 
+      {/* Bulk actions */}
       {selectedItems.length > 0 && (
-        <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 flex items-center justify-between">
-          <span className="text-sm text-primary font-medium">{selectedItems.length} location(s) selected</span>
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+          <span className="text-sm font-medium text-primary">
+            {selectedItems.length} location(s) selected
+          </span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="gap-1"><Bell className="h-4 w-4" /> Notify Staff</Button>
             <Button variant="outline" size="sm" className="gap-1"><Settings className="h-4 w-4" /> Bulk Edit</Button>
@@ -215,175 +281,183 @@ export function LocationMatrixPage() {
         </div>
       )}
 
-      {viewMode === "table" ? (
-        <Card>
-          <CardHeader className="px-4 py-3 flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Location Details</CardTitle>
-              <CardDescription>Showing {filteredLocations.length} of {mockLocations.length} locations</CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" className={cn("h-9 w-9", "bg-primary text-white")} aria-label="Table view"><Settings className="h-4 w-4" /></Button>
-              <Button variant="outline" onClick={() => setViewMode("grid")} className="h-9 w-9" aria-label="Grid view"><MapPin className="h-4 w-4" /></Button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full" role="table">
-                <thead>
-                  <tr className="border-b border-border bg-bg/50">
-                    <th className="px-4 py-3 text-left w-12"><input type="checkbox" checked={selectedItems.length === filteredLocations.length && filteredLocations.length > 0} onChange={toggleSelectAll} className="h-4 w-4 rounded border-border text-primary" /></th>
-                    <th className="px-4 py-3 text-left"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("name")}>Location <SortIcon className="h-4 w-4 ml-1 inline" /></Button></th>
-                    <th className="px-4 py-3 text-left hidden md:table-cell"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("type")}>Type <SortIcon className="h-4 w-4 ml-1 inline" /></Button></th>
-                    <th className="px-4 py-3 text-left hidden lg:table-cell"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("floor")}>Floor <SortIcon className="h-4 w-4 ml-1 inline" /></Button></th>
-                    <th className="px-4 py-3 text-right"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("capacity")}>Capacity <SortIcon className="h-4 w-4 ml-1 inline" /></Button></th>
-                    <th className="px-4 py-3 text-right"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("occupied")}>Occupied <SortIcon className="h-4 w-4 ml-1 inline" /></Button></th>
-                    <th className="px-4 py-3 text-center"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("status")}>Status <SortIcon className="h-4 w-4 ml-1 inline" /></Button></th>
-                    <th className="px-4 py-3 text-center hidden xl:table-cell"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("staffOnDuty")}>Staff</Button></th>
-                    <th className="px-4 py-3 text-center hidden xl:table-cell"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("equipmentStatus")}>Equipment</Button></th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {filteredLocations.map(location => {
-                    const typeConfig = locationTypes[location.type]
-                    const statusConfig = getStatusConfig(location.status)
-                    const equipConfig = getEquipmentConfig(location.equipmentStatus)
-                    const occupancyRate = getOccupancyRate(location.occupied, location.capacity)
-                    const isSelected = selectedItems.includes(location.id)
-                    const isExpanded = expandedRow === location.id
-                    const Icon = typeConfig.icon
-                    const StatusIcon = statusConfig.icon
+      {filteredLocations.length === 0 ? (
+        <div className="py-16 text-center">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">
+            <MapPin className="h-6 w-6 text-text-muted/40" />
+          </div>
+          <p className="text-lg font-medium text-text">No locations found</p>
+          <p className="text-sm text-text-muted">Try adjusting your search or filters</p>
+        </div>
+      ) : viewMode === "table" ? (
+        <Card className="overflow-hidden p-0">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <p className="text-sm font-medium text-text">Location Details</p>
+            <p className="text-xs text-text-muted">{filteredLocations.length} of {mockLocations.length} locations</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full" role="table">
+              <thead>
+                <tr className="border-b border-border bg-bg/50 text-left">
+                  <th className="w-12 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.length === filteredLocations.length && filteredLocations.length > 0}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-border text-primary"
+                      aria-label="Select all locations"
+                    />
+                  </th>
+                  <SortableTh field="name" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort}>Location</SortableTh>
+                  <SortableTh field="type" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="hidden md:table-cell">Type</SortableTh>
+                  <SortableTh field="floor" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="hidden lg:table-cell">Floor</SortableTh>
+                  <SortableTh field="capacity" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="text-right">Capacity</SortableTh>
+                  <SortableTh field="occupied" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="text-right">Occupied</SortableTh>
+                  <SortableTh field="status" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort}>Status</SortableTh>
+                  <SortableTh field="staffOnDuty" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="hidden text-center xl:table-cell">Staff</SortableTh>
+                  <SortableTh field="equipmentStatus" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="hidden text-center xl:table-cell">Equipment</SortableTh>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-text-muted">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredLocations.map(location => {
+                  const typeConfig = locationTypes[location.type]
+                  const statusConfig = getStatusConfig(location.status)
+                  const equipConfig = getEquipmentConfig(location.equipmentStatus)
+                  const isSelected = selectedItems.includes(location.id)
+                  const isExpanded = expandedRow === location.id
+                  const Icon = typeConfig.icon
+                  const StatusIcon = statusConfig.icon
 
-                    return (
-                      <React.Fragment key={location.id}>
-                        <tr className={cn("hover:bg-bg/50 transition-colors cursor-pointer", isSelected && "bg-primary/5")} onClick={() => setExpandedRow(isExpanded ? null : location.id)}>
-                          <td className="px-4 py-4"><input type="checkbox" checked={isSelected} onChange={() => toggleSelect(location.id)} onClick={e => e.stopPropagation()} className="h-4 w-4 rounded border-border text-primary" /></td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", typeConfig.color + "/10")}>
-                                <Icon className={cn("h-4 w-4", typeConfig.color)} aria-hidden="true" />
-                              </div>
-                              <div>
-                                <p className="font-medium text-text">{location.name}</p>
-                                <p className="text-xs text-text-muted">Floor {location.floor} • {location.wing} Wing</p>
-                              </div>
+                  return (
+                    <Fragment key={location.id}>
+                      <tr
+                        className={cn("cursor-pointer transition-colors hover:bg-bg/60", isSelected && "bg-primary/5")}
+                        onClick={() => setExpandedRow(isExpanded ? null : location.id)}
+                      >
+                        <td className="px-4 py-4">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelect(location.id)}
+                            onClick={e => e.stopPropagation()}
+                            className="h-4 w-4 rounded border-border text-primary"
+                          />
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", typeConfig.container)}>
+                              <Icon className={cn("h-4 w-4", typeConfig.fg)} />
                             </div>
-                          </td>
-                          <td className="px-4 py-4 hidden md:table-cell">
-                            <Badge variant="secondary" className="text-xs">{typeConfig.label}</Badge>
-                          </td>
-                          <td className="px-4 py-4 hidden lg:table-cell"><span className="text-sm text-text">Floor {location.floor}</span></td>
-                          <td className="px-4 py-4 text-right font-mono text-sm text-text">{location.capacity}</td>
-                          <td className="px-4 py-4 text-right">
-                            <div className="w-28">
-                              <div className="h-2 bg-border rounded-full overflow-hidden">
-                                <div
-                                  className={cn(
-                                    "h-full rounded-full transition-all duration-500",
-                                    occupancyRate >= 90 ? "bg-danger" :
-                                    occupancyRate >= 75 ? "bg-warning" :
-                                    "bg-primary"
-                                  )}
-                                  style={{ width: `${occupancyRate}%` }}
-                                />
-                              </div>
-                              <p className="mt-1 text-xs font-mono text-text-muted text-right">{occupancyRate}%</p>
+                            <div>
+                              <p className="font-medium text-text">{location.name}</p>
+                              <p className="text-xs text-text-muted">Floor {location.floor} • {location.wing} Wing</p>
                             </div>
-                          </td>
-                          <td className="px-4 py-4 text-center">
-                            <Badge variant={statusConfig.variant} className="gap-1">
-                              <StatusIcon className="h-3 w-3" aria-hidden="true" />
-                              {statusConfig.label}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-4 text-center hidden xl:table-cell">
-                            <span className="text-sm text-text">{location.staffOnDuty} on duty</span>
-                          </td>
-                          <td className="px-4 py-4 text-center hidden xl:table-cell">
-                            <Badge variant={equipConfig.variant} className={cn("text-xs", equipConfig.color)}>{equipConfig.label}</Badge>
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={e => { e.stopPropagation(); }} aria-label="View"><Eye className="h-4 w-4" /></Button>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={e => { e.stopPropagation(); }} aria-label="Edit"><Settings className="h-4 w-4" /></Button>
-                              <span className={cn("h-8 w-8 flex items-center justify-center text-text-muted", isExpanded ? "rotate-180" : "")}>
-                                <ChevronDown className="h-4 w-4" />
-                              </span>
+                          </div>
+                        </td>
+                        <td className="hidden px-4 py-4 md:table-cell">
+                          <Badge variant="secondary" className="text-xs">{typeConfig.label}</Badge>
+                        </td>
+                        <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">Floor {location.floor}</td>
+                        <td className="px-4 py-4 text-right font-mono text-sm text-text">{location.capacity}</td>
+                        <td className="px-4 py-4">
+                          <div className="w-28">
+                            <OccupancyBar occupied={location.occupied} capacity={location.capacity} />
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <Badge variant={statusConfig.variant} className="gap-1">
+                            <StatusIcon className="h-3 w-3" />
+                            {statusConfig.label}
+                          </Badge>
+                        </td>
+                        <td className="hidden px-4 py-4 text-center text-sm text-text xl:table-cell">{location.staffOnDuty} on duty</td>
+                        <td className="hidden px-4 py-4 text-center xl:table-cell">
+                          <Badge variant={equipConfig.variant} className={cn("text-xs", equipConfig.color)}>{equipConfig.label}</Badge>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={e => e.stopPropagation()} aria-label="View location">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={e => e.stopPropagation()} aria-label="Edit location">
+                              <Settings className="h-4 w-4" />
+                            </Button>
+                            <span className={cn("flex h-8 w-8 items-center justify-center text-text-muted transition-transform", isExpanded && "rotate-180")}>
+                              <ChevronDown className="h-4 w-4" />
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {isExpanded && (
+                        <tr className="bg-bg/40">
+                          <td colSpan={10} className="px-4 py-4">
+                            <div className="grid gap-6 border-t border-border p-4 md:grid-cols-3">
+                              <div className="space-y-4 md:col-span-2">
+                                <div>
+                                  <h4 className="mb-2 flex items-center gap-2 font-medium text-text">
+                                    <MapPin className="h-4 w-4" /> Location Details
+                                  </h4>
+                                  <div className="grid grid-cols-2 gap-3 text-sm">
+                                    <p><span className="font-medium text-text-muted">Floor: </span>{location.floor}</p>
+                                    <p><span className="font-medium text-text-muted">Wing: </span>{location.wing}</p>
+                                    <p><span className="font-medium text-text-muted">Type: </span>{typeConfig.label}</p>
+                                    <p><span className="font-medium text-text-muted">Last Updated: </span>{location.lastUpdated}</p>
+                                  </div>
+                                </div>
+                                {location.notes && (
+                                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                                    <h4 className="mb-2 flex items-center gap-2 font-medium text-text">
+                                      <Bell className="h-4 w-4 text-primary" /> Notes
+                                    </h4>
+                                    <p className="text-sm text-text">{location.notes}</p>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="mb-2 flex items-center gap-2 font-medium text-text">
+                                    <Bed className="h-4 w-4" /> Bed Status
+                                  </h4>
+                                  <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between"><span className="text-text-muted">Total Capacity</span><span className="font-medium text-text">{location.capacity}</span></div>
+                                    <div className="flex justify-between"><span className="text-text-muted">Occupied</span><span className="font-medium text-text">{location.occupied}</span></div>
+                                    <div className="flex justify-between"><span className="text-text-muted">Available</span><span className="font-medium text-success">{location.available}</span></div>
+                                    <div className="flex justify-between">
+                                      <span className="text-text-muted">Occupancy Rate</span>
+                                      <span className={cn("font-medium", location.occupied / location.capacity >= 0.9 ? "text-danger" : location.occupied / location.capacity >= 0.75 ? "text-warning" : "text-text")}>
+                                        {getOccupancyRate(location.occupied, location.capacity)}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div>
+                                  <h4 className="mb-2 flex items-center gap-2 font-medium text-text">
+                                    <UserCheck className="h-4 w-4" /> Staffing
+                                  </h4>
+                                  <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between"><span className="text-text-muted">On Duty</span><span className="font-medium text-text">{location.staffOnDuty}</span></div>
+                                    <div className="flex justify-between"><span className="text-text-muted">Ratio</span><span className="font-medium text-text">1:{Math.round(location.occupied / location.staffOnDuty) || 0}</span></div>
+                                  </div>
+                                </div>
+                                <div>
+                                  <h4 className="mb-2 flex items-center gap-2 font-medium text-text">
+                                    <Settings className="h-4 w-4" /> Equipment
+                                  </h4>
+                                  <Badge variant={equipConfig.variant} className={cn("text-sm", equipConfig.color)}>{equipConfig.label}</Badge>
+                                </div>
+                              </div>
                             </div>
                           </td>
                         </tr>
-
-                        {isExpanded && (
-                          <tr className="bg-bg/50">
-                            <td colSpan={10} className="px-4 py-4">
-                              <div className="grid gap-6 md:grid-cols-3 p-4 border-t border-border">
-                                <div className="md:col-span-2 space-y-4">
-                                  <div>
-                                    <h4 className="font-medium text-text mb-2 flex items-center gap-2"><MapPin className="h-4 w-4" /> Location Details</h4>
-                                    <div className="grid grid-cols-2 gap-3 text-sm">
-                                      <p><span className="font-medium text-text-muted">Floor: </span>{location.floor}</p>
-                                      <p><span className="font-medium text-text-muted">Wing: </span>{location.wing}</p>
-                                      <p><span className="font-medium text-text-muted">Type: </span>{typeConfig.label}</p>
-                                      <p><span className="font-medium text-text-muted">Last Updated: </span>{location.lastUpdated}</p>
-                                    </div>
-                                  </div>
-                                  {location.notes && (
-                                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-                                      <h4 className="font-medium text-text mb-2 flex items-center gap-2"><Bell className="h-4 w-4 text-primary" /> Notes</h4>
-                                      <p className="text-sm text-text">{location.notes}</p>
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="space-y-4">
-                                  <div>
-                                    <h4 className="font-medium text-text mb-2 flex items-center gap-2"><Bed className="h-4 w-4" /> Bed Status</h4>
-                                    <div className="space-y-2 text-sm">
-                                      <div className="flex justify-between"><span className="text-text-muted">Total Capacity</span><span className="font-medium text-text">{location.capacity}</span></div>
-                                      <div className="flex justify-between"><span className="text-text-muted">Occupied</span><span className="font-medium text-text">{location.occupied}</span></div>
-                                      <div className="flex justify-between"><span className="text-text-muted">Available</span><span className="font-medium text-success">{location.available}</span></div>
-                                      <div className="flex justify-between"><span className="text-text-muted">Occupancy Rate</span><span className={cn("font-medium", occupancyRate >= 90 ? "text-danger" : occupancyRate >= 75 ? "text-warning" : "text-text")}>{occupancyRate}%</span></div>
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <h4 className="font-medium text-text mb-2 flex items-center gap-2"><UserCheck className="h-4 w-4" /> Staffing</h4>
-                                    <div className="space-y-2 text-sm">
-                                      <div className="flex justify-between"><span className="text-text-muted">On Duty</span><span className="font-medium text-text">{location.staffOnDuty}</span></div>
-                                      <div className="flex justify-between"><span className="text-text-muted">Ratio</span><span className="font-medium text-text">1:{Math.round(location.occupied / location.staffOnDuty) || 0}</span></div>
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <h4 className="font-medium text-text mb-2 flex items-center gap-2"><Settings className="h-4 w-4" /> Equipment</h4>
-                                    <Badge variant={equipConfig.variant} className={cn("text-sm", equipConfig.color)}>{equipConfig.label}</Badge>
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-            {filteredLocations.length === 0 && (
-              <div className="text-center py-12">
-                <MapPin className="h-12 w-12 text-text-muted/30 mx-auto mb-3" />
-                <p className="text-lg text-text-muted">No locations found</p>
-                <p className="text-sm text-text-muted">Try adjusting your search or filters</p>
-              </div>
-            )}
-          </CardContent>
-          <CardFooter className="flex justify-center py-3 border-t border-border">
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" disabled>Previous</Button>
-              <span className="px-3 py-1 text-sm font-medium text-text">1</span>
-              <span className="px-3 py-1 text-sm text-text-muted">2</span>
-              <span className="px-3 py-1 text-sm text-text-muted">3</span>
-              <Button variant="outline" size="sm">Next</Button>
-            </div>
-          </CardFooter>
+                      )}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -391,7 +465,6 @@ export function LocationMatrixPage() {
             const typeConfig = locationTypes[location.type]
             const statusConfig = getStatusConfig(location.status)
             const equipConfig = getEquipmentConfig(location.equipmentStatus)
-            const occupancyRate = getOccupancyRate(location.occupied, location.capacity)
             const isSelected = selectedItems.includes(location.id)
             const Icon = typeConfig.icon
             const StatusIcon = statusConfig.icon
@@ -399,55 +472,50 @@ export function LocationMatrixPage() {
             return (
               <Card
                 key={location.id}
-                className={cn("transition-all cursor-pointer hover:shadow-lg", isSelected && "ring-2 ring-primary border-primary")}
+                className={cn(
+                  "cursor-pointer overflow-hidden transition-all hover:shadow-md",
+                  isSelected && "ring-2 ring-primary border-primary"
+                )}
                 onClick={() => toggleSelect(location.id)}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleSelect(location.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                        onClick={e => e.stopPropagation()}
+                        className="h-4 w-4 rounded border-border text-primary"
                       />
-                      <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", typeConfig.color + "/10")}>
-                        <Icon className={cn("h-5 w-5", typeConfig.color)} />
+                      <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", typeConfig.container)}>
+                        <Icon className={cn("h-5 w-5", typeConfig.fg)} />
                       </div>
                     </div>
-                    <Badge variant={statusConfig.variant} className="capitalize gap-1">
+                    <Badge variant={statusConfig.variant} className="shrink-0 gap-1 capitalize">
                       <StatusIcon className="h-3 w-3" />
                       {statusConfig.label}
                     </Badge>
                   </div>
-                  <div className="mt-4 space-y-2">
-                    <p className="font-semibold text-text truncate">{location.name}</p>
-                    <p className="text-xs text-text-muted">Floor {location.floor} • {location.wing} Wing</p>
-                    <div className="flex items-center gap-2 text-xs text-text-muted">
-                      <Badge variant="secondary" className="text-xs">{typeConfig.label}</Badge>
-                      <Badge variant={equipConfig.variant} className={cn("text-xs", equipConfig.color)}>{equipConfig.label}</Badge>
-                    </div>
-                    <div className="w-full">
-                      <div className="h-2 bg-border rounded-full overflow-hidden">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-all duration-500",
-                            occupancyRate >= 90 ? "bg-danger" :
-                            occupancyRate >= 75 ? "bg-warning" :
-                            "bg-primary"
-                          )}
-                          style={{ width: `${occupancyRate}%` }}
-                        />
-                      </div>
-                      <p className="mt-1 text-xs font-mono text-text-muted text-right">{occupancyRate}% • {location.occupied}/{location.capacity}</p>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-text-muted">
-                      <span>{location.staffOnDuty} staff on duty</span>
-                    </div>
+
+                  <div className="mt-4">
+                    <p className="truncate font-semibold text-text">{location.name}</p>
+                    <p className="mt-0.5 text-xs text-text-muted">Floor {location.floor} • {location.wing} Wing</p>
                   </div>
-                  <div className="mt-4 pt-3 border-t border-border text-xs text-text-muted">
-                    Updated: {location.lastUpdated}
+
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <Badge variant="secondary" className="text-xs">{typeConfig.label}</Badge>
+                    <Badge variant={equipConfig.variant} className={cn("text-xs", equipConfig.color)}>{equipConfig.label}</Badge>
+                  </div>
+
+                  <div className="mt-4">
+                    <OccupancyBar occupied={location.occupied} capacity={location.capacity} />
+                    <p className="mt-1 text-right font-mono text-xs text-text-muted">{location.occupied}/{location.capacity} beds</p>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-text-muted">
+                    <span>{location.staffOnDuty} staff on duty</span>
+                    <span>Updated: {location.lastUpdated}</span>
                   </div>
                 </CardContent>
               </Card>

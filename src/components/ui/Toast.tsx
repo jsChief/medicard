@@ -59,23 +59,13 @@ const Toast = React.forwardRef<React.ElementRef<typeof ToastPrimitives.Root>, To
       loading: "border-primary/30",
     }
 
-    const bgColors = {
-      default: "bg-surface",
-      success: "bg-success/95",
-      error: "bg-danger/95",
-      warning: "bg-warning/95",
-      info: "bg-primary/95",
-      loading: "bg-primary/95",
-    }
-
     const Icon = icons[variant]
 
     return (
       <ToastPrimitives.Root
         ref={ref}
         className={cn(
-          "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-lg border p-4 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--radix-toast-swipe-end-x) data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full",
-          bgColors[variant],
+          "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-lg border border-border bg-surface p-4 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--radix-toast-swipe-end-x) data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full",
           borderColors[variant],
           className
         )}
@@ -89,10 +79,10 @@ const Toast = React.forwardRef<React.ElementRef<typeof ToastPrimitives.Root>, To
           )}
           <div className="flex-1 min-w-0">
             {title && (
-              <div className="text-sm font-medium text-white">{title}</div>
+              <div className="text-sm font-medium text-text">{title}</div>
             )}
             {description && (
-              <div className="text-sm text-white/90 mt-0.5">{description}</div>
+              <div className="text-sm text-text-muted mt-0.5">{description}</div>
             )}
           </div>
           {action && (
@@ -101,8 +91,8 @@ const Toast = React.forwardRef<React.ElementRef<typeof ToastPrimitives.Root>, To
         </div>
         <ToastPrimitives.Close
           className={cn(
-            "absolute right-2 top-2 rounded-md p-1 text-white/60 opacity-0 transition-opacity hover:text-white focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100",
-            "sm:text-white/40"
+            "absolute right-2 top-2 rounded-md p-1 text-text-muted/60 opacity-0 transition-opacity hover:text-text focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100",
+            "sm:text-text-muted/40"
           )}
           onClick={onClose}
         >

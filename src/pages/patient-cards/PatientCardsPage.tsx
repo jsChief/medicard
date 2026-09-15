@@ -1,11 +1,23 @@
 import { useState } from "react"
-import { Search, Filter, Plus, Download, Upload, Grid, List, Eye, Edit, MoreHorizontal, FileText, BadgeCheck } from "lucide-react"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
+import {
+  Search,
+  Plus,
+  Download,
+  Upload,
+  Grid,
+  List,
+  Eye,
+  Edit,
+  MoreHorizontal,
+  FileText,
+  BadgeCheck,
+  Bed,
+} from "lucide-react"
+import { Card, CardContent } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
-import { Select } from "@/components/ui/Select"
-import { useAuth } from "@/context/AuthContext"
+import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { cn } from "@/lib/utils"
 
 interface PatientCard {
@@ -59,11 +71,11 @@ const mockPatientCards: PatientCard[] = [
 
 function getStatusConfig(status: PatientCard["status"]) {
   switch (status) {
-    case "active": return { label: "Active", variant: "success" as const, color: "bg-success/10 text-success" }
-    case "discharged": return { label: "Discharged", variant: "secondary" as const, color: "bg-text-muted/10 text-text-muted" }
-    case "transferred": return { label: "Transferred", variant: "warning" as const, color: "bg-warning/10 text-warning" }
-    case "critical": return { label: "Critical", variant: "danger" as const, color: "bg-danger/10 text-danger" }
-    case "pending": return { label: "Pending", variant: "primary" as const, color: "bg-primary/10 text-primary" }
+    case "active": return { label: "Active", variant: "success" as const }
+    case "discharged": return { label: "Discharged", variant: "secondary" as const }
+    case "transferred": return { label: "Transferred", variant: "warning" as const }
+    case "critical": return { label: "Critical", variant: "danger" as const }
+    case "pending": return { label: "Pending", variant: "primary" as const }
   }
 }
 
@@ -72,7 +84,6 @@ function formatDate(date: string) {
 }
 
 export function PatientCardsPage() {
-  const { user } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("All")
   const [departmentFilter, setDepartmentFilter] = useState("All")
@@ -104,58 +115,83 @@ export function PatientCardsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Page header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text">Patient Cards</h1>
           <p className="text-text-muted mt-1">Manage patient cards and bed assignments</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 border border-border rounded-lg bg-bg px-2">
-            <Search className="h-4 w-4 text-text-muted mx-1" />
-            <Input
-              placeholder="Search patients..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 w-64 bg-transparent border-0 focus:ring-0 text-sm"
-            />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center rounded-lg border border-border bg-surface p-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode("grid")}
+              className={cn("h-8 w-8 p-0", viewMode === "grid" && "bg-primary text-white hover:bg-primary-hover")}
+              aria-label="Grid view"
+              aria-pressed={viewMode === "grid"}
+            >
+              <Grid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode("list")}
+              className={cn("h-8 w-8 p-0", viewMode === "list" && "bg-primary text-white hover:bg-primary-hover")}
+              aria-label="List view"
+              aria-pressed={viewMode === "list"}
+            >
+              <List className="h-4 w-4" />
+            </Button>
           </div>
-          <Button variant="outline" onClick={() => setViewMode("grid")} className={cn("h-9 w-9", viewMode === "grid" && "bg-primary text-white")} aria-label="Grid view">
-            <Grid className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" onClick={() => setViewMode("list")} className={cn("h-9 w-9", viewMode === "list" && "bg-primary text-white")} aria-label="List view">
-            <List className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" className="gap-2 hidden sm:flex">
+          <Button variant="outline" className="gap-2">
             <Download className="h-4 w-4" />
             Export
           </Button>
-          <Button variant="outline" className="gap-2 hidden sm:flex">
+          <Button variant="outline" className="gap-2">
             <Upload className="h-4 w-4" />
             Import
           </Button>
-          <Button onClick={() => {}} className="gap-2">
+          <Button className="gap-2">
             <Plus className="h-4 w-4" />
             New Card
           </Button>
         </div>
       </div>
 
-      <Card className="border-border/50">
-        <CardContent className="p-4 pt-0">
-          <div className="grid gap-4 sm:grid-cols-4">
-            <div className="relative sm:col-span-2">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
-              <Input placeholder="Search by name, MRN..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
+      {/* Filters */}
+      <Card className="p-0">
+        <CardContent className="p-4">
+          <div className="grid items-end gap-3 lg:grid-cols-[minmax(0,1fr)_200px_220px]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted pointer-events-none" />
+              <Input
+                placeholder="Search by name or MRN..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
             </div>
-            <Select label="Status" value={statusFilter} onChange={setStatusFilter} options={statuses.map(s => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))} />
-            <Select label="Department" value={departmentFilter} onChange={setDepartmentFilter} options={departments.map(d => ({ value: d, label: d }))} />
+            <FilterDropdown
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={statuses.map(s => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))}
+            />
+            <FilterDropdown
+              value={departmentFilter}
+              onChange={setDepartmentFilter}
+              options={departments.map(d => ({ value: d, label: d }))}
+            />
           </div>
         </CardContent>
       </Card>
 
+      {/* Bulk actions */}
       {selectedCards.length > 0 && (
-        <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 flex items-center justify-between">
-          <span className="text-sm text-primary font-medium">{selectedCards.length} patient card(s) selected</span>
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+          <span className="text-sm font-medium text-primary">
+            {selectedCards.length} patient card(s) selected
+          </span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="gap-1">Archive</Button>
             <Button variant="outline" size="sm" className="gap-1">Export</Button>
@@ -165,7 +201,15 @@ export function PatientCardsPage() {
         </div>
       )}
 
-      {viewMode === "grid" ? (
+      {filteredCards.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">
+            <Search className="h-6 w-6 text-text-muted/40" />
+          </div>
+          <p className="text-lg font-medium text-text">No patient cards found</p>
+          <p className="text-sm text-text-muted">Try adjusting your search or filters</p>
+        </div>
+      ) : viewMode === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredCards.map(card => {
             const statusConfig = getStatusConfig(card.status)
@@ -173,11 +217,14 @@ export function PatientCardsPage() {
             return (
               <Card
                 key={card.id}
-                className={cn("transition-all cursor-pointer hover:shadow-lg", isSelected && "ring-2 ring-primary border-primary")}
+                className={cn(
+                  "cursor-pointer overflow-hidden transition-all hover:shadow-md",
+                  isSelected && "ring-2 ring-primary border-primary"
+                )}
                 onClick={() => toggleSelect(card.id)}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
@@ -186,40 +233,47 @@ export function PatientCardsPage() {
                         onClick={(e) => e.stopPropagation()}
                         className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
                       />
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
-                        <FileText className="h-6 w-6" />
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <FileText className="h-5 w-5" />
                       </div>
                     </div>
-                    <Badge variant={statusConfig.variant} className="capitalize">{statusConfig.label}</Badge>
+                    <Badge variant={statusConfig.variant} className="shrink-0 capitalize">
+                      {statusConfig.label}
+                    </Badge>
                   </div>
-                  <div className="mt-4 space-y-2">
-                    <p className="font-semibold text-text truncate">{card.name}</p>
-                    <p className="text-xs text-text-muted font-mono">{card.mrn}</p>
-                    <div className="flex items-center gap-2 text-xs text-text-muted">
+
+                  <div className="mt-4">
+                    <p className="truncate font-semibold text-text">{card.name}</p>
+                    <p className="mt-0.5 truncate text-xs font-mono text-text-muted">{card.mrn}</p>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-1.5 text-xs text-text-muted">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-bg px-2 py-1">
+                      <Bed className="h-3 w-3" />
+                      {card.room} / {card.bed}
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-md bg-bg px-2 py-1">
                       <BadgeCheck className="h-3 w-3" />
-                      <span>Room {card.room}</span>
-                      <span>•</span>
-                      <span>Bed {card.bed}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-text-muted">
-                      <span className="flex items-center gap-1">
-                        <span className="h-3 w-3 rounded-full bg-primary/20" />
-                        {card.department}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-text-muted">
-                      <span>Dr. {card.attendingPhysician.split(" ")[1]}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {card.conditions.slice(0, 2).map((c, i) => (
-                        <Badge key={i} variant="secondary" className="text-xs">{c}</Badge>
-                      ))}
-                      {card.conditions.length > 2 && <Badge variant="secondary" className="text-xs">+{card.conditions.length - 2} more</Badge>}
-                    </div>
+                      {card.department}
+                    </span>
                   </div>
-                  <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-xs text-text-muted">
-                    <span>Admitted: {formatDate(card.admissionDate)}</span>
-                    <span>Last: {formatDate(card.lastVisit)}</span>
+
+                  <p className="mt-3 text-xs text-text-muted">
+                    Dr. {card.attendingPhysician.split(" ")[1]}
+                  </p>
+
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {card.conditions.slice(0, 2).map((c, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs">{c}</Badge>
+                    ))}
+                    {card.conditions.length > 2 && (
+                      <Badge variant="secondary" className="text-xs">+{card.conditions.length - 2} more</Badge>
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-text-muted">
+                    <span>Admitted {formatDate(card.admissionDate)}</span>
+                    <span>Last {formatDate(card.lastVisit)}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -227,69 +281,80 @@ export function PatientCardsPage() {
           })}
         </div>
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full" role="table">
-                <thead>
-                  <tr className="border-b border-border bg-bg/50">
-                    <th className="px-4 py-3 text-left w-12">
-                      <input type="checkbox" checked={selectedCards.length === filteredCards.length && filteredCards.length > 0} onChange={toggleSelectAll} className="h-4 w-4 rounded border-border text-primary" />
-                    </th>
-                    <th className="px-4 py-3 text-left"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text">Patient</Button></th>
-                    <th className="px-4 py-3 text-left hidden md:table-cell"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text">MRN</Button></th>
-                    <th className="px-4 py-3 text-left hidden md:table-cell"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text">Room/Bed</Button></th>
-                    <th className="px-4 py-3 text-left hidden lg:table-cell"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text">Department</Button></th>
-                    <th className="px-4 py-3 text-left"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text">Status</Button></th>
-                    <th className="px-4 py-3 text-left hidden lg:table-cell"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text">Physician</Button></th>
-                    <th className="px-4 py-3 text-left hidden lg:table-cell"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text">Admitted</Button></th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {filteredCards.map(card => {
-                    const statusConfig = getStatusConfig(card.status)
-                    const isSelected = selectedCards.includes(card.id)
-                    return (
-                      <tr key={card.id} className={cn("hover:bg-bg/50 transition-colors", isSelected && "bg-primary/5")}>
-                        <td className="px-4 py-4">
-                          <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(card.id)} className="h-4 w-4 rounded border-border text-primary" />
-                        </td>
-                        <td className="px-4 py-4">
-                          <div>
-                            <p className="font-medium text-text">{card.name}</p>
-                            <p className="text-xs text-text-muted">{card.conditions[0] || "No conditions"}</p>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 hidden md:table-cell"><span className="font-mono text-sm text-text">{card.mrn}</span></td>
-                        <td className="px-4 py-4 hidden md:table-cell"><span className="text-sm text-text">Room {card.room} • Bed {card.bed}</span></td>
-                        <td className="px-4 py-4 hidden lg:table-cell"><span className="text-sm text-text">{card.department}</span></td>
-                        <td className="px-4 py-4"><Badge variant={statusConfig.variant} className="capitalize">{statusConfig.label}</Badge></td>
-                        <td className="px-4 py-4 hidden lg:table-cell"><span className="text-sm text-text">Dr. {card.attendingPhysician.split(" ")[1]}</span></td>
-                        <td className="px-4 py-4 hidden lg:table-cell"><span className="text-sm text-text">{formatDate(card.admissionDate)}</span></td>
-                        <td className="px-4 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="View"><Eye className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Edit"><Edit className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="More"><MoreHorizontal className="h-4 w-4" /></Button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
+        <Card className="p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full" role="table">
+              <thead>
+                <tr className="border-b border-border bg-bg/50 text-left">
+                  <th className="w-12 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedCards.length === filteredCards.length && filteredCards.length > 0}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-border text-primary"
+                      aria-label="Select all"
+                    />
+                  </th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted">Patient</th>
+                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted md:table-cell">MRN</th>
+                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted lg:table-cell">Room / Bed</th>
+                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted lg:table-cell">Department</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted">Status</th>
+                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted xl:table-cell">Physician</th>
+                  <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted xl:table-cell">Admitted</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-text-muted">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredCards.map(card => {
+                  const statusConfig = getStatusConfig(card.status)
+                  const isSelected = selectedCards.includes(card.id)
+                  return (
+                    <tr key={card.id} className={cn("transition-colors hover:bg-bg/60", isSelected && "bg-primary/5")}>
+                      <td className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(card.id)}
+                          className="h-4 w-4 rounded border-border text-primary"
+                        />
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="font-medium text-text">{card.name}</p>
+                        <p className="text-xs text-text-muted">{card.conditions[0] || "No conditions"}</p>
+                      </td>
+                      <td className="hidden px-4 py-4 font-mono text-sm text-text md:table-cell">{card.mrn}</td>
+                      <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">Rm {card.room} / Bed {card.bed}</td>
+                      <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">{card.department}</td>
+                      <td className="px-4 py-4">
+                        <Badge variant={statusConfig.variant} className="capitalize">{statusConfig.label}</Badge>
+                      </td>
+                      <td className="hidden px-4 py-4 text-sm text-text xl:table-cell">
+                        Dr. {card.attendingPhysician.split(" ")[1]}
+                      </td>
+                      <td className="hidden px-4 py-4 text-sm text-text xl:table-cell">
+                        {formatDate(card.admissionDate)}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="View card">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Edit card">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="More options">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </Card>
-      )}
-
-      {filteredCards.length === 0 && (
-        <div className="text-center py-12">
-          <Search className="h-12 w-12 text-text-muted/30 mx-auto mb-3" />
-          <p className="text-lg text-text-muted">No patient cards found</p>
-          <p className="text-sm text-text-muted">Try adjusting your search or filters</p>
-        </div>
       )}
     </div>
   )

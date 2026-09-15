@@ -125,7 +125,7 @@ function getCardTypeConfig(type: OverdueCard["cardType"]) {
 
 export function ActionWatchlist() {
   return (
-    <Card className="w-full mt-6">
+    <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Action Watchlist — Overdue Cards</CardTitle>
         <Button variant="ghost" size="sm">

@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { Hospital, Menu, X, Sun, Moon } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/Button"
@@ -8,13 +8,28 @@ import { useTheme } from "@/context/ThemeContext"
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const { theme, toggleTheme } = useTheme()
+  const { pathname } = useLocation()
 
   const navLinks = [
-    { href: "/features", label: "Features" },
-    { href: "/how-it-works", label: "How It Works" },
+    { href: "/#features", label: "Features" },
+    { href: "/#how-it-works", label: "How It Works" },
     { href: "/pricing", label: "Pricing" },
     { href: "/about", label: "About" },
   ]
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (href.startsWith("/#")) {
+      const id = href.slice(2)
+      if (pathname === "/") {
+        e.preventDefault()
+        document.getElementById(id)?.scrollIntoView({ behavior: "smooth" })
+        setIsMobileMenuOpen(false)
+        return
+      }
+      // Not on homepage — let native navigation happen, scroll happens via HomePage useEffect
+    }
+    setIsMobileMenuOpen(false)
+  }
 
   return (
     <header className="sticky top-0 left-0 z-50 w-full border-b border-border bg-surface/95 backdrop-blur supports-backdrop-filter:bg-surface/60">
@@ -32,6 +47,7 @@ export function Navbar() {
               <Link
                 key={link.href}
                 to={link.href}
+                onClick={(e) => handleNavClick(e, link.href)}
                 className="text-sm font-medium text-text-muted transition-colors hover:text-text"
               >
                 {link.label}
@@ -74,8 +90,8 @@ export function Navbar() {
               <Link
                 key={link.href}
                 to={link.href}
+                onClick={(e) => handleNavClick(e, link.href)}
                 className="block px-2 py-2 text-sm font-medium text-text-muted hover:text-text"
-                onClick={() => setIsMobileMenuOpen(false)}
               >
                 {link.label}
               </Link>

@@ -1,11 +1,20 @@
 import { useState } from "react"
-import { Search, Filter, ChevronDown, ChevronUp, Archive, RotateCcw, Trash2, Download, Eye, Calendar, Clock, User, Building2, FileText } from "lucide-react"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
+import {
+  Search,
+  Archive,
+  RotateCcw,
+  Trash2,
+  Download,
+  Eye,
+  FileText,
+  CalendarDays,
+} from "lucide-react"
+import { Card, CardContent } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
-import { Select } from "@/components/ui/Select"
-import { useAuth } from "@/context/AuthContext"
+import { FilterDropdown } from "@/components/ui/FilterDropdown"
+import { SortableTh } from "@/components/ui/SortableTh"
 import { cn, formatDate } from "@/lib/utils"
 
 interface ArchivedPatient {
@@ -67,14 +76,13 @@ const mockArchivedPatients: ArchivedPatient[] = [
 
 function getStatusConfig(status: ArchivedPatient["status"]) {
   switch (status) {
-    case "discharged": return { label: "Discharged", variant: "success" as const, color: "text-success bg-success/10" }
-    case "transferred": return { label: "Transferred", variant: "warning" as const, color: "text-warning bg-warning/10" }
-    case "deceased": return { label: "Deceased", variant: "danger" as const, color: "text-danger bg-danger/10" }
+    case "discharged": return { label: "Discharged", variant: "success" as const }
+    case "transferred": return { label: "Transferred", variant: "warning" as const }
+    case "deceased": return { label: "Deceased", variant: "danger" as const }
   }
 }
 
 export function ArchivePage() {
-  const { user } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("All")
   const [departmentFilter, setDepartmentFilter] = useState("All")
@@ -86,6 +94,8 @@ export function ArchivePage() {
 
   const departments = ["All", "Cardiology", "Orthopedics", "ICU", "Emergency", "Neurology", "Oncology", "Pediatrics"]
   const statuses = ["All", "discharged", "transferred", "deceased"]
+  const statusOptions = statuses.map(s => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))
+  const departmentOptions = departments.map(d => ({ value: d, label: d }))
 
   const filteredPatients = mockArchivedPatients
     .filter(p => {
@@ -111,8 +121,6 @@ export function ArchivePage() {
     else { setSortBy(field); setSortOrder("asc") }
   }
 
-  const SortIcon = sortOrder === "asc" ? ChevronUp : ChevronDown
-
   const toggleSelect = (id: string) => {
     setSelectedItems(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
@@ -124,37 +132,65 @@ export function ArchivePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Page header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text">Archive</h1>
           <p className="text-text-muted mt-1">View and manage archived patient records</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" className="gap-2"><Download className="h-4 w-4" /> Export Archive</Button>
-          <Button variant="outline" className="gap-2"><Archive className="h-4 w-4" /> Archive Current</Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" className="gap-2">
+            <Download className="h-4 w-4" />
+            Export Archive
+          </Button>
+          <Button variant="outline" className="gap-2">
+            <Archive className="h-4 w-4" />
+            Archive Current
+          </Button>
         </div>
       </div>
 
-      <Card className="border-border/50">
-        <CardContent className="p-4 pt-0">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="relative sm:col-span-2">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
-              <Input placeholder="Search archived records..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-10" />
+      {/* Filters */}
+      <Card className="p-0">
+        <CardContent className="p-4">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_170px_190px]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+              <Input
+                placeholder="Search by name or MRN..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
             </div>
-            <Select label="Status" value={statusFilter} onChange={setStatusFilter} options={statuses.map(s => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))} />
-            <Select label="Department" value={departmentFilter} onChange={setDepartmentFilter} options={departments.map(d => ({ value: d, label: d }))} />
-            <div className="grid gap-2">
-              <Input label="From" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-              <Input label="To" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+            <FilterDropdown value={statusFilter} onChange={setStatusFilter} options={statusOptions} />
+            <FilterDropdown value={departmentFilter} onChange={setDepartmentFilter} options={departmentOptions} />
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:max-w-md">
+            <div>
+              <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-text">
+                <CalendarDays className="h-3.5 w-3.5 text-text-muted" />
+                Archived from
+              </label>
+              <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-text">
+                <CalendarDays className="h-3.5 w-3.5 text-text-muted" />
+                Archived to
+              </label>
+              <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
             </div>
           </div>
         </CardContent>
       </Card>
 
+      {/* Bulk actions */}
       {selectedItems.length > 0 && (
-        <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 flex items-center justify-between">
-          <span className="text-sm text-primary font-medium">{selectedItems.length} record(s) selected</span>
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+          <span className="text-sm font-medium text-primary">
+            {selectedItems.length} record(s) selected
+          </span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="gap-1"><RotateCcw className="h-4 w-4" /> Restore</Button>
             <Button variant="outline" size="sm" className="gap-1"><Download className="h-4 w-4" /> Export</Button>
@@ -164,78 +200,97 @@ export function ArchivePage() {
         </div>
       )}
 
-      <Card>
-        <CardHeader className="px-4 py-3">
-          <CardTitle>Archived Patient Records</CardTitle>
-          <CardDescription>Showing {filteredPatients.length} archived records</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full" role="table">
-              <thead>
-                <tr className="border-b border-border bg-bg/50">
-                  <th className="px-4 py-3 text-left w-12"><input type="checkbox" checked={selectedItems.length === filteredPatients.length && filteredPatients.length > 0} onChange={toggleSelectAll} className="h-4 w-4 rounded border-border text-primary" /></th>
-                  <th className="px-4 py-3 text-left"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("name")}>Patient <SortIcon className="h-4 w-4 ml-1 inline" /></Button></th>
-                  <th className="px-4 py-3 text-left hidden md:table-cell"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("mrn")}>MRN <SortIcon className="h-4 w-4 ml-1 inline" /></Button></th>
-                  <th className="px-4 py-3 text-left hidden lg:table-cell"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("department")}>Department <SortIcon className="h-4 w-4 ml-1 inline" /></Button></th>
-                  <th className="px-4 py-3 text-left"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("status")}>Status <SortIcon className="h-4 w-4 ml-1 inline" /></Button></th>
-                  <th className="px-4 py-3 text-left hidden lg:table-cell"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("admissionDate")}>Admitted <SortIcon className="h-4 w-4 ml-1 inline" /></Button></th>
-                  <th className="px-4 py-3 text-left hidden lg:table-cell"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("dischargeDate")}>Discharged <SortIcon className="h-4 w-4 ml-1 inline" /></Button></th>
-                  <th className="px-4 py-3 text-left hidden xl:table-cell"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("lengthOfStay")}>LOS</Button></th>
-                  <th className="px-4 py-3 text-left"><Button variant="ghost" size="sm" className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text" onClick={() => handleSort("archivedAt")}>Archived <SortIcon className="h-4 w-4 ml-1 inline" /></Button></th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filteredPatients.map(patient => {
-                  const statusConfig = getStatusConfig(patient.status)
-                  const isSelected = selectedItems.includes(patient.id)
-                  return (
-                    <tr key={patient.id} className={cn("hover:bg-bg/50 transition-colors", isSelected && "bg-primary/5")}>
-                      <td className="px-4 py-4"><input type="checkbox" checked={isSelected} onChange={() => toggleSelect(patient.id)} className="h-4 w-4 rounded border-border text-primary" /></td>
-                      <td className="px-4 py-4">
-                        <div>
-                          <p className="font-medium text-text">{patient.name}</p>
-                          <p className="text-xs text-text-muted">{formatDate(patient.dob)} (Age {patient.age})</p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 hidden md:table-cell"><span className="font-mono text-sm text-text">{patient.mrn}</span></td>
-                      <td className="px-4 py-4 hidden lg:table-cell"><span className="text-sm text-text">{patient.department}</span></td>
-                      <td className="px-4 py-4"><Badge variant={statusConfig.variant} className="capitalize">{statusConfig.label}</Badge></td>
-                      <td className="px-4 py-4 hidden lg:table-cell"><span className="text-sm text-text">{formatDate(patient.admissionDate)}</span></td>
-                      <td className="px-4 py-4 hidden lg:table-cell"><span className="text-sm text-text">{formatDate(patient.dischargeDate)}</span></td>
-                      <td className="px-4 py-4 hidden xl:table-cell"><span className="text-sm text-text">{patient.lengthOfStay} days</span></td>
-                      <td className="px-4 py-4"><span className="text-sm text-text">{formatDate(patient.archivedAt)}</span></td>
-                      <td className="px-4 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="View"><Eye className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Restore"><RotateCcw className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="More"><FileText className="h-4 w-4" /></Button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-          {filteredPatients.length === 0 && (
-            <div className="text-center py-12">
-              <Archive className="h-12 w-12 text-text-muted/30 mx-auto mb-3" />
-              <p className="text-lg text-text-muted">No archived records found</p>
-              <p className="text-sm text-text-muted">Try adjusting your search or filters</p>
+      {/* Table */}
+      <Card className="overflow-hidden p-0">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <p className="text-sm font-medium text-text">Archived Patient Records</p>
+          <p className="text-xs text-text-muted">{filteredPatients.length} record(s)</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full" role="table">
+            <thead>
+              <tr className="border-b border-border bg-bg/50 text-left">
+                <th className="w-12 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedItems.length === filteredPatients.length && filteredPatients.length > 0}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 rounded border-border text-primary"
+                    aria-label="Select all records"
+                  />
+                </th>
+                <SortableTh field="name" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort}>Patient</SortableTh>
+                <SortableTh field="mrn" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="hidden md:table-cell">MRN</SortableTh>
+                <SortableTh field="department" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="hidden lg:table-cell">Department</SortableTh>
+                <SortableTh field="status" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort}>Status</SortableTh>
+                <SortableTh field="admissionDate" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="hidden lg:table-cell">Admitted</SortableTh>
+                <SortableTh field="dischargeDate" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="hidden lg:table-cell">Discharged</SortableTh>
+                <SortableTh field="lengthOfStay" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="hidden xl:table-cell">LOS</SortableTh>
+                <SortableTh field="archivedAt" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort}>Archived</SortableTh>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-text-muted">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filteredPatients.map(patient => {
+                const statusConfig = getStatusConfig(patient.status)
+                const isSelected = selectedItems.includes(patient.id)
+                return (
+                  <tr key={patient.id} className={cn("transition-colors hover:bg-bg/60", isSelected && "bg-primary/5")}>
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(patient.id)}
+                        className="h-4 w-4 rounded border-border text-primary"
+                      />
+                    </td>
+                    <td className="px-4 py-4">
+                      <p className="font-medium text-text">{patient.name}</p>
+                      <p className="text-xs text-text-muted">{formatDate(patient.dob)} (Age {patient.age})</p>
+                    </td>
+                    <td className="hidden px-4 py-4 font-mono text-sm text-text md:table-cell">{patient.mrn}</td>
+                    <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">{patient.department}</td>
+                    <td className="px-4 py-4">
+                      <Badge variant={statusConfig.variant} className="capitalize">{statusConfig.label}</Badge>
+                    </td>
+                    <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">{formatDate(patient.admissionDate)}</td>
+                    <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">{formatDate(patient.dischargeDate)}</td>
+                    <td className="hidden px-4 py-4 text-sm text-text xl:table-cell">{patient.lengthOfStay} days</td>
+                    <td className="px-4 py-4 text-sm text-text">{formatDate(patient.archivedAt)}</td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="View record"><Eye className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Restore record"><RotateCcw className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="More options"><FileText className="h-4 w-4" /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {filteredPatients.length === 0 && (
+          <div className="py-16 text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">
+              <Archive className="h-6 w-6 text-text-muted/40" />
             </div>
-          )}
-        </CardContent>
-        <CardFooter className="flex justify-center py-3 border-t border-border">
+            <p className="text-lg font-medium text-text">No archived records found</p>
+            <p className="text-sm text-text-muted">Try adjusting your search or filters</p>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
+          <p className="text-sm text-text-muted">Page 1 of 1</p>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" disabled>Previous</Button>
-            <span className="px-3 py-1 text-sm font-medium text-text">1</span>
-            <span className="px-3 py-1 text-sm text-text-muted">2</span>
-            <span className="px-3 py-1 text-sm text-text-muted">3</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-sm font-medium text-white">1</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-md text-sm text-text-muted hover:bg-bg">2</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-md text-sm text-text-muted hover:bg-bg">3</span>
             <Button variant="outline" size="sm">Next</Button>
           </div>
-        </CardFooter>
+        </div>
       </Card>
     </div>
   )

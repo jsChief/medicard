@@ -3,6 +3,14 @@
 @custom-variant dark (&:is(.dark *));
 /*old primary: #2563eb;*/
 /*old primary hover: #1d4ed8;*/
+/*---break---*/
+@utility container-app {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 80rem;
+  padding-inline: clamp(1rem, 5vw, 3rem);
+}
+/*---break---*/
 @theme {
   --color-primary: #18bba4;
   --color-primary-hover: #06b39b;
@@ -12,10 +20,19 @@
   --color-warning: #f59e0b;
   --color-danger: #dc2626;
   --color-bg: #f8fafc;
+  --color-background: #f8fafc;
+  --color-ring: #18bba4;
   --color-surface: #ffffff;
   --color-border: #e2e8f0;
-  --color-text: #1e293b;
+--color-text: #1e293b;
   --color-text-muted: #64748b;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #1e293b;
+  --color-accent: #f1f5f9;
+  --color-accent-foreground: #1e293b;
+  --color-muted-foreground: #64748b;
+  --color-card: #ffffff;
+  --color-card-foreground: #1e293b;
 
   --color-dark-bg: #0f172a;
   --color-dark-surface: #1e293b;
@@ -38,10 +55,18 @@
 
   .dark {
     --color-bg: var(--color-dark-bg);
+    --color-background: var(--color-dark-bg);
     --color-surface: var(--color-dark-surface);
     --color-border: var(--color-dark-border);
     --color-text: var(--color-dark-text);
     --color-text-muted: var(--color-dark-text-muted);
+    --color-popover: var(--color-dark-surface);
+    --color-popover-foreground: var(--color-dark-text);
+    --color-accent: #334155;
+    --color-accent-foreground: var(--color-dark-text);
+    --color-muted-foreground: var(--color-dark-text-muted);
+    --color-card: var(--color-dark-surface);
+    --color-card-foreground: var(--color-dark-text);
   }
 }
 /*---break---*/

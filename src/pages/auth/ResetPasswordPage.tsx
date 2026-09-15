@@ -2,12 +2,13 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Link, useSearchParams } from "react-router-dom"
-import { Eye, EyeOff, CheckCircle2, AlertCircle } from "lucide-react"
+import { Eye, EyeOff, Lock, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, ShieldCheck } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/Button"
-import { Input } from "@/components/ui/Input"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
+import { Card, CardContent, CardFooter } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
+import { AuthInput } from "@/components/auth/AuthInput"
+import { PasswordStrength } from "@/components/auth/PasswordStrength"
 
 const resetPasswordSchema = z.object({
   password: z.string().min(1, "Password is required").min(8, "Password must be at least 8 characters")
@@ -22,6 +23,19 @@ const resetPasswordSchema = z.object({
 })
 
 type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>
+
+function EyeToggle({ show, onToggle, disabled }: { show: boolean; onToggle: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted transition-colors hover:text-text disabled:cursor-not-allowed"
+      onClick={onToggle}
+      disabled={disabled}
+    >
+      {show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+    </button>
+  )
+}
 
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
@@ -71,17 +85,20 @@ export function ResetPasswordPage() {
 
   if (isInvalidToken) {
     return (
-      <Card>
-        <CardContent className="pt-6 text-center">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-danger/10">
-            <AlertCircle className="h-8 w-8 text-danger" />
+      <Card className="overflow-hidden rounded-2xl border-border/60 shadow-xl shadow-primary/5">
+        <CardContent className="px-7 pb-8 pt-10 text-center sm:px-8">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-danger/10 ring-8 ring-danger/5">
+            <AlertCircle className="h-10 w-10 text-danger" />
           </div>
-          <h2 className="text-2xl font-bold text-text mb-2">Invalid or expired link</h2>
-          <p className="text-text-muted mb-6">
+          <h1 className="text-2xl font-bold tracking-tight text-text">Invalid or expired link</h1>
+          <p className="mx-auto mt-3 max-w-sm text-text-muted">
             This password reset link is invalid or has expired. Please request a new one.
           </p>
           <Link to="/forgot-password">
-            <Button className="w-full sm:w-auto">Request new link</Button>
+            <Button className="mt-8 w-full gap-2 sm:w-auto">
+              Request new link
+              <ArrowRight className="h-4 w-4" />
+            </Button>
           </Link>
         </CardContent>
       </Card>
@@ -90,108 +107,86 @@ export function ResetPasswordPage() {
 
   if (isSuccess) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <div className="text-center">
-            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
-              <CheckCircle2 className="h-8 w-8 text-success" />
-            </div>
-            <h2 className="text-2xl font-bold text-text mb-2">Password updated</h2>
-            <p className="text-text-muted mb-6">
-              Your password has been successfully reset. You can now sign in with your new password.
-            </p>
-            <Link to="/login">
-              <Button className="w-full sm:w-auto">Sign in</Button>
-            </Link>
+      <Card className="overflow-hidden rounded-2xl border-border/60 shadow-xl shadow-primary/5">
+        <CardContent className="px-7 pb-8 pt-10 text-center sm:px-8">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-success/10 ring-8 ring-success/5">
+            <CheckCircle2 className="h-10 w-10 text-success" />
           </div>
+          <h1 className="text-2xl font-bold tracking-tight text-text">Password updated</h1>
+          <p className="mx-auto mt-3 max-w-sm text-text-muted">
+            Your password has been successfully reset. You can now sign in with your new password.
+          </p>
+          <Link to="/login">
+            <Button className="mt-8 w-full gap-2 sm:w-auto">
+              Sign in
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
         </CardContent>
       </Card>
     )
   }
 
   return (
-    <Card>
-      <CardHeader className="text-center">
-        <div className="mb-4 flex justify-center">
-          <Badge variant="secondary">Secure Reset</Badge>
-        </div>
-        <CardTitle className="text-2xl">Create new password</CardTitle>
-        <CardDescription>
-          Your new password must be different from previously used passwords
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
-          <div className="relative">
-            <Input
-              label="New password"
-              type={showPassword ? "text" : "password"}
-              placeholder="••••••••"
-              autoComplete="new-password"
-              {...register("password")}
-              error={errors.password?.message}
-              disabled={isLoading}
-              onChange={(e) => {
-                register("password").onChange(e)
-                setPasswordStrength(calculateStrength(e.target.value))
-              }}
-            />
-            <button
-              type="button"
-              className="absolute right-4 top-[38px] text-text-muted hover:text-text transition-colors"
-              onClick={() => setShowPassword(!showPassword)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
-            >
-              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-            </button>
-          </div>
+    <Card className="overflow-hidden rounded-2xl border-border/60 shadow-xl shadow-primary/5">
+      <div className="space-y-1.5 px-7 pt-7 text-center sm:px-8">
+        <Badge variant="secondary" className="gap-1.5">
+          <ShieldCheck className="h-3 w-3" />
+          Secure reset
+        </Badge>
+        <h1 className="text-2xl font-bold tracking-tight text-text">Create new password</h1>
+        <p className="text-sm text-text-muted">Your new password must be different from previously used passwords</p>
+      </div>
 
-          {password && (
-            <div className="space-y-1.5">
-              <div className="h-1.5 bg-border rounded-full overflow-hidden">
-                <div
-                  className="h-full transition-all duration-300"
-                  style={{
-                    width: `${(passwordStrength / 5) * 100}%`,
-                    backgroundColor:
-                      passwordStrength <= 1 ? "var(--color-danger)" :
-                      passwordStrength <= 2 ? "var(--color-warning)" :
-                      passwordStrength <= 3 ? "var(--color-warning)" :
-                      passwordStrength <= 4 ? "var(--color-primary)" :
-                      "var(--color-success)",
-                  }}
-                />
-              </div>
-              <p className="text-xs text-text-muted">
-                {passwordStrength <= 1 ? "Very weak" :
-                 passwordStrength <= 2 ? "Weak" :
-                 passwordStrength <= 3 ? "Fair" :
-                 passwordStrength <= 4 ? "Strong" : "Very strong"}
-              </p>
-            </div>
-          )}
+      <CardContent className="pt-6 sm:px-8">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          <AuthInput
+            id="password"
+            label="New password"
+            type={showPassword ? "text" : "password"}
+            placeholder="••••••••"
+            autoComplete="new-password"
+            icon={Lock}
+            error={errors.password?.message}
+            disabled={isLoading}
+            rightSlot={<EyeToggle show={showPassword} onToggle={() => setShowPassword(!showPassword)} disabled={isLoading} />}
+            {...register("password")}
+            onChange={(e) => {
+              register("password").onChange(e)
+              setPasswordStrength(calculateStrength(e.target.value))
+            }}
+          />
 
-          <Input
+          {password && <PasswordStrength strength={passwordStrength} />}
+
+          <AuthInput
+            id="confirmPassword"
             label="Confirm new password"
             type={showPassword ? "text" : "password"}
             placeholder="••••••••"
             autoComplete="new-password"
-            {...register("confirmPassword")}
+            icon={Lock}
             error={errors.confirmPassword?.message}
             disabled={isLoading}
+            rightSlot={<EyeToggle show={showPassword} onToggle={() => setShowPassword(!showPassword)} disabled={isLoading} />}
+            {...register("confirmPassword")}
           />
 
-          <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
+          <Button type="submit" className="w-full gap-2" size="lg" isLoading={isLoading}>
+            {!isLoading && <ArrowRight className="h-4 w-4" />}
             Reset password
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="flex flex-col gap-4 text-center">
-        <p className="text-sm text-text-muted">
-          <Link to="/login" className="font-medium text-primary hover:text-primary-hover">
-            Back to sign in
-          </Link>
-        </p>
+
+      <CardFooter className="justify-center px-7 pb-7 pt-2 sm:px-8">
+        <Link
+          to="/login"
+          className="flex items-center gap-1.5 text-sm font-medium text-primary transition-colors hover:text-primary-hover"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to sign in
+        </Link>
       </CardFooter>
     </Card>
   )

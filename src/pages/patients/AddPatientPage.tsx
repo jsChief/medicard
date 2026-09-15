@@ -1,9 +1,9 @@
-import { useState, Fragment } from "react"
+import { useState, Fragment, type ReactNode } from "react"
 import { useForm } from "react-hook-form"
 import type { Resolver, SubmitHandler } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { ArrowRight, Check, X, User, Heart, Phone, Shield, ChevronLeft, ChevronRight } from "lucide-react"
+import { ArrowRight, Check, X, User, Heart, Phone, Shield, ChevronLeft, ChevronRight, Plus } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
@@ -104,6 +104,61 @@ const planTypes = [
   { value: "Other", label: "Other" },
 ]
 
+const textareaClass =
+  "w-full resize-y rounded-lg border border-border bg-surface px-4 py-2.5 text-sm placeholder:text-text-muted transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-24"
+
+const stepFields: Record<number, Array<keyof PatientFormData>> = {
+  1: ["firstName", "lastName", "middleName", "dob", "gender", "phone", "email", "address", "city", "state", "postalCode", "country", "mrn", "bloodType", "maritalStatus", "occupation", "nationality"],
+  2: ["conditions", "medications", "allergies", "surgeries", "familyHistory", "immunizations", "notes"],
+  3: ["contacts"],
+  4: ["provider", "policyNumber", "groupNumber", "memberId", "planType", "effectiveDate", "expiryDate", "copayAmount", "deductibleAmount", "coverageNotes", "secondaryInsurance", "secondaryProvider", "secondaryPolicyNumber"],
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return <p className="mb-1.5 text-sm font-medium text-text">{children}</p>
+}
+
+interface ListEditorProps {
+  items: string[]
+  placeholder?: string
+  addLabel: string
+  onAdd: () => void
+  onUpdate: (index: number, value: string) => void
+  onRemove: (index: number) => void
+}
+
+function ListEditor({ items, placeholder, addLabel, onAdd, onUpdate, onRemove }: ListEditorProps) {
+  return (
+    <div className="space-y-2">
+      {items.map((item, index) => (
+        <div key={index} className="flex gap-2">
+          <Input
+            value={item}
+            onChange={(e) => onUpdate(index, e.target.value)}
+            placeholder={placeholder}
+          />
+          {items.length > 1 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onRemove(index)}
+              className="h-10 w-10 shrink-0 p-0 text-danger hover:bg-danger/10 hover:text-danger"
+              aria-label="Remove item"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      ))}
+      <Button type="button" variant="outline" onClick={onAdd} className="w-full justify-start gap-2">
+        <Plus className="h-4 w-4" />
+        {addLabel}
+      </Button>
+    </div>
+  )
+}
+
 export function AddPatientPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -115,6 +170,8 @@ export function AddPatientPage() {
     handleSubmit,
     watch,
     setValue,
+    trigger,
+    clearErrors,
     formState: { errors },
   } = useForm<PatientFormData>({
     mode: "onChange",
@@ -165,11 +222,20 @@ export function AddPatientPage() {
   const watchedConditions = watch("conditions", []) as PatientFormData["conditions"]
   const watchedMedications = watch("medications", []) as PatientFormData["medications"]
   const watchedAllergies = watch("allergies", []) as PatientFormData["allergies"]
+  const watchedSurgeries = watch("surgeries", []) as PatientFormData["surgeries"]
+  const watchedFamilyHistory = watch("familyHistory", []) as PatientFormData["familyHistory"]
+  const watchedImmunizations = watch("immunizations", []) as PatientFormData["immunizations"]
 
-  const nextStep = () => {
-    if (currentStep < steps.length) {
-      setCurrentStep(currentStep + 1)
-    }
+  const nextStep = async () => {
+    if (currentStep >= steps.length) return
+    const fields = stepFields[currentStep]
+    const valid = await trigger(fields)
+    if (!valid) return
+    const otherFields = Object.entries(stepFields)
+      .filter(([step]) => Number(step) !== currentStep)
+      .flatMap(([, step]) => step)
+    clearErrors(otherFields)
+    setCurrentStep(currentStep + 1)
   }
 
   const prevStep = () => {
@@ -178,48 +244,21 @@ export function AddPatientPage() {
     }
   }
 
-  // Field-specific helpers to avoid complex generic types
-  const addCondition = (value = "") => {
-    setValue("conditions", [...watchedConditions, value], { shouldValidate: true })
+  const makeListHandlers = (key: "conditions" | "medications" | "allergies" | "surgeries" | "familyHistory" | "immunizations") => {
+    const items = watch(key).length ? (watch(key) as string[]) : []
+    return {
+      add: () => setValue(key, [...items, ""], { shouldValidate: true }),
+      remove: (index: number) => setValue(key, items.filter((_, i) => i !== index), { shouldValidate: true }),
+      update: (index: number, value: string) => setValue(key, items.map((v, i) => (i === index ? value : v)), { shouldValidate: true }),
+    }
   }
 
-  const removeCondition = (index: number) => {
-    setValue("conditions", watchedConditions.filter((_, i) => i !== index), { shouldValidate: true })
-  }
-
-  const updateCondition = (index: number, value: string) => {
-    const updated = [...watchedConditions]
-    updated[index] = value
-    setValue("conditions", updated, { shouldValidate: true })
-  }
-
-  const addMedication = (value = "") => {
-    setValue("medications", [...watchedMedications, value], { shouldValidate: true })
-  }
-
-  const removeMedication = (index: number) => {
-    setValue("medications", watchedMedications.filter((_, i) => i !== index), { shouldValidate: true })
-  }
-
-  const updateMedication = (index: number, value: string) => {
-    const updated = [...watchedMedications]
-    updated[index] = value
-    setValue("medications", updated, { shouldValidate: true })
-  }
-
-  const addAllergy = (value = "") => {
-    setValue("allergies", [...watchedAllergies, value], { shouldValidate: true })
-  }
-
-  const removeAllergy = (index: number) => {
-    setValue("allergies", watchedAllergies.filter((_, i) => i !== index), { shouldValidate: true })
-  }
-
-  const updateAllergy = (index: number, value: string) => {
-    const updated = [...watchedAllergies]
-    updated[index] = value
-    setValue("allergies", updated, { shouldValidate: true })
-  }
+  const conditionHandlers = makeListHandlers("conditions")
+  const medicationHandlers = makeListHandlers("medications")
+  const allergyHandlers = makeListHandlers("allergies")
+  const surgeryHandlers = makeListHandlers("surgeries")
+  const familyHistoryHandlers = makeListHandlers("familyHistory")
+  const immunizationHandlers = makeListHandlers("immunizations")
 
   const addContact = (contact: PatientFormData["contacts"][number] = { name: "", relationship: "", phone: "", email: "", address: "", isPrimary: false }) => {
     setValue("contacts", [...watchedContacts, contact], { shouldValidate: true })
@@ -236,21 +275,15 @@ export function AddPatientPage() {
   }
 
   const onSubmit: SubmitHandler<PatientFormData> = async (data) => {
-    console.log("🔵 [onSubmit] Called with data:", data)
-    console.log("🔵 [onSubmit] Current errors:", errors)
-    console.log("🔵 [onSubmit] Form state:", { isValid: Object.keys(errors).length === 0 })
     if (!user?.hospitalId) {
-      console.log("🔴 [onSubmit] No hospitalId for user:", user)
       toast.error("User hospital not found")
       return
     }
-    console.log("🟢 [onSubmit] User has hospitalId:", user.hospitalId)
     setIsSubmitting(true)
     try {
       const now = new Date()
       const dob = new Date(data.dob)
-      console.log("🟡 [onSubmit] Building patientData...")
-      
+
       const patientData: Omit<Patient, "id" | "createdAt" | "updatedAt"> = {
         mrn: data.mrn || `MRN-${now.getFullYear()}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`,
         firstName: data.firstName,
@@ -301,13 +334,11 @@ export function AddPatientPage() {
         hospitalId: user.hospitalId,
       }
 
-      console.log("🟡 [onSubmit] Calling createPatient...")
       await createPatient(patientData)
-      console.log("🟢 [onSubmit] Patient created successfully")
       toast.success("Patient created successfully")
       navigate("/patients")
     } catch (error) {
-      console.error("🔴 [onSubmit] Error:", error)
+      console.error("Failed to create patient:", error)
       toast.error("Failed to create patient. Please try again.")
     } finally {
       setIsSubmitting(false)
@@ -344,7 +375,7 @@ export function AddPatientPage() {
               />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input label="Phone Number *" placeholder="+63 9XX XXX XXXX" {...register("phone")} error={errors.phone?.message} />
+              <Input label="Phone Number *" placeholder="+234 8XX XXX XXXX" {...register("phone")} error={errors.phone?.message} />
               <Input label="Email" type="email" placeholder="juan@example.com" {...register("email")} error={errors.email?.message} />
             </div>
             <Input label="Address *" placeholder="123 Main Street" {...register("address")} error={errors.address?.message} />
@@ -374,99 +405,78 @@ export function AddPatientPage() {
         return (
           <div className="space-y-6">
             <div>
-              <label className="label">Current Medical Conditions</label>
-              <div className="space-y-2">
-                {watchedConditions.map((condition, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      placeholder="e.g., Hypertension, Diabetes Type 2"
-                      value={condition}
-                      onChange={(e) => updateCondition(index, e.target.value)}
-                    />
-                    {watchedConditions.length > 1 && (
-                      <Button type="button" variant="ghost" size="sm" className="h-10 text-danger" onClick={() => removeCondition(index)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <Button type="button" variant="outline" onClick={() => addCondition("")} className="w-full justify-start gap-2">
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                  Add Condition
-                </Button>
-              </div>
+              <SectionLabel>Current Medical Conditions</SectionLabel>
+              <ListEditor
+                items={watchedConditions}
+                placeholder="e.g., Hypertension, Diabetes Type 2"
+                addLabel="Add Condition"
+                onAdd={conditionHandlers.add}
+                onUpdate={conditionHandlers.update}
+                onRemove={conditionHandlers.remove}
+              />
             </div>
             <div>
-              <label className="label">Current Medications</label>
-              <div className="space-y-2">
-                {watchedMedications.map((med, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      placeholder="e.g., Metformin 500mg BID"
-                      value={med}
-                      onChange={(e) => updateMedication(index, e.target.value)}
-                    />
-                    {watchedMedications.length > 1 && (
-                      <Button type="button" variant="ghost" size="sm" className="h-10 text-danger" onClick={() => removeMedication(index)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <Button type="button" variant="outline" onClick={() => addMedication("")} className="w-full justify-start gap-2">
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                  Add Medication
-                </Button>
-              </div>
+              <SectionLabel>Current Medications</SectionLabel>
+              <ListEditor
+                items={watchedMedications}
+                placeholder="e.g., Metformin 500mg BID"
+                addLabel="Add Medication"
+                onAdd={medicationHandlers.add}
+                onUpdate={medicationHandlers.update}
+                onRemove={medicationHandlers.remove}
+              />
             </div>
             <div>
-              <label className="label">Allergies</label>
-              <div className="space-y-2">
-                {watchedAllergies.map((allergy, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      placeholder="e.g., Penicillin, Latex"
-                      value={allergy}
-                      onChange={(e) => updateAllergy(index, e.target.value)}
-                    />
-                    {watchedAllergies.length > 1 && (
-                      <Button type="button" variant="ghost" size="sm" className="h-10 text-danger" onClick={() => removeAllergy(index)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <Button type="button" variant="outline" onClick={() => addAllergy("")} className="w-full justify-start gap-2">
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                  Add Allergy
-                </Button>
-              </div>
+              <SectionLabel>Allergies</SectionLabel>
+              <ListEditor
+                items={watchedAllergies}
+                placeholder="e.g., Penicillin, Latex"
+                addLabel="Add Allergy"
+                onAdd={allergyHandlers.add}
+                onUpdate={allergyHandlers.update}
+                onRemove={allergyHandlers.remove}
+              />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="label">Past Surgeries</label>
-                <Input placeholder="e.g., Appendectomy (2010), C-Section (2018)" {...register("surgeries")} />
+                <SectionLabel>Past Surgeries</SectionLabel>
+                <ListEditor
+                  items={watchedSurgeries}
+                  placeholder="e.g., Appendectomy (2010)"
+                  addLabel="Add Surgery"
+                  onAdd={surgeryHandlers.add}
+                  onUpdate={surgeryHandlers.update}
+                  onRemove={surgeryHandlers.remove}
+                />
               </div>
               <div>
-                <label className="label">Family History</label>
-                <Input placeholder="e.g., Father: Heart disease, Mother: Diabetes" {...register("familyHistory")} />
+                <SectionLabel>Family History</SectionLabel>
+                <ListEditor
+                  items={watchedFamilyHistory}
+                  placeholder="e.g., Father: Heart disease"
+                  addLabel="Add Family History"
+                  onAdd={familyHistoryHandlers.add}
+                  onUpdate={familyHistoryHandlers.update}
+                  onRemove={familyHistoryHandlers.remove}
+                />
               </div>
             </div>
             <div>
-              <label className="label">Immunizations</label>
-              <Input placeholder="e.g., COVID-19 (2023), Flu (2024), Hepatitis B" {...register("immunizations")} />
+              <SectionLabel>Immunizations</SectionLabel>
+              <ListEditor
+                items={watchedImmunizations}
+                placeholder="e.g., COVID-19 (2023), Flu (2024)"
+                addLabel="Add Immunization"
+                onAdd={immunizationHandlers.add}
+                onUpdate={immunizationHandlers.update}
+                onRemove={immunizationHandlers.remove}
+              />
             </div>
             <div>
-              <label className="label">Additional Notes</label>
+              <SectionLabel>Additional Notes</SectionLabel>
               <textarea
                 {...register("notes")}
-                className="input border rounded-lg p-2 min-h-25 resize-y"
+                className={textareaClass}
                 placeholder="Any additional medical history notes..."
               />
             </div>
@@ -475,20 +485,34 @@ export function AddPatientPage() {
       case 3:
         return (
           <div className="space-y-6">
-            <p className="text-text-muted">Add at least one emergency contact. Mark one as primary.</p>
+            <p className="text-sm text-text-muted">
+              Add at least one emergency contact. Mark one as primary.
+            </p>
             <div className="space-y-4">
               {watchedContacts.map((contact, index) => (
-                <Card key={index} className="p-4">
-                  <div className="flex items-start justify-between gap-4 mb-4">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg font-medium text-text">Contact #{index + 1}</span>
+                <div key={index} className="rounded-lg border border-border bg-surface p-4">
+                  <div className="mb-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold text-text">Contact #{index + 1}</span>
+                      {contact.isPrimary && (
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                          Primary
+                        </span>
+                      )}
                       {watchedContacts.length > 1 && (
-                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 text-danger" onClick={() => removeContact(index)}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeContact(index)}
+                          className="h-8 w-8 p-0 text-danger hover:bg-danger/10 hover:text-danger"
+                          aria-label={`Remove contact ${index + 1}`}
+                        >
                           <X className="h-4 w-4" />
                         </Button>
                       )}
                     </div>
-                    <label className="flex items-center gap-2 cursor-pointer mt-1">
+                    <label className="flex cursor-pointer items-center gap-2">
                       <input
                         type="checkbox"
                         checked={contact.isPrimary}
@@ -518,10 +542,10 @@ export function AddPatientPage() {
                       onChange={(e) => updateContact(index, { ...contact, relationship: e.target.value })}
                     />
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <Input
                       label="Phone *"
-                      placeholder="+63 9XX XXX XXXX"
+                      placeholder="+234 8XX XXX XXXX"
                       value={contact.phone}
                       onChange={(e) => updateContact(index, { ...contact, phone: e.target.value })}
                     />
@@ -534,19 +558,23 @@ export function AddPatientPage() {
                     />
                   </div>
                   <Input
+                    className="mt-4"
                     label="Address"
                     placeholder="123 Main Street, City, Province"
                     value={contact.address}
                     onChange={(e) => updateContact(index, { ...contact, address: e.target.value })}
                   />
-                </Card>
+                </div>
               ))}
             </div>
             {watchedContacts.length < 5 && (
-              <Button type="button" variant="outline" onClick={() => addContact({ name: "", relationship: "", phone: "", email: "", address: "", isPrimary: false })} className="w-full justify-center gap-2">
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => addContact({ name: "", relationship: "", phone: "", email: "", address: "", isPrimary: false })}
+                className="w-full justify-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
                 Add Emergency Contact
               </Button>
             )}
@@ -571,33 +599,35 @@ export function AddPatientPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Member ID" placeholder="MID-111222333" {...register("memberId")} error={errors.memberId?.message} />
-              <Input label="Co-pay Amount" placeholder="₱500" {...register("copayAmount")} error={errors.copayAmount?.message} />
+              <Input label="Co-pay Amount" placeholder="₦500" {...register("copayAmount")} error={errors.copayAmount?.message} />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input label="Deductible Amount" placeholder="₱10,000" {...register("deductibleAmount")} error={errors.deductibleAmount?.message} />
+              <Input label="Deductible Amount" placeholder="₦10,000" {...register("deductibleAmount")} error={errors.deductibleAmount?.message} />
               <Input label="Effective Date *" type="date" {...register("effectiveDate")} error={errors.effectiveDate?.message} />
             </div>
             <Input label="Expiry Date *" type="date" {...register("expiryDate")} error={errors.expiryDate?.message} />
             <div>
-              <label className="label">Coverage Notes</label>
+              <SectionLabel>Coverage Notes</SectionLabel>
               <textarea
                 {...register("coverageNotes")}
-                className="input border rounded-lg p-2 min-h-20 resize-y"
+                className={textareaClass}
                 placeholder="Coverage details, limitations, special instructions..."
               />
             </div>
-            <div className="border-t border-border pt-6">
-              <h4 className="font-medium text-text mb-4">Secondary Insurance (Optional)</h4>
-              <label className="flex items-center gap-2 cursor-pointer">
+            <div className="rounded-lg border border-border bg-surface p-4">
+              <label className="flex cursor-pointer items-center justify-between gap-4">
+                <span>
+                  <span className="block font-medium text-text">Secondary Insurance</span>
+                  <span className="block text-sm text-text-muted">Patient has secondary insurance</span>
+                </span>
                 <input
                   type="checkbox"
                   {...register("secondaryInsurance")}
                   className="h-4 w-4 rounded border-border text-primary focus:ring-primary focus:ring-2"
                 />
-                <span className="text-sm text-text">Patient has secondary insurance</span>
               </label>
               {watch("secondaryInsurance") && (
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
                   <Input label="Secondary Provider" placeholder="Secondary insurance company" {...register("secondaryProvider")} error={errors.secondaryProvider?.message} />
                   <Input label="Secondary Policy Number" placeholder="POL-999888777" {...register("secondaryPolicyNumber")} error={errors.secondaryPolicyNumber?.message} />
                 </div>
@@ -611,13 +641,19 @@ export function AddPatientPage() {
   }
 
   return (
-    <form onSubmit={(e) => {
-      console.log("🔵 [Form] onSubmit triggered")
-      e.preventDefault()
-      console.log("🔵 [Form] Calling handleSubmit...")
-      handleSubmit(onSubmit)(e)
-      console.log("🔵 [Form] handleSubmit returned")
-    }} className="space-y-6" noValidate>
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+      {/* Page header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-text">Add Patient</h1>
+          <p className="text-text-muted mt-1">Create a new patient record</p>
+        </div>
+        <Button type="button" variant="outline" onClick={() => navigate("/patients")} className="gap-2">
+          <X className="h-4 w-4" />
+          Cancel
+        </Button>
+      </div>
+
       {/* Progress Steps */}
       <Card>
         <CardContent className="pt-6">
@@ -625,26 +661,27 @@ export function AddPatientPage() {
             {steps.map((step, index) => {
               const isActive = index + 1 === currentStep
               const isCompleted = index + 1 < currentStep
+              const Icon = step.icon
               return (
                 <Fragment key={step.id}>
-                  <div className="flex flex-col items-center">
+                  <div className="flex min-w-0 flex-col items-center">
                     <div className={cn(
                       "relative flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium transition-colors",
                       isActive ? "bg-primary text-white" :
                       isCompleted ? "bg-success text-white" :
                       "bg-border text-text-muted"
                     )}>
-                      {isCompleted ? <Check className="h-5 w-5" /> : <step.icon className="h-5 w-5" />}
+                      {isCompleted ? <Check className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
                     </div>
-                    <span className={cn("mt-1.5 text-xs font-medium", isActive ? "text-primary" : "text-text-muted")}>
+                    <span className={cn("mt-1.5 text-center text-xs font-medium", isActive ? "text-primary" : "text-text-muted")}>
                       {step.title}
                     </span>
                   </div>
                   {index < steps.length - 1 && (
                     <div className={cn(
-                      "hidden lg:block flex-1 h-1 mx-2 rounded",
+                      "mx-2 hidden -mt-6 h-1 flex-1 rounded lg:block",
                       isCompleted ? "bg-success" : "bg-border"
-                    )} />
+                    )}></div>
                   )}
                 </Fragment>
               )
@@ -690,7 +727,7 @@ export function AddPatientPage() {
       </Card>
 
       {/* Mobile Step Navigation */}
-      <div className="lg:hidden flex items-center justify-between">
+      <div className="flex items-center justify-between lg:hidden">
         <Button type="button" variant="outline" onClick={prevStep} disabled={currentStep === 1} className="gap-1">
           <ChevronLeft className="h-4 w-4" />
           Back
@@ -720,5 +757,3 @@ export function AddPatientPage() {
     </form>
   )
 }
-
- 

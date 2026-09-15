@@ -2,8 +2,7 @@ import { Outlet } from "react-router-dom";
 import { Navbar } from "./Navbar";
 import { Footer } from "./Footer";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SidebarProvider, SidebarTrigger } from "../ui/sidebar";
-import { AppSidebar } from "../ui/AppSidebar";
+import { SidebarProvider } from "../ui/sidebar";
 
 export function Layout() {
   return (

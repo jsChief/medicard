@@ -141,8 +141,8 @@ const mockPatientData: PatientFormData = {
   planType: "HMO",
   effectiveDate: "2024-01-01",
   expiryDate: "2024-12-31",
-  copayAmount: "₱500",
-  deductibleAmount: "₱10,000",
+  copayAmount: "₦500",
+  deductibleAmount: "₦10,000",
   coverageNotes: "Covers inpatient, outpatient, and emergency services. Pre-authorization required for elective procedures.",
   secondaryInsurance: true,
   secondaryProvider: "Maxicare",
@@ -502,10 +502,10 @@ export function EditPatientPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Member ID" placeholder="MID-111222333" {...register("memberId")} error={errors.memberId?.message} />
-              <Input label="Co-pay Amount" placeholder="₱500" {...register("copayAmount")} error={errors.copayAmount?.message} />
+              <Input label="Co-pay Amount" placeholder="₦500" {...register("copayAmount")} error={errors.copayAmount?.message} />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input label="Deductible Amount" placeholder="₱10,000" {...register("deductibleAmount")} error={errors.deductibleAmount?.message} />
+              <Input label="Deductible Amount" placeholder="₦10,000" {...register("deductibleAmount")} error={errors.deductibleAmount?.message} />
               <Input label="Effective Date *" type="date" {...register("effectiveDate")} error={errors.effectiveDate?.message} />
             </div>
             <Input label="Expiry Date *" type="date" {...register("expiryDate")} error={errors.expiryDate?.message} />
