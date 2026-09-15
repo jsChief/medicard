@@ -143,8 +143,8 @@ export function HomePage() {
       <section className="relative overflow-hidden bg-bg pt-20 pb-24 lg:pt-32 lg:pb-36">
         {/* Decorative layer */}
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-40 top-1/4 h-[32rem] w-[32rem] rounded-full bg-primary/10 blur-3xl" />
-          <div className="absolute -right-40 top-1/2 h-[28rem] w-[28rem] rounded-full bg-blue-500/10 blur-3xl" />
+          <div className="absolute -left-40 top-1/4 h-128 w-lg rounded-full bg-primary/10 blur-3xl" />
+          <div className="absolute -right-40 top-1/2 h-112 w-md rounded-full bg-blue-500/10 blur-3xl" />
           <div className="absolute left-1/2 top-0 h-72 w-72 -translate-x-1/2 rounded-full bg-secondary/10 blur-3xl" />
         </div>
 
@@ -311,7 +311,7 @@ export function HomePage() {
 
             <div className="relative flex items-center justify-center">
               <div className="relative aspect-square w-full max-w-sm rounded-3xl bg-linear-to-br from-primary/15 to-secondary/10 border border-primary/20">
-                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_1px_1px,rgba(24,187,164,0.08)_1px,transparent_0)] bg-[size:20px_20px]" />
+                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_1px_1px,rgba(24,187,164,0.08)_1px,transparent_0)] bg-size-[20px_20px]" />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Shield className="h-28 w-28 text-primary/25" aria-hidden="true" />
                 </div>
@@ -379,7 +379,7 @@ export function HomePage() {
             <div className="pointer-events-none absolute inset-0">
               <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
               <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.08)_1px,transparent_0)] bg-[size:24px_24px]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.08)_1px,transparent_0)] bg-size-[24px_24px]" />
             </div>
 
             <div className="relative z-10 mx-auto max-w-2xl text-center">
