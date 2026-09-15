@@ -1,18 +1,35 @@
-import { Link } from "react-router-dom"
-import { Hospital, Menu, X } from "lucide-react"
+import { Link, useLocation } from "react-router-dom"
+import { Hospital, Menu, X, Sun, Moon } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/Button"
 import { cn } from "@/lib/utils"
+import { useTheme } from "@/context/ThemeContext"
 
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const { theme, toggleTheme } = useTheme()
+  const { pathname } = useLocation()
 
   const navLinks = [
-    { href: "/features", label: "Features" },
-    { href: "/how-it-works", label: "How It Works" },
+    { href: "/#features", label: "Features" },
+    { href: "/#how-it-works", label: "How It Works" },
     { href: "/pricing", label: "Pricing" },
     { href: "/about", label: "About" },
   ]
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (href.startsWith("/#")) {
+      const id = href.slice(2)
+      if (pathname === "/") {
+        e.preventDefault()
+        document.getElementById(id)?.scrollIntoView({ behavior: "smooth" })
+        setIsMobileMenuOpen(false)
+        return
+      }
+      // Not on homepage — let native navigation happen, scroll happens via HomePage useEffect
+    }
+    setIsMobileMenuOpen(false)
+  }
 
   return (
     <header className="sticky top-0 left-0 z-50 w-full border-b border-border bg-surface/95 backdrop-blur supports-backdrop-filter:bg-surface/60">
@@ -30,6 +47,7 @@ export function Navbar() {
               <Link
                 key={link.href}
                 to={link.href}
+                onClick={(e) => handleNavClick(e, link.href)}
                 className="text-sm font-medium text-text-muted transition-colors hover:text-text"
               >
                 {link.label}
@@ -38,6 +56,9 @@ export function Navbar() {
           </div>
 
           <div className="hidden md:flex md:items-center md:gap-3 md:mr-2">
+            <Button variant="ghost" size="sm" onClick={toggleTheme} aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}>
+              {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            </Button>
             <Link to="/login">
               <Button variant="ghost" size="sm">Sign In</Button>
             </Link>
@@ -53,7 +74,7 @@ export function Navbar() {
             aria-controls="mobile-menu"
             aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
           >
-            {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6 stroke-current" />}
           </button>
         </div>
 
@@ -69,13 +90,17 @@ export function Navbar() {
               <Link
                 key={link.href}
                 to={link.href}
+                onClick={(e) => handleNavClick(e, link.href)}
                 className="block px-2 py-2 text-sm font-medium text-text-muted hover:text-text"
-                onClick={() => setIsMobileMenuOpen(false)}
               >
                 {link.label}
               </Link>
             ))}
             <div className="pt-4 flex flex-col gap-2">
+              <Button variant="ghost" size="sm" onClick={toggleTheme} className="w-full justify-start" aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}>
+                {theme === "light" ? <Moon className="h-5 w-5 mr-2" /> : <Sun className="h-5 w-5 mr-2" />}
+                {theme === "light" ? "Dark Mode" : "Light Mode"}
+              </Button>
               <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
                 <Button variant="outline" className="w-full">Sign In</Button>
               </Link>

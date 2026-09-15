@@ -141,8 +141,8 @@ const mockPatientData: PatientFormData = {
   planType: "HMO",
   effectiveDate: "2024-01-01",
   expiryDate: "2024-12-31",
-  copayAmount: "₱500",
-  deductibleAmount: "₱10,000",
+  copayAmount: "₦500",
+  deductibleAmount: "₦10,000",
   coverageNotes: "Covers inpatient, outpatient, and emergency services. Pre-authorization required for elective procedures.",
   secondaryInsurance: true,
   secondaryProvider: "Maxicare",
@@ -165,7 +165,7 @@ export function EditPatientPage() {
     formState: { errors },
     reset,
   } = useForm<PatientFormData>({
-    resolver: zodResolver(fullSchema) as any,
+    resolver: zodResolver<PatientFormData>(fullSchema),
     defaultValues: mockPatientData,
     mode: "onChange",
   })
@@ -178,10 +178,10 @@ export function EditPatientPage() {
     return () => subscription.unsubscribe()
   }, [watch])
 
-  const watchedContacts = watch("contacts", [{ name: "", relationship: "", phone: "", email: "", address: "", isPrimary: true }])
-  const watchedConditions = watch("conditions", [])
-  const watchedMedications = watch("medications", [])
-  const watchedAllergies = watch("allergies", [])
+  const watchedContacts = watch("contacts", [{ name: "", relationship: "", phone: "", email: "", address: "", isPrimary: true }]) as PatientFormData["contacts"]
+  const watchedConditions = watch("conditions", []) as PatientFormData["conditions"]
+  const watchedMedications = watch("medications", []) as PatientFormData["medications"]
+  const watchedAllergies = watch("allergies", []) as PatientFormData["allergies"]
 
   const nextStep = () => {
     if (currentStep < steps.length) {
@@ -195,23 +195,33 @@ export function EditPatientPage() {
     }
   }
 
-  const addArrayItem = (field: string, defaultValue: unknown) => {
-    const current = ((watch() as any)[field] as any[]) || []
-    ;(setValue as any)(field, [...current, defaultValue], { shouldValidate: true })
+  const addArrayItem = <T extends keyof PatientFormData>(
+    field: T,
+    defaultValue: PatientFormData[T] extends Array<infer U> ? U : never,
+  ) => {
+    const current = (watch(field) as Array<typeof defaultValue>) || []
+    setValue(field as any, [...current, defaultValue] as any, { shouldValidate: true })
     setHasChanges(true)
   }
 
-  const removeArrayItem = (field: string, index: number) => {
-    const current = ((watch() as any)[field] as any[]) || []
-    ;(setValue as any)(field, current.filter((_, i) => i !== index), { shouldValidate: true })
+  const removeArrayItem = <T extends keyof PatientFormData>(
+    field: T,
+    index: number,
+  ) => {
+    const current = (watch(field) as Array<PatientFormData[T] extends Array<infer U> ? U : never>) || []
+    setValue(field as any, current.filter((_, i) => i !== index) as any, { shouldValidate: true })
     setHasChanges(true)
   }
 
-  const updateArrayItem = (field: string, index: number, value: unknown) => {
-    const current = ((watch() as any)[field] as any[]) || []
+  const updateArrayItem = <T extends keyof PatientFormData>(
+    field: T,
+    index: number,
+    value: PatientFormData[T] extends Array<infer U> ? U : never,
+  ) => {
+    const current = (watch(field) as Array<typeof value>) || []
     const updated = [...current]
     updated[index] = value
-    ;(setValue as any)(field, updated, { shouldValidate: true })
+    setValue(field as any, updated as any, { shouldValidate: true })
     setHasChanges(true)
   }
 
@@ -388,7 +398,7 @@ export function EditPatientPage() {
               <label className="label">Additional Notes</label>
               <textarea
                 {...register("notes")}
-                className="input border rounded-lg p-2 min-h-[100px] resize-y"
+                className="input border rounded-lg p-2 min-h-25 resize-y"
                 placeholder="Any additional medical history notes..."
               />
             </div>
@@ -492,10 +502,10 @@ export function EditPatientPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Member ID" placeholder="MID-111222333" {...register("memberId")} error={errors.memberId?.message} />
-              <Input label="Co-pay Amount" placeholder="₱500" {...register("copayAmount")} error={errors.copayAmount?.message} />
+              <Input label="Co-pay Amount" placeholder="₦500" {...register("copayAmount")} error={errors.copayAmount?.message} />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input label="Deductible Amount" placeholder="₱10,000" {...register("deductibleAmount")} error={errors.deductibleAmount?.message} />
+              <Input label="Deductible Amount" placeholder="₦10,000" {...register("deductibleAmount")} error={errors.deductibleAmount?.message} />
               <Input label="Effective Date *" type="date" {...register("effectiveDate")} error={errors.effectiveDate?.message} />
             </div>
             <Input label="Expiry Date *" type="date" {...register("expiryDate")} error={errors.expiryDate?.message} />
@@ -503,7 +513,7 @@ export function EditPatientPage() {
               <label className="label">Coverage Notes</label>
               <textarea
                 {...register("coverageNotes")}
-                className="input border rounded-lg p-2 min-h-[80px] resize-y"
+                className="input border rounded-lg p-2 min-h-20 resize-y"
                 placeholder="Coverage details, limitations, special instructions..."
               />
             </div>
@@ -533,7 +543,7 @@ export function EditPatientPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-100">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-text-muted">Loading patient data...</p>
@@ -543,7 +553,7 @@ export function EditPatientPage() {
   }
 
   return (
-    <form onSubmit={handleSubmit((d) => onSubmit(d as PatientFormData))} className="space-y-6" noValidate>
+    <form onSubmit={handleSubmit((d) => onSubmit(d as unknown as PatientFormData))} className="space-y-6" noValidate>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text">Edit Patient</h1>

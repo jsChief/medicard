@@ -21,11 +21,11 @@ interface Location {
 }
 
 const locationTypes = {
-  ward: { label: "Ward", icon: Building2, color: "bg-blue-500" },
-  icu: { label: "ICU", icon: AlertTriangle, color: "bg-red-500" },
-  er: { label: "ER", icon: Home, color: "bg-orange-500" },
-  clinic: { label: "Clinic", icon: Bed, color: "bg-green-500" },
-  ot: { label: "OT", icon: UserCheck, color: "bg-purple-500" },
+  ward: { label: "Ward", icon: Building2, container: "bg-blue-500/10", fg: "text-blue-500" },
+  icu: { label: "ICU", icon: AlertTriangle, container: "bg-red-500/10", fg: "text-red-500" },
+  er: { label: "ER", icon: Home, container: "bg-orange-500/10", fg: "text-orange-500" },
+  clinic: { label: "Clinic", icon: Bed, container: "bg-green-500/10", fg: "text-green-500" },
+  ot: { label: "OT", icon: UserCheck, container: "bg-purple-500/10", fg: "text-purple-500" },
 }
 
 const mockLocations: Location[] = [
@@ -94,8 +94,8 @@ export function LocationMatrix() {
                   <tr key={location.id} className="hover:bg-bg/50 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", typeConfig.color + "/10")}>
-                          <Icon className={cn("h-4 w-4", typeConfig.color)} aria-hidden="true" />
+                        <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", typeConfig.container)}>
+                          <Icon className={cn("h-4 w-4", typeConfig.fg)} aria-hidden="true" />
                         </div>
                         <div>
                           <p className="font-medium text-text">{location.name}</p>
@@ -104,9 +104,7 @@ export function LocationMatrix() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge variant={typeConfig.color.replace("bg-", "").replace("-500", "") as "primary" | "secondary" | "success" | "warning" | "danger"}>
-                        {typeConfig.label}
-                      </Badge>
+                      <Badge variant="secondary">{typeConfig.label}</Badge>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="w-32">

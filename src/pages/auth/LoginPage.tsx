@@ -2,11 +2,13 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Link, useNavigate } from "react-router-dom"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/Button"
-import { Input } from "@/components/ui/Input"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
+import { Card, CardContent, CardFooter } from "@/components/ui/Card"
+import { AuthInput } from "@/components/auth/AuthInput"
+import { toast } from "@/components/ui/Toast"
+import { useAuth } from "@/context/AuthContext"
 
 const loginSchema = z.object({
   email: z.string().min(1, "Email is required").email("Invalid email address"),
@@ -18,6 +20,7 @@ type LoginFormData = z.infer<typeof loginSchema>
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const { login } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -34,72 +37,90 @@ export function LoginPage() {
     },
   })
 
-  const onSubmit = async (/* _data: LoginFormData */) => {
+  const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true)
-    // TODO: Replace with actual API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setIsLoading(false)
-    navigate("/dashboard")
+    try {
+      await login(data.email, data.password, data.rememberMe)
+      toast({
+        title: "Welcome back!",
+        description: "You have been signed in successfully.",
+        variant: "success",
+      })
+      navigate("/dashboard")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to sign in. Please try again."
+      toast({
+        title: "Sign in failed",
+        description: message,
+        variant: "error",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
-    <Card>
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Welcome back</CardTitle>
-        <CardDescription>
-          Sign in to your MediCard account to continue
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
-          <Input
+    <Card className="overflow-hidden rounded-2xl border-border/60 shadow-xl shadow-primary/5">
+      <div className="space-y-1.5 px-7 pt-7 text-center sm:px-8">
+        <h1 className="text-2xl font-bold tracking-tight text-text">Welcome back</h1>
+        <p className="text-sm text-text-muted">Sign in to your MediCard account to continue</p>
+      </div>
+
+      <CardContent className="pt-6 sm:px-8">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          <AuthInput
+            id="email"
             label="Email address"
             type="email"
             placeholder="you@hospital.com"
             autoComplete="email"
-            {...register("email")}
+            icon={Mail}
             error={errors.email?.message}
             disabled={isLoading}
+            {...register("email")}
           />
 
-          <div className="relative">
-            <Input
-              label="Password"
-              type={showPassword ? "text" : "password"}
-              placeholder="••••••••"
-              autoComplete="current-password"
-              {...register("password")}
-              error={errors.password?.message}
-              disabled={isLoading}
-            />
-            <button
-              type="button"
-              className="absolute right-4 top-[38px] text-text-muted hover:text-text transition-colors"
-              onClick={() => setShowPassword(!showPassword)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
-            >
-              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-            </button>
-          </div>
+          <AuthInput
+            id="password"
+            label="Password"
+            type={showPassword ? "text" : "password"}
+            placeholder="••••••••"
+            autoComplete="current-password"
+            icon={Lock}
+            error={errors.password?.message}
+            disabled={isLoading}
+            rightSlot={
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted transition-colors hover:text-text"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            }
+            {...register("password")}
+          />
 
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 cursor-pointer">
+          <div className="flex items-center justify-between pt-1">
+            <label className="flex cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
-                className="h-4 w-4 rounded border-border text-primary focus:ring-primary focus:ring-2"
+                className="h-4 w-4 rounded border-border accent-primary"
                 {...register("rememberMe")}
               />
               <span className="text-sm text-text-muted">Remember me</span>
             </label>
             <Link
               to="/forgot-password"
-              className="text-sm font-medium text-primary hover:text-primary-hover"
+              className="text-sm font-medium text-primary transition-colors hover:text-primary-hover"
             >
               Forgot password?
             </Link>
           </div>
 
-          <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
+          <Button type="submit" className="w-full gap-2" size="lg" isLoading={isLoading}>
+            {!isLoading && <ArrowRight className="h-4 w-4" />}
             Sign in
           </Button>
         </form>
@@ -109,17 +130,12 @@ export function LoginPage() {
             <span className="w-full border-t border-border" />
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="bg-surface px-4 text-text-muted">Or continue with</span>
+            <span className="bg-card px-4 text-text-muted">Or continue with</span>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => { /* TODO: Google OAuth */ }}
-            disabled={isLoading}
-          >
+          <Button type="button" variant="outline" onClick={() => { /* TODO: Google OAuth */ }} disabled={isLoading} className="py-2.5">
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path
                 fill="currentColor"
@@ -140,12 +156,7 @@ export function LoginPage() {
             </svg>
             Google
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => { /* TODO: Microsoft OAuth */ }}
-            disabled={isLoading}
-          >
+          <Button type="button" variant="outline" onClick={() => { /* TODO: Microsoft OAuth */ }} disabled={isLoading} className="py-2.5">
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path
                 fill="currentColor"
@@ -156,18 +167,19 @@ export function LoginPage() {
           </Button>
         </div>
       </CardContent>
-      <CardFooter className="flex flex-col gap-4 text-center">
+
+      <CardFooter className="flex-col gap-3 px-7 pb-7 text-center sm:px-8">
         <p className="text-sm text-text-muted">
           Don't have an account?{" "}
-          <Link to="/register" className="font-medium text-primary hover:text-primary-hover">
+          <Link to="/register" className="font-semibold text-primary transition-colors hover:text-primary-hover">
             Create one
           </Link>
         </p>
-        <p className="text-xs text-text-muted">
+        <p className="text-xs leading-relaxed text-text-muted">
           By continuing, you agree to our{" "}
-          <Link to="/terms" className="underline hover:text-text">Terms of Service</Link>{" "}
+          <Link to="/terms" className="underline decoration-border underline-offset-2 transition-colors hover:text-text">Terms of Service</Link>{" "}
           and{" "}
-          <Link to="/privacy" className="underline hover:text-text">Privacy Policy</Link>
+          <Link to="/privacy" className="underline decoration-border underline-offset-2 transition-colors hover:text-text">Privacy Policy</Link>
         </p>
       </CardFooter>
     </Card>
