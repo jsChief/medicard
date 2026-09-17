@@ -7,7 +7,9 @@ import {
   RefreshCw,
   ArrowRight,
   FileText,
+  Minus,
 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardHeader,
@@ -19,6 +21,8 @@ import {
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
+import { queryHMOApprovals, type HMOApproval } from "@/lib/firestore";
 
 interface HMOBottleneck {
   id: string;
@@ -31,62 +35,9 @@ interface HMOBottleneck {
   lastSync: string;
 }
 
-const mockHMOBottlenecks: HMOBottleneck[] = [
-  {
-    id: "hmo-1",
-    provider: "PhilHealth",
-    pendingCount: 147,
-    avgProcessingDays: 8.5,
-    trend: "worsening",
-    slaBreachRisk: "high",
-    topDelayedCardTypes: [
-      "Discharge Summary",
-      "Final Billing",
-      "Medical Certificate",
-    ],
-    lastSync: "15 min ago",
-  },
-  {
-    id: "hmo-2",
-    provider: "Maxicare",
-    pendingCount: 89,
-    avgProcessingDays: 5.2,
-    trend: "stable",
-    slaBreachRisk: "medium",
-    topDelayedCardTypes: ["Pre-authorization", "Referral Letter"],
-    lastSync: "8 min ago",
-  },
-  {
-    id: "hmo-3",
-    provider: "MediCard HMO",
-    pendingCount: 234,
-    avgProcessingDays: 12.1,
-    trend: "worsening",
-    slaBreachRisk: "high",
-    topDelayedCardTypes: ["SOA", "Itemized Billing", "Clinical Abstract"],
-    lastSync: "5 min ago",
-  },
-  {
-    id: "hmo-4",
-    provider: "Intellicare",
-    pendingCount: 56,
-    avgProcessingDays: 3.8,
-    trend: "improving",
-    slaBreachRisk: "low",
-    topDelayedCardTypes: ["Member Verification"],
-    lastSync: "22 min ago",
-  },
-  {
-    id: "hmo-5",
-    provider: "Kaiser",
-    pendingCount: 32,
-    avgProcessingDays: 4.5,
-    trend: "stable",
-    slaBreachRisk: "low",
-    topDelayedCardTypes: ["Pre-certification"],
-    lastSync: "30 min ago",
-  },
-];
+function toMsDays(ms: number) {
+  return ms / (1000 * 60 * 60 * 24)
+}
 
 function getRiskConfig(risk: HMOBottleneck["slaBreachRisk"]) {
   switch (risk) {
@@ -125,17 +76,112 @@ function getTrendConfig(trend: HMOBottleneck["trend"]) {
   }
 }
 
-// Need to import Minus from lucide-react
-import { Minus } from "lucide-react";
+const SLA_THRESHOLD_DAYS = 7
+
+function buildBottleneck(approvals: HMOApproval[]): HMOBottleneck[] {
+  const byProvider = new Map<string, HMOApproval[]>()
+
+  for (const approval of approvals) {
+    const list = byProvider.get(approval.hmoProvider) || []
+    list.push(approval)
+    byProvider.set(approval.hmoProvider, list)
+  }
+
+  const now = Date.now()
+
+  return Array.from(byProvider.entries()).map(([provider, items]) => {
+    const pending = items.filter((a) => a.status === "pending")
+    const reviewed = items.filter(
+      (a) => a.reviewedAt && (a.status === "approved" || a.status === "denied" || a.status === "partial")
+    )
+
+    const processingDays = reviewed.length > 0
+      ? reviewed.reduce((sum, a) => {
+          const end = a.reviewedAt ? a.reviewedAt.getTime() : now
+          return sum + toMsDays(end - a.requestDate.getTime())
+        }, 0) / reviewed.length
+      : pending.length > 0
+        ? pending.reduce((sum, a) => sum + toMsDays(now - a.requestDate.getTime()), 0) / pending.length
+        : 0
+
+    const trend: HMOBottleneck["trend"] = processingDays >= 8 ? "worsening" : processingDays <= 4 ? "improving" : "stable"
+    const slaBreachRisk: HMOBottleneck["slaBreachRisk"] = processingDays >= SLA_THRESHOLD_DAYS ? "high" : processingDays >= 5 ? "medium" : "low"
+
+    const typeCounts = new Map<string, number>()
+    for (const a of pending) {
+      typeCounts.set(a.requestType, (typeCounts.get(a.requestType) || 0) + 1)
+    }
+    const typeLabels: Record<HMOApproval["requestType"], string> = {
+      admission: "Admission",
+      procedure: "Procedure",
+      medication: "Medication",
+      extension: "Extension",
+      transfer: "Transfer",
+    }
+    const topDelayedCardTypes = Array.from(typeCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([type]) => typeLabels[type as HMOApproval["requestType"]])
+
+    return {
+      id: provider,
+      provider,
+      pendingCount: pending.length,
+      avgProcessingDays: Math.round(processingDays * 10) / 10,
+      trend,
+      slaBreachRisk,
+      topDelayedCardTypes,
+      lastSync: "Just now",
+    }
+  }).sort((a, b) => b.pendingCount - a.pendingCount)
+}
 
 export function HMOBottleneckCallout() {
-  const totalPending = mockHMOBottlenecks.reduce(
-    (sum, h) => sum + h.pendingCount,
-    0,
-  );
-  const highRiskCount = mockHMOBottlenecks.filter(
-    (h) => h.slaBreachRisk === "high",
-  ).length;
+  const { user } = useAuth();
+  const [approvals, setApprovals] = useState<HMOApproval[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchApprovals = useCallback(async () => {
+    if (!user?.hospitalId) {
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const result = await queryHMOApprovals({
+        hospitalId: user.hospitalId,
+        sortBy: "requestDate",
+        sortOrder: "desc",
+        limit: 200,
+      })
+      setApprovals(result.approvals);
+    } catch (error) {
+      console.error("Failed to fetch HMO approvals:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user?.hospitalId]);
+
+  useEffect(() => {
+    fetchApprovals();
+  }, [fetchApprovals]);
+
+  const bottlenecks = useMemo(() => buildBottleneck(approvals), [approvals]);
+
+  const totalPending = bottlenecks.reduce((sum, h) => sum + h.pendingCount, 0);
+  const highRiskCount = bottlenecks.filter((h) => h.slaBreachRisk === "high").length;
+  const avgProcessing = bottlenecks.length > 0
+    ? bottlenecks.reduce((sum, h) => sum + h.avgProcessingDays, 0) / bottlenecks.length
+    : 0;
+
+  if (isLoading) {
+    return (
+      <Card className="border-border/50 bg-linear-to-r from-danger/5 to-warning/5">
+        <CardContent className="p-8 text-center text-sm text-text-muted">
+          Loading HMO bottleneck data...
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <Card className="border-border/50 bg-linear-to-r from-danger/5 to-warning/5">
@@ -148,8 +194,7 @@ export function HMOBottleneckCallout() {
             <div>
               <CardTitle className="text-lg">HMO Bottleneck Alert</CardTitle>
               <CardDescription>
-                {highRiskCount} of {mockHMOBottlenecks.length} providers at high
-                SLA breach risk
+                {highRiskCount} of {bottlenecks.length} providers at high SLA breach risk
               </CardDescription>
             </div>
           </div>
@@ -157,14 +202,20 @@ export function HMOBottleneckCallout() {
             <Badge variant="danger" className="text-sm">
               {totalPending} Pending
             </Badge>
-            <Button variant="ghost" size="sm" className="gap-1">
-              <RefreshCw className="h-3.5 w-3.5" />
+            <Button variant="ghost" size="sm" className="gap-1" onClick={fetchApprovals}>
+              <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
               Sync
             </Button>
           </div>
         </div>
       </CardHeader>
       <CardContent>
+        {bottlenecks.length === 0 ? (
+          <div className="p-8 text-center text-sm text-text-muted">
+            No HMO approvals yet. Approvals will appear here once submitted.
+          </div>
+        ) : (
+        <>
         {/* Summary metrics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="p-4 rounded-xl bg-surface border border-border">
@@ -177,12 +228,7 @@ export function HMOBottleneckCallout() {
           </div>
           <div className="p-4 rounded-xl bg-surface border border-border">
             <p className="text-2xl font-bold text-text">
-              {(
-                mockHMOBottlenecks.reduce(
-                  (sum, h) => sum + h.avgProcessingDays,
-                  0,
-                ) / mockHMOBottlenecks.length
-              ).toFixed(1)}
+              {avgProcessing.toFixed(1)}
             </p>
             <p className="text-xs text-text-muted mt-1">
               Avg Processing (Days)
@@ -190,7 +236,7 @@ export function HMOBottleneckCallout() {
           </div>
           <div className="p-4 rounded-xl bg-surface border border-border">
             <p className="text-2xl font-bold text-text">
-              {mockHMOBottlenecks.length}
+              {bottlenecks.length}
             </p>
             <p className="text-xs text-text-muted mt-1">Active HMO Providers</p>
           </div>
@@ -198,7 +244,7 @@ export function HMOBottleneckCallout() {
 
         {/* Provider breakdown */}
         <div className="space-y-3">
-          {mockHMOBottlenecks.map((bottleneck) => {
+          {bottlenecks.map((bottleneck) => {
             const riskConfig = getRiskConfig(bottleneck.slaBreachRisk);
             const trendConfig = getTrendConfig(bottleneck.trend);
             const TrendIcon = trendConfig.icon;
@@ -286,11 +332,13 @@ export function HMOBottleneckCallout() {
             );
           })}
         </div>
+        </>
+        )}
       </CardContent>
       <CardFooter className="pt-4 border-t border-border/50">
         <div className="flex items-center place-content-between w-full">
           <p className="text-xs text-text-muted">
-            Last full sync: 5 minutes ago • Next auto-sync in 10 minutes
+            Last full sync: Just now • Data refreshes on load
           </p>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm">

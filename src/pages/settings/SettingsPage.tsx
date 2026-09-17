@@ -1,11 +1,8 @@
 import { useState, type ReactNode } from "react"
-import { Sun, Moon, User, Bell, Shield, Database, Save, Loader2 } from "lucide-react"
-import { useAuth } from "@/context/AuthContext"
+import { Sun, Moon, Bell, Shield, Database } from "lucide-react"
 import { useTheme } from "@/context/ThemeContext"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent } from "@/components/ui/Card"
-import { Input } from "@/components/ui/Input"
-import { Label } from "@/components/ui/Label"
 import { Separator } from "@/components/ui/Separator"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -82,41 +79,15 @@ function SettingsRow({
 }
 
 export function SettingsPage() {
-  const { user, updateProfile, isLoading: authLoading } = useAuth()
   const { theme, setTheme } = useTheme()
-  const [isSaving, setIsSaving] = useState(false)
-  const [name, setName] = useState(user?.name || "")
-  const [email, setEmail] = useState(user?.email || "")
-
   const [emailNotifs, setEmailNotifs] = useState(true)
   const [pushNotifs, setPushNotifs] = useState(true)
   const [weeklyDigest, setWeeklyDigest] = useState(false)
   const [twoFactor, setTwoFactor] = useState(false)
 
-  const handleSaveProfile = async () => {
-    if (!user) return
-    setIsSaving(true)
-    try {
-      await updateProfile({ name, email })
-      toast.success("Profile updated successfully")
-    } catch (error) {
-      toast.error(`Failed to update profile: ${error}. Please try again.`)
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
   const handleThemeChange = (newTheme: "light" | "dark") => {
     setTheme(newTheme)
     toast.success(`Switched to ${newTheme} mode`)
-  }
-
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
   }
 
   return (
@@ -161,42 +132,6 @@ export function SettingsPage() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Profile */}
-      <SettingsCard
-        icon={User}
-        iconClass="bg-primary/10 text-primary"
-        title="Profile"
-        description="Manage your personal information"
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="name">Full Name</Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your name"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="email">Email Address</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-            />
-          </div>
-        </div>
-        <div className="flex justify-end pt-4">
-          <Button onClick={handleSaveProfile} isLoading={isSaving} className="gap-2">
-            <Save className="h-4 w-4" />
-            Save Changes
-          </Button>
-        </div>
-      </SettingsCard>
 
       {/* Notifications */}
       <SettingsCard

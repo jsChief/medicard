@@ -1,4 +1,4 @@
-import { useState, Fragment } from "react"
+import { useState, Fragment, useEffect, useMemo, useCallback } from "react"
 import {
   Search,
   ChevronDown,
@@ -15,6 +15,7 @@ import {
   Edit,
   Download,
   Upload,
+  Loader2,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
@@ -23,8 +24,16 @@ import { Badge } from "@/components/ui/Badge"
 import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { SortableTh } from "@/components/ui/SortableTh"
 import { cn, formatDate } from "@/lib/utils"
+import { useAuth } from "@/context/AuthContext"
+import {
+  queryHMOApprovals,
+  updateHMOApproval,
+  type HMOApproval,
+  type HMOApprovalStatus,
+} from "@/lib/firestore"
+import { toast } from "sonner"
 
-interface HMOApproval {
+interface HMOApprovalView {
   id: string
   patientId: string
   patientName: string
@@ -37,7 +46,7 @@ interface HMOApproval {
   requestDate: string
   requestedAmount: number
   approvedAmount?: number
-  status: "pending" | "approved" | "denied" | "partial" | "more-info" | "appealed"
+  status: HMOApprovalStatus
   requestType: "admission" | "procedure" | "medication" | "extension" | "transfer"
   procedureName?: string
   diagnosis: string
@@ -50,83 +59,39 @@ interface HMOApproval {
   documents: Array<{ name: string; type: string; date: string }>
 }
 
-const mockHMOApprovals: HMOApproval[] = [
-  {
-    id: "1", patientId: "1", patientName: "Maria Santos", mrn: "MRN-2024-001234",
-    hmoProvider: "Maxicare", policyNumber: "MAX-2024-987654321",
-    department: "Cardiology", attendingPhysician: "Dr. James Doe",
-    admissionDate: "2024-01-10", requestDate: "2024-01-20", requestedAmount: 150000,
-    status: "pending", requestType: "extension",
-    diagnosis: "Hypertension, Type 2 Diabetes, Hyperlipidemia",
-    clinicalNotes: "Patient requires extended stay for medication titration and glucose monitoring. HbA1c 7.2%. Requesting 5 additional days.",
-    documents: [{ name: "Admission Orders", type: "PDF", date: "2024-01-10" }, { name: "Progress Notes", type: "PDF", date: "2024-01-20" }, { name: "Lab Results", type: "PDF", date: "2024-01-19" }]
-  },
-  {
-    id: "2", patientId: "2", patientName: "Juan Cruz", mrn: "MRN-2024-001235",
-    hmoProvider: "PhilHealth", policyNumber: "PH-2024-123456789",
-    department: "Orthopedics", attendingPhysician: "Dr. Sarah Lee",
-    admissionDate: "2024-01-12", requestDate: "2024-01-15", requestedAmount: 280000, approvedAmount: 250000,
-    status: "partial", requestType: "procedure",
-    procedureName: "Open Reduction Internal Fixation - Right Femur",
-    diagnosis: "Comminuted Right Femoral Shaft Fracture",
-    clinicalNotes: "Emergency ORIF performed. Post-op stable. Requesting coverage for implants and 7-day stay.",
-    hmoNotes: "Implant coverage limited to standard rates. Approved ₦250,000.",
-    reviewedBy: "Dr. Maria Gonzales (HMO)", reviewedAt: "2024-01-16",
-    documents: [{ name: "Surgical Consent", type: "PDF", date: "2024-01-12" }, { name: "Operative Report", type: "PDF", date: "2024-01-13" }, { name: "Implant Invoice", type: "PDF", date: "2024-01-14" }]
-  },
-  {
-    id: "3", patientId: "3", patientName: "Ana Reyes", mrn: "MRN-2024-001236",
-    hmoProvider: "Intellicare", policyNumber: "INT-2024-456789123",
-    department: "ICU", attendingPhysician: "Dr. Michael Chen",
-    admissionDate: "2024-01-18", requestDate: "2024-01-19", requestedAmount: 450000,
-    status: "approved", requestType: "admission",
-    diagnosis: "Septic Shock, ARDS, Acute Kidney Injury",
-    clinicalNotes: "Critically ill patient on mechanical ventilation, vasopressors, and CRRT. Requires ICU level care.",
-    hmoNotes: "Approved for ICU admission. Daily review required.",
-    reviewedBy: "Dr. Roberto Lim (HMO)", reviewedAt: "2024-01-19",
-    validityStart: "2024-01-18", validityEnd: "2024-01-25",
-    documents: [{ name: "ICU Admission Note", type: "PDF", date: "2024-01-18" }, { name: "ABG Results", type: "PDF", date: "2024-01-19" }, { name: "Vasopressor Orders", type: "PDF", date: "2024-01-19" }]
-  },
-  {
-    id: "4", patientId: "4", patientName: "Roberto Garcia", mrn: "MRN-2024-001237",
-    hmoProvider: "Medicard", policyNumber: "MED-2024-789123456",
-    department: "Emergency", attendingPhysician: "Dr. Emily Brown",
-    admissionDate: "2024-01-20", requestDate: "2024-01-20", requestedAmount: 45000,
-    status: "denied", requestType: "admission",
-    diagnosis: "Atypical Chest Pain - Rule Out ACS",
-    clinicalNotes: "Patient presented with chest pain. Negative troponins x2. Normal EKG. Low HEART score. Observation only.",
-    hmoNotes: "Does not meet admission criteria. Outpatient stress test recommended. Observation stay not covered.",
-    reviewedBy: "Dr. Ana Reyes (HMO)", reviewedAt: "2024-01-20",
-    documents: [{ name: "ER Triage Note", type: "PDF", date: "2024-01-20" }, { name: "Troponin Results", type: "PDF", date: "2024-01-20" }, { name: "EKG", type: "PDF", date: "2024-01-20" }]
-  },
-  {
-    id: "5", patientId: "5", patientName: "Carmen Lopez", mrn: "MRN-2024-001238",
-    hmoProvider: "Maxicare", policyNumber: "MAX-2024-111222333",
-    department: "Neurology", attendingPhysician: "Dr. David Kim",
-    admissionDate: "2024-01-08", requestDate: "2024-01-18", requestedAmount: 180000,
-    status: "more-info", requestType: "extension",
-    diagnosis: "Acute Ischemic Stroke, Right MCA Territory",
-    clinicalNotes: "Post-stroke day 10. Right hemiparesis, expressive aphasia. Requires continued rehab and swallow evaluation. Requesting 7-day extension for inpatient rehab.",
-    hmoNotes: "Need functional assessment (FIM scores), swallow study results, and rehab goals before approval.",
-    reviewedBy: "Dr. Carmen Sy (HMO)", reviewedAt: "2024-01-19",
-    documents: [{ name: "Stroke Protocol", type: "PDF", date: "2024-01-08" }, { name: "CT Head", type: "PDF", date: "2024-01-08" }, { name: "PT/OT Notes", type: "PDF", date: "2024-01-18" }]
-  },
-  {
-    id: "6", patientId: "6", patientName: "Pedro Santos", mrn: "MRN-2024-001239",
-    hmoProvider: "PhilHealth", policyNumber: "PH-2024-999888777",
-    department: "Pediatrics", attendingPhysician: "Dr. Anna Cruz",
-    admissionDate: "2024-01-15", requestDate: "2024-01-15", requestedAmount: 85000,
-    status: "approved", requestType: "admission",
-    diagnosis: "Acute Asthma Exacerbation",
-    clinicalNotes: "5-year-old with severe asthma exacerbation. Requiring continuous nebulization, IV steroids, magnesium. PICU admission.",
-    hmoNotes: "Approved for PICU admission. Case rate applies.",
-    reviewedBy: "Dr. Jose Reyes (PhilHealth)", reviewedAt: "2024-01-15",
-    validityStart: "2024-01-15", validityEnd: "2024-01-22",
-    documents: [{ name: "PICU Admission", type: "PDF", date: "2024-01-15" }, { name: "Asthma Score", type: "PDF", date: "2024-01-15" }, { name: "Medication Orders", type: "PDF", date: "2024-01-15" }]
-  },
-]
+function toView(approval: HMOApproval): HMOApprovalView {
+  return {
+    id: approval.id,
+    patientId: approval.patientId,
+    patientName: approval.patientName,
+    mrn: approval.mrn,
+    hmoProvider: approval.hmoProvider,
+    policyNumber: approval.policyNumber,
+    department: approval.department,
+    attendingPhysician: approval.attendingPhysician,
+    admissionDate: approval.admissionDate?.toISOString(),
+    requestDate: approval.requestDate.toISOString(),
+    requestedAmount: approval.requestedAmount,
+    approvedAmount: approval.approvedAmount,
+    status: approval.status,
+    requestType: approval.requestType,
+    procedureName: approval.procedureName,
+    diagnosis: approval.diagnosis,
+    clinicalNotes: approval.clinicalNotes,
+    hmoNotes: approval.hmoNotes,
+    reviewedBy: approval.reviewedBy,
+    reviewedAt: approval.reviewedAt?.toISOString(),
+    validityStart: approval.validityStart?.toISOString(),
+    validityEnd: approval.validityEnd?.toISOString(),
+    documents: (approval.documents ?? []).map(doc => ({
+      name: doc.name,
+      type: doc.type,
+      date: doc.date.toISOString(),
+    })),
+  }
+}
 
-function getStatusConfig(status: HMOApproval["status"]) {
+function getStatusConfig(status: HMOApprovalView["status"]) {
   switch (status) {
     case "pending": return { label: "Pending", variant: "primary" as const, icon: Clock }
     case "approved": return { label: "Approved", variant: "success" as const, icon: CheckCircle2 }
@@ -138,6 +103,9 @@ function getStatusConfig(status: HMOApproval["status"]) {
 }
 
 export function HMOApprovalsPage() {
+  const { user } = useAuth()
+  const [isLoading, setIsLoading] = useState(true)
+  const [approvals, setApprovals] = useState<HMOApproval[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("All")
   const [providerFilter, setProviderFilter] = useState("All")
@@ -147,7 +115,38 @@ export function HMOApprovalsPage() {
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
 
-  const providers = ["All", "Maxicare", "PhilHealth", "Intellicare", "Medicard", "Kaiser", "Avega", "Pacific Cross"]
+  const fetchApprovals = useCallback(async () => {
+    if (!user?.hospitalId) {
+      setIsLoading(false)
+      return
+    }
+    try {
+      setIsLoading(true)
+      const result = await queryHMOApprovals({
+        hospitalId: user.hospitalId,
+        sortBy: "requestDate",
+        sortOrder: "desc",
+        limit: 200,
+      })
+      setApprovals(result.approvals)
+    } catch (error) {
+      console.error("Failed to fetch HMO approvals:", error)
+      toast.error("Failed to load HMO approvals")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.hospitalId])
+
+  useEffect(() => {
+    fetchApprovals()
+  }, [fetchApprovals])
+
+  const viewApprovals = useMemo(() => approvals.map(toView), [approvals])
+
+  const providers = useMemo(() => {
+    const list = Array.from(new Set(viewApprovals.map(a => a.hmoProvider).filter(Boolean)))
+    return ["All", ...list.sort()]
+  }, [viewApprovals])
   const statuses = ["All", "pending", "approved", "denied", "partial", "more-info", "appealed"]
   const types = ["All", "admission", "procedure", "medication", "extension", "transfer"]
 
@@ -155,7 +154,7 @@ export function HMOApprovalsPage() {
   const providerOptions = providers.map(p => ({ value: p, label: p }))
   const typeOptions = types.map(t => ({ value: t, label: t === "All" ? "All" : t.charAt(0).toUpperCase() + t.slice(1) }))
 
-  const filteredApprovals = mockHMOApprovals
+  const filteredApprovals = viewApprovals
     .filter(a => {
       const matchesSearch = a.patientName.toLowerCase().includes(searchQuery.toLowerCase()) || a.mrn.toLowerCase().includes(searchQuery.toLowerCase()) || a.hmoProvider.toLowerCase().includes(searchQuery.toLowerCase())
       const matchesStatus = statusFilter === "All" || a.status === statusFilter
@@ -164,8 +163,8 @@ export function HMOApprovalsPage() {
       return matchesSearch && matchesStatus && matchesProvider && matchesType
     })
     .sort((a, b) => {
-      const aVal = a[sortBy as keyof HMOApproval]
-      const bVal = b[sortBy as keyof HMOApproval]
+      const aVal = a[sortBy as keyof HMOApprovalView]
+      const bVal = b[sortBy as keyof HMOApprovalView]
       if (aVal === undefined || aVal === null) return 1
       if (bVal === undefined || bVal === null) return -1
       const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0
@@ -186,28 +185,48 @@ export function HMOApprovalsPage() {
     else setSelectedItems(filteredApprovals.map(a => a.id))
   }
 
+  const bulkUpdate = useCallback(async (status: HMOApprovalStatus) => {
+    if (selectedItems.length === 0) return
+    try {
+      await Promise.all(selectedItems.map(id => updateHMOApproval(id, { status, reviewedAt: new Date() } as Partial<HMOApproval>)))
+      toast.success(`Updated ${selectedItems.length} request(s)`)
+      setSelectedItems([])
+      await fetchApprovals()
+    } catch (error) {
+      console.error("Failed to update HMO approvals:", error)
+      toast.error("Failed to update HMO approvals")
+    }
+  }, [selectedItems, fetchApprovals])
+
+  const today = useMemo(() => new Date().toDateString(), [])
+  const thisWeekStart = useMemo(() => {
+    const now = new Date()
+    now.setDate(now.getDate() - 7)
+    return now
+  }, [])
+
   const stats = [
     {
       label: "Pending Review",
-      value: String(mockHMOApprovals.filter(a => a.status === "pending").length),
+      value: String(viewApprovals.filter(a => a.status === "pending").length),
       icon: Clock,
       iconBg: "bg-primary/10 text-primary",
     },
     {
       label: "Pending Amount",
-      value: "₦" + mockHMOApprovals.filter(a => a.status === "pending").reduce((sum, a) => sum + a.requestedAmount, 0).toLocaleString(),
+      value: "₦" + viewApprovals.filter(a => a.status === "pending").reduce((sum, a) => sum + a.requestedAmount, 0).toLocaleString(),
       icon: DollarSign,
       iconBg: "bg-warning/10 text-warning",
     },
     {
       label: "Approved Today",
-      value: String(mockHMOApprovals.filter(a => a.status === "approved" && a.reviewedAt === "2024-01-20").length),
+      value: String(viewApprovals.filter(a => a.status === "approved" && a.reviewedAt && new Date(a.reviewedAt).toDateString() === today).length),
       icon: CheckCircle2,
       iconBg: "bg-success/10 text-success",
     },
     {
       label: "Denied This Week",
-      value: String(mockHMOApprovals.filter(a => a.status === "denied").length),
+      value: String(viewApprovals.filter(a => a.status === "denied" && a.reviewedAt && new Date(a.reviewedAt) >= thisWeekStart).length),
       icon: XCircle,
       iconBg: "bg-danger/10 text-danger",
     },
@@ -281,9 +300,9 @@ export function HMOApprovalsPage() {
             {selectedItems.length} request(s) selected
           </span>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1"><CheckCircle2 className="h-4 w-4" /> Approve</Button>
-            <Button variant="outline" size="sm" className="gap-1"><XCircle className="h-4 w-4" /> Deny</Button>
-            <Button variant="outline" size="sm" className="gap-1"><AlertCircle className="h-4 w-4" /> Request Info</Button>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => bulkUpdate("approved")}><CheckCircle2 className="h-4 w-4" /> Approve</Button>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => bulkUpdate("denied")}><XCircle className="h-4 w-4" /> Deny</Button>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => bulkUpdate("more-info")}><AlertCircle className="h-4 w-4" /> Request Info</Button>
             <Button variant="ghost" size="sm" onClick={() => setSelectedItems([])}>Clear</Button>
           </div>
         </div>
@@ -456,7 +475,14 @@ export function HMOApprovalsPage() {
           </table>
         </div>
 
-        {filteredApprovals.length === 0 && (
+        {isLoading && viewApprovals.length === 0 ? (
+          <div className="py-16 text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">
+              <Loader2 className="h-6 w-6 animate-spin text-text-muted/40" />
+            </div>
+            <p className="text-lg font-medium text-text">Loading HMO approvals...</p>
+          </div>
+        ) : filteredApprovals.length === 0 ? (
           <div className="py-16 text-center">
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">
               <Shield className="h-6 w-6 text-text-muted/40" />
@@ -464,7 +490,7 @@ export function HMOApprovalsPage() {
             <p className="text-lg font-medium text-text">No authorization requests found</p>
             <p className="text-sm text-text-muted">Try adjusting your search or filters</p>
           </div>
-        )}
+        ) : null}
       </Card>
     </div>
   )

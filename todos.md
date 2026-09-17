@@ -16,9 +16,9 @@
 - [x] **Edit Patient** - Form to update patient information
 
 ### Patient Card Management
-- [ ] **Patient Card Form** - Multi-step form (Personal Info, Medical History, Emergency Contacts, Insurance)
-- [ ] **Patient Search** - Advanced search with filters (name, DOB, MRN, condition, date range)
-- [ ] **Patient Import/Export** - CSV/Excel import/export functionality
+- [x] **Patient Card Form** - Multi-step form (Personal Info, Medical History, Emergency Contacts, Insurance)
+- [x] **Patient Search** - Advanced search with filters (name, DOB, MRN, condition, date range)
+- [x] **Patient Import/Export** - CSV/Excel import/export functionality
 - [ ] **Bulk Actions** - Archive, delete, export multiple patients
 
 ### Hospital Settings

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef, type ChangeEvent } from "react"
 import {
   Search,
   Plus,
@@ -21,8 +21,10 @@ import { Badge } from "@/components/ui/Badge"
 import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
-import { queryPatients, type Patient } from "@/lib/firestore"
+import { queryPatients, bulkCreatePatients, type Patient } from "@/lib/firestore"
+import { patientsToCsv, parsePatientImportCsv } from "@/lib/patientCsv"
 import { toast } from "sonner"
+import type { DocumentSnapshot } from "firebase/firestore"
 
 interface PatientCard {
   id: string
@@ -108,6 +110,91 @@ export function PatientCardsPage() {
     return () => { cancelled = true }
   }, [user?.hospitalId])
 
+  const refreshCards = async () => {
+    if (!user?.hospitalId) return
+    try {
+      const result = await queryPatients({
+        hospitalId: user.hospitalId,
+        sortBy: "lastName",
+        sortOrder: "asc",
+        pageSize: 100,
+      })
+      setPatients(result.patients)
+    } catch (error) {
+      console.error("Failed to refresh patient cards:", error)
+      toast.error("Failed to refresh patient cards")
+    }
+  }
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isExporting, setIsExporting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+
+  const handleExport = async () => {
+    if (!user?.hospitalId) return
+    setIsExporting(true)
+    try {
+      const all: Patient[] = []
+      let lastDoc: DocumentSnapshot | null = null
+      let hasMore = true
+      while (hasMore) {
+        const result = await queryPatients({
+          hospitalId: user.hospitalId,
+          sortBy: "lastName",
+          sortOrder: "asc",
+          pageSize: 1000,
+          startAfterDoc: lastDoc ?? undefined,
+        })
+        all.push(...result.patients)
+        lastDoc = result.lastDoc
+        hasMore = result.patients.length > 0
+      }
+      const csv = patientsToCsv(all)
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `patients-export-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      toast.success(`Exported ${all.length} patient(s)`)
+    } catch (error) {
+      console.error("Failed to export patients:", error)
+      toast.error("Failed to export patients")
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file || !user?.hospitalId) return
+    setIsImporting(true)
+    try {
+      const text = await file.text()
+      const { patients: records, issues } = parsePatientImportCsv(text, {
+        hospitalId: user.hospitalId,
+        createdBy: user.id,
+        attendingPhysician: user.name,
+      })
+      if (records.length === 0) {
+        toast.error("No valid patient rows found in the file")
+        return
+      }
+      await bulkCreatePatients(records)
+      toast.success(`Imported ${records.length} patient(s)${issues.length > 0 ? `, ${issues.length} row(s) skipped` : ""}`)
+      await refreshCards()
+    } catch (error) {
+      console.error("Failed to import patients:", error)
+      toast.error("Failed to import patients")
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   const patientCards = useMemo(() => patients.map(toCardData), [patients])
 
   const statuses = ["All", "active", "discharged", "transferred", "critical", "pending"]
@@ -167,14 +254,21 @@ export function PatientCardsPage() {
               <List className="h-4 w-4" />
             </Button>
           </div>
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" isLoading={isExporting} onClick={handleExport}>
             <Download className="h-4 w-4" />
             Export
           </Button>
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" isLoading={isImporting} onClick={() => fileInputRef.current?.click()}>
             <Upload className="h-4 w-4" />
             Import
           </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleImportFile}
+          />
           <Button className="gap-2">
             <Plus className="h-4 w-4" />
             New Card
@@ -332,7 +426,7 @@ export function PatientCardsPage() {
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted">Status</th>
                   <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted xl:table-cell">Physician</th>
                   <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted xl:table-cell">Admitted</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-text-muted">Actions</th>
+                  <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

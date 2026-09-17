@@ -1,8 +1,11 @@
 import { AlertCircle, Clock, ArrowRight, ExternalLink, User, Building2 } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { cn, formatDate } from "@/lib/utils"
+import { useAuth } from "@/context/AuthContext"
+import { queryCheckouts, queryHMOApprovals, type Checkout, type HMOApproval } from "@/lib/firestore"
 
 interface OverdueCard {
   id: string
@@ -17,83 +20,63 @@ interface OverdueCard {
   hmoProvider?: string
 }
 
-const mockOverdueCards: OverdueCard[] = [
-  {
-    id: "PC-2024-001234",
-    patientName: "Maria Santos",
-    patientId: "PAT-789456",
-    cardType: "discharge",
-    department: "Cardiology",
-    dueDate: "2024-01-15",
-    daysOverdue: 5,
-    priority: "critical",
-    assignedTo: "Dr. James Doe",
-  },
-  {
-    id: "PC-2024-001235",
-    patientName: "Robert Chen",
-    patientId: "PAT-789457",
-    cardType: "hmo",
-    department: "Orthopedics",
-    dueDate: "2024-01-16",
-    daysOverdue: 4,
-    priority: "high",
-    hmoProvider: "PhilHealth",
-  },
-  {
-    id: "PC-2024-001236",
-    patientName: "Jennifer Lopez",
-    patientId: "PAT-789458",
-    cardType: "transfer",
-    department: "ICU",
-    dueDate: "2024-01-17",
-    daysOverdue: 3,
-    priority: "high",
-    assignedTo: "Nurse Sarah Wilson",
-  },
-  {
-    id: "PC-2024-001237",
-    patientName: "Michael Brown",
-    patientId: "PAT-789459",
-    cardType: "admission",
-    department: "Emergency",
-    dueDate: "2024-01-18",
-    daysOverdue: 2,
-    priority: "medium",
-  },
-  {
-    id: "PC-2024-001238",
-    patientName: "Lisa Anderson",
-    patientId: "PAT-789460",
-    cardType: "referral",
-    department: "Neurology",
-    dueDate: "2024-01-19",
-    daysOverdue: 1,
-    priority: "medium",
-    assignedTo: "Dr. Emily Davis",
-  },
-  {
-    id: "PC-2024-001239",
-    patientName: "David Wilson",
-    patientId: "PAT-789461",
-    cardType: "hmo",
-    department: "Oncology",
-    dueDate: "2024-01-19",
-    daysOverdue: 1,
-    priority: "high",
-    hmoProvider: "Maxicare",
-  },
-  {
-    id: "PC-2024-001240",
-    patientName: "Amanda Taylor",
-    patientId: "PAT-789462",
-    cardType: "discharge",
-    department: "Pediatrics",
-    dueDate: "2024-01-20",
-    daysOverdue: 0,
-    priority: "low",
-  },
-]
+function toMsDays(ms: number) {
+  return ms / (1000 * 60 * 60 * 24)
+}
+
+function getPriority(daysOverdue: number): OverdueCard["priority"] {
+  if (daysOverdue >= 5) return "critical"
+  if (daysOverdue >= 2) return "high"
+  if (daysOverdue >= 1) return "medium"
+  return "low"
+}
+
+const HMO_SLA_DAYS = 3
+
+function buildWatchlist(checkouts: Checkout[], approvals: HMOApproval[]): OverdueCard[] {
+  const now = new Date()
+  const cards: OverdueCard[] = []
+
+  for (const checkout of checkouts) {
+    if (checkout.status === "completed" || checkout.status === "cancelled") continue
+    const due = checkout.expectedDischargeDate.getTime()
+    const daysOverdue = Math.floor(toMsDays(now.getTime() - due))
+    if (daysOverdue < 0) continue
+
+    cards.push({
+      id: checkout.id,
+      patientName: checkout.patientName,
+      patientId: checkout.mrn,
+      cardType: "discharge",
+      department: checkout.department,
+      dueDate: checkout.expectedDischargeDate.toISOString(),
+      daysOverdue,
+      priority: getPriority(daysOverdue),
+      assignedTo: checkout.attendingPhysician,
+    })
+  }
+
+  for (const approval of approvals) {
+    if (approval.status !== "pending") continue
+    const due = approval.requestDate.getTime() + HMO_SLA_DAYS * 24 * 60 * 60 * 1000
+    const daysOverdue = Math.floor(toMsDays(now.getTime() - due))
+    if (daysOverdue < 0) continue
+
+    cards.push({
+      id: approval.id,
+      patientName: approval.patientName,
+      patientId: approval.mrn,
+      cardType: "hmo",
+      department: approval.department,
+      dueDate: approval.requestDate.toISOString(),
+      daysOverdue,
+      priority: getPriority(daysOverdue),
+      hmoProvider: approval.hmoProvider,
+    })
+  }
+
+  return cards.sort((a, b) => b.daysOverdue - a.daysOverdue)
+}
 
 function getPriorityConfig(priority: OverdueCard["priority"]) {
   switch (priority) {
@@ -124,6 +107,50 @@ function getCardTypeConfig(type: OverdueCard["cardType"]) {
 }
 
 export function ActionWatchlist() {
+  const { user } = useAuth()
+  const [checkouts, setCheckouts] = useState<Checkout[]>([])
+  const [approvals, setApprovals] = useState<HMOApproval[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const fetchData = async () => {
+      if (!user?.hospitalId) {
+        setIsLoading(false)
+        return
+      }
+      try {
+        const [checkoutResult, approvalResult] = await Promise.all([
+          queryCheckouts({
+            hospitalId: user.hospitalId,
+            sortBy: "expectedDischargeDate",
+            sortOrder: "asc",
+            limit: 200,
+          }),
+          queryHMOApprovals({
+            hospitalId: user.hospitalId,
+            status: "pending",
+            sortBy: "requestDate",
+            sortOrder: "asc",
+            limit: 200,
+          }),
+        ])
+        if (!cancelled) {
+          setCheckouts(checkoutResult.checkouts)
+          setApprovals(approvalResult.approvals)
+        }
+      } catch (error) {
+        console.error("Failed to fetch watchlist data:", error)
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+    fetchData()
+    return () => { cancelled = true }
+  }, [user?.hospitalId])
+
+  const overdueCards = useMemo(() => buildWatchlist(checkouts, approvals), [checkouts, approvals])
+
   return (
     <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -134,6 +161,13 @@ export function ActionWatchlist() {
         </Button>
       </CardHeader>
       <CardContent className="p-0">
+        {isLoading && overdueCards.length === 0 ? (
+          <div className="p-8 text-center text-sm text-text-muted">Loading watchlist...</div>
+        ) : overdueCards.length === 0 ? (
+          <div className="p-8 text-center text-sm text-text-muted">
+            No overdue items. All checkouts and HMO requests are on track.
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full" role="table">
             <thead>
@@ -149,7 +183,7 @@ export function ActionWatchlist() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {mockOverdueCards.map((card) => {
+              {overdueCards.map((card) => {
                 const priorityConfig = getPriorityConfig(card.priority)
                 const typeConfig = getCardTypeConfig(card.cardType)
                 const PriorityIcon = priorityConfig.icon
@@ -225,10 +259,11 @@ export function ActionWatchlist() {
             </tbody>
           </table>
         </div>
+        )}
       </CardContent>
       <CardFooter className="flex items-center justify-between">
         <p className="text-sm text-text-muted">
-          Showing {mockOverdueCards.length} overdue cards
+          Showing {overdueCards.length} overdue cards
         </p>
         <Button variant="outline" size="sm">
           <ArrowRight className="h-4 w-4 mr-1" />

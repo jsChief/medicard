@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Users,
@@ -22,8 +22,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
+import { getDashboardCounts, getSystemStatusTotals, type DashboardCounts, type DashboardRange } from "@/lib/firestore";
 
-const timeRanges = [
+const timeRanges: { value: DashboardRange; label: string }[] = [
   { value: "today", label: "Today" },
   { value: "week", label: "This Week" },
   { value: "month", label: "This Month" },
@@ -32,56 +34,85 @@ const timeRanges = [
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const [timeRange, setTimeRange] = useState("month");
+  const { user } = useAuth();
+  const [timeRange, setTimeRange] = useState<DashboardRange>("month");
+  const [counts, setCounts] = useState<DashboardCounts | null>(null);
+  const [isLoadingCounts, setIsLoadingCounts] = useState(true);
+  const [systemRecords, setSystemRecords] = useState(0);
+  const [databaseOk, setDatabaseOk] = useState(true);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(true);
   const selectedRange =
     timeRanges.find((range) => range.value === timeRange)?.label ?? "This Month";
 
-  const metrics = [
-    {
-      title: "Total Patients",
-      value: "12,847",
-      change: 12.5,
-      changeLabel: "vs last month",
-      icon: Users,
-      iconColor: "text-primary",
-      iconBg: "bg-primary/10",
-      trend: "up" as const,
-      href: "/patients",
-    },
-    {
-      title: "Archive Balance",
-      value: "3,421",
-      change: -3.2,
-      changeLabel: "vs last month",
-      icon: Archive,
-      iconColor: "text-warning",
-      iconBg: "bg-warning/10",
-      trend: "down" as const,
-      href: "/archive",
-    },
-    {
-      title: "Active Cards Checked Out",
-      value: "156",
-      change: 8.7,
-      changeLabel: "vs last week",
-      icon: Clock,
-      iconColor: "text-success",
-      iconBg: "bg-success/10",
-      trend: "up" as const,
-      href: "/checkouts",
-    },
-    {
-      title: "Pending HMO Approvals",
-      value: "524",
-      change: 15.3,
-      changeLabel: "vs last month",
-      icon: AlertTriangle,
-      iconColor: "text-danger",
-      iconBg: "bg-danger/10",
-      trend: "up" as const,
-      href: "/hmo-approvals",
-    },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCounts = async () => {
+      if (!user?.hospitalId) {
+        setIsLoadingCounts(false);
+        return;
+      }
+      try {
+        setIsLoadingCounts(true);
+        const result = await getDashboardCounts(user.hospitalId, timeRange);
+        if (!cancelled) setCounts(result);
+      } catch (error) {
+        console.error("Failed to fetch dashboard counts:", error);
+      } finally {
+        if (!cancelled) setIsLoadingCounts(false);
+      }
+    };
+    fetchCounts();
+    return () => { cancelled = true; };
+  }, [user?.hospitalId, timeRange]);
+
+  const metrics = counts
+    ? [
+        {
+          title: "Total Patients",
+          value: counts.totalPatients.toLocaleString(),
+          change: counts.totalPatientsChange,
+          changeLabel: "vs last period",
+          icon: Users,
+          iconColor: "text-primary",
+          iconBg: "bg-primary/10",
+          trend: counts.totalPatientsChange > 0 ? ("up" as const) : counts.totalPatientsChange < 0 ? ("down" as const) : ("neutral" as const),
+          href: "/patients",
+        },
+        {
+          title: "Archive Balance",
+          value: counts.archiveBalance.toLocaleString(),
+          change: counts.archiveBalanceChange,
+          changeLabel: "vs last period",
+          icon: Archive,
+          iconColor: "text-warning",
+          iconBg: "bg-warning/10",
+          trend: counts.archiveBalanceChange > 0 ? ("up" as const) : counts.archiveBalanceChange < 0 ? ("down" as const) : ("neutral" as const),
+          href: "/archive",
+        },
+        {
+          title: "Active Cards Checked Out",
+          value: counts.activeCheckouts.toLocaleString(),
+          change: counts.activeCheckoutsChange,
+          changeLabel: "vs last period",
+          icon: Clock,
+          iconColor: "text-success",
+          iconBg: "bg-success/10",
+          trend: counts.activeCheckoutsChange > 0 ? ("up" as const) : counts.activeCheckoutsChange < 0 ? ("down" as const) : ("neutral" as const),
+          href: "/checkouts",
+        },
+        {
+          title: "Pending HMO Approvals",
+          value: counts.pendingHMO.toLocaleString(),
+          change: counts.pendingHMOChange,
+          changeLabel: "vs last period",
+          icon: AlertTriangle,
+          iconColor: "text-danger",
+          iconBg: "bg-danger/10",
+          trend: counts.pendingHMOChange > 0 ? ("up" as const) : counts.pendingHMOChange < 0 ? ("down" as const) : ("neutral" as const),
+          href: "/hmo-approvals",
+        },
+      ]
+    : [];
 
   const quickActions = [
     {
@@ -100,25 +131,58 @@ export function DashboardPage() {
     },
     {
       label: "Review HMO Approvals",
-      description: "524 pending approvals",
+      description: counts ? `${counts.pendingHMO.toLocaleString()} pending approvals` : "Review pending approvals",
       icon: AlertTriangle,
       iconBg: "bg-warning/10 text-warning",
       href: "/hmo-approvals",
     },
     {
       label: "Manage Archive",
-      description: "3,421 archived records",
+      description: counts ? `${counts.archiveBalance.toLocaleString()} archived records` : "Manage archived records",
       icon: Archive,
       iconBg: "bg-purple-500/10 text-purple-500",
       href: "/archive",
     },
   ];
 
+  useEffect(() => {
+    let cancelled = false;
+    const fetchStatus = async () => {
+      if (!user?.hospitalId) {
+        setIsLoadingStatus(false);
+        return;
+      }
+      try {
+        setIsLoadingStatus(true);
+        const totals = await getSystemStatusTotals(user.hospitalId);
+        if (!cancelled) {
+          setSystemRecords(totals.records);
+          setDatabaseOk(totals.databaseOk);
+        }
+      } catch (error) {
+        console.error("Failed to fetch system status:", error);
+        if (!cancelled) setDatabaseOk(false);
+      } finally {
+        if (!cancelled) setIsLoadingStatus(false);
+      }
+    };
+    fetchStatus();
+    return () => { cancelled = true; };
+  }, [user?.hospitalId]);
+
   const systemStatusItems = [
-    { label: "API Services", status: "Operational", dot: "bg-success", text: "text-success" },
-    { label: "Database", status: "Healthy", dot: "bg-success", text: "text-success" },
-    { label: "HMO Gateway", status: "Degraded", dot: "bg-warning", text: "text-warning" },
-    { label: "Storage", status: "78% Used", dot: "bg-success", text: "text-success" },
+    {
+      label: "Database",
+      status: isLoadingStatus ? "Checking…" : databaseOk ? "Healthy" : "Unavailable",
+      dot: isLoadingStatus ? "bg-border" : databaseOk ? "bg-success" : "bg-danger",
+      text: isLoadingStatus ? "text-text-muted" : databaseOk ? "text-success" : "text-danger",
+    },
+    {
+      label: "Storage",
+      status: isLoadingStatus ? "Loading…" : `${systemRecords.toLocaleString()} records`,
+      dot: "bg-success",
+      text: "text-success",
+    },
   ];
 
   return (
@@ -142,7 +206,7 @@ export function DashboardPage() {
             <DropdownMenuContent align="end" className="w-40">
               <DropdownMenuRadioGroup
                 value={timeRange}
-                onValueChange={setTimeRange}
+                onValueChange={(value) => setTimeRange(value as DashboardRange)}
               >
                 {timeRanges.map((range) => (
                   <DropdownMenuRadioItem key={range.value} value={range.value}>
@@ -157,9 +221,22 @@ export function DashboardPage() {
 
       {/* Metric cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => (
-          <MetricCard key={metric.title} {...metric} />
-        ))}
+        {isLoadingCounts && metrics.length === 0
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i} className="overflow-hidden p-0">
+                <CardContent className="flex items-start justify-between gap-3 p-6">
+                  <div className="min-w-0 flex-1">
+                    <div className="h-4 w-20 animate-pulse rounded bg-border" />
+                    <div className="mt-3 h-8 w-24 animate-pulse rounded bg-border" />
+                    <div className="mt-3 h-4 w-28 animate-pulse rounded bg-border" />
+                  </div>
+                  <div className="h-12 w-12 shrink-0 animate-pulse rounded-xl bg-border" />
+                </CardContent>
+              </Card>
+            ))
+          : metrics.map((metric) => (
+              <MetricCard key={metric.title} {...metric} />
+            ))}
       </div>
 
       {/* HMO Bottleneck Callout - Full Width */}

@@ -6,19 +6,12 @@ import {
   AlertTriangle,
   Loader2,
 } from "lucide-react"
+import { useEffect, useState } from "react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
-import { cn } from "@/lib/utils"
-
-interface Location {
-  id: string
-  name: string
-  type: "ward" | "icu" | "er" | "clinic" | "ot"
-  capacity: number
-  occupied: number
-  status: "normal" | "warning" | "critical" | "maintenance"
-  lastUpdated: string
-}
+import { cn, formatRelativeTime } from "@/lib/utils"
+import { useAuth } from "@/context/AuthContext"
+import { queryLocations, type Location as LocationDoc } from "@/lib/firestore"
 
 const locationTypes = {
   ward: { label: "Ward", icon: Building2, container: "bg-blue-500/10", fg: "text-blue-500" },
@@ -28,26 +21,11 @@ const locationTypes = {
   ot: { label: "OT", icon: UserCheck, container: "bg-purple-500/10", fg: "text-purple-500" },
 }
 
-const mockLocations: Location[] = [
-  { id: "1", name: "General Ward A", type: "ward", capacity: 40, occupied: 32, status: "normal", lastUpdated: "2 min ago" },
-  { id: "2", name: "General Ward B", type: "ward", capacity: 35, occupied: 28, status: "normal", lastUpdated: "5 min ago" },
-  { id: "3", name: "ICU Unit 1", type: "icu", capacity: 12, occupied: 11, status: "critical", lastUpdated: "1 min ago" },
-  { id: "4", name: "ICU Unit 2", type: "icu", capacity: 10, occupied: 7, status: "warning", lastUpdated: "3 min ago" },
-  { id: "5", name: "Emergency Room", type: "er", capacity: 25, occupied: 22, status: "warning", lastUpdated: "Just now" },
-  { id: "6", name: "Trauma Bay", type: "er", capacity: 8, occupied: 8, status: "critical", lastUpdated: "Just now" },
-  { id: "7", name: "Cardiology Clinic", type: "clinic", capacity: 20, occupied: 15, status: "normal", lastUpdated: "10 min ago" },
-  { id: "8", name: "Orthopedic Clinic", type: "clinic", capacity: 15, occupied: 8, status: "normal", lastUpdated: "15 min ago" },
-  { id: "9", name: "Operating Theater 1", type: "ot", capacity: 1, occupied: 1, status: "normal", lastUpdated: "5 min ago" },
-  { id: "10", name: "Operating Theater 2", type: "ot", capacity: 1, occupied: 0, status: "normal", lastUpdated: "20 min ago" },
-  { id: "11", name: "Operating Theater 3", type: "ot", capacity: 1, occupied: 1, status: "maintenance", lastUpdated: "1 hour ago" },
-  { id: "12", name: "Pediatric Ward", type: "ward", capacity: 30, occupied: 18, status: "normal", lastUpdated: "8 min ago" },
-]
-
 function getOccupancyRate(occupied: number, capacity: number) {
   return Math.round((occupied / capacity) * 100)
 }
 
-function getStatusConfig(status: Location["status"]) {
+function getStatusConfig(status: LocationDoc["status"]) {
   switch (status) {
     case "normal":
       return { label: "Normal", variant: "success" as const, icon: UserCheck }
@@ -61,16 +39,63 @@ function getStatusConfig(status: Location["status"]) {
 }
 
 export function LocationMatrix() {
+  const { user } = useAuth()
+  const [locations, setLocations] = useState<LocationDoc[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const fetchLocations = async () => {
+      if (!user?.hospitalId) {
+        setIsLoading(false)
+        return
+      }
+      try {
+        const result = await queryLocations({ hospitalId: user.hospitalId, sortBy: "name", sortOrder: "asc" })
+        if (!cancelled) setLocations(result)
+      } catch (error) {
+        console.error("Failed to fetch locations:", error)
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+    fetchLocations()
+    return () => { cancelled = true }
+  }, [user?.hospitalId])
+
+  const lastUpdated = locations.length > 0 ? formatRelativeTime(locations[0].updatedAt.toISOString()) : "Just now"
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Live Location Matrix</CardTitle>
         <div className="flex items-center gap-2 text-sm text-text-muted">
-          <Loader2 className="h-4 w-4 animate-spin text-primary" />
-          <span>Live</span>
+          {isLoading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span>Loading</span>
+            </>
+          ) : locations.length > 0 ? (
+            <>
+              <span className={cn("h-2 w-2 rounded-full", "bg-success")} />
+              <span>Live · {lastUpdated}</span>
+            </>
+          ) : (
+            <>
+              <span className={cn("h-2 w-2 rounded-full", "bg-text-muted/40")} />
+              <span>No data</span>
+            </>
+          )}
         </div>
       </CardHeader>
       <CardContent className="p-0">
+        {isLoading && locations.length === 0 ? (
+          <div className="p-8 text-center text-sm text-text-muted">Loading locations...</div>
+        ) : locations.length === 0 ? (
+          <div className="p-8 text-center text-sm text-text-muted">
+            No locations yet. Add location records to see the matrix.
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full" role="table">
             <thead>
@@ -83,7 +108,7 @@ export function LocationMatrix() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {mockLocations.map((location) => {
+              {locations.map((location) => {
                 const typeConfig = locationTypes[location.type]
                 const statusConfig = getStatusConfig(location.status)
                 const occupancyRate = getOccupancyRate(location.occupied, location.capacity)
@@ -129,7 +154,7 @@ export function LocationMatrix() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-right text-sm text-text-muted">
-                      {location.lastUpdated}
+                      {formatRelativeTime(location.updatedAt.toISOString())}
                     </td>
                   </tr>
                 )
@@ -137,6 +162,7 @@ export function LocationMatrix() {
             </tbody>
           </table>
         </div>
+        )}
       </CardContent>
     </Card>
   )

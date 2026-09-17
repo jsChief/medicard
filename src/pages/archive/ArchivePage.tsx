@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import {
   Search,
   Archive,
@@ -6,8 +6,8 @@ import {
   Trash2,
   Download,
   Eye,
-  FileText,
   CalendarDays,
+  Loader2,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
@@ -16,15 +16,27 @@ import { Badge } from "@/components/ui/Badge"
 import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { SortableTh } from "@/components/ui/SortableTh"
 import { cn, formatDate } from "@/lib/utils"
+import { useAuth } from "@/context/AuthContext"
+import {
+  queryArchives,
+  bulkDeleteArchives,
+  deleteArchive,
+  restoreArchive,
+  queryPatients,
+  archivePatientAsDischarged,
+  type ArchivedPatient,
+  type ArchiveStatus,
+} from "@/lib/firestore"
+import { toast } from "sonner"
 
-interface ArchivedPatient {
+interface ArchivedPatientView {
   id: string
   mrn: string
   name: string
   dob: string
   age: number
   department: string
-  status: "discharged" | "transferred" | "deceased"
+  status: ArchiveStatus
   attendingPhysician: string
   admissionDate: string
   dischargeDate: string
@@ -35,46 +47,27 @@ interface ArchivedPatient {
   lengthOfStay: number
 }
 
-const mockArchivedPatients: ArchivedPatient[] = [
-  {
-    id: "1", mrn: "MRN-2023-001100", name: "Jose Ramirez", dob: "1955-02-14", age: 69,
-    department: "Cardiology", status: "discharged", attendingPhysician: "Dr. James Doe",
-    admissionDate: "2023-11-15", dischargeDate: "2023-12-01", dischargeReason: "Treatment completed, stable for outpatient follow-up",
-    archivedAt: "2023-12-01", archivedBy: "Dr. James Doe", conditions: ["Myocardial Infarction", "Hypertension"], lengthOfStay: 16
-  },
-  {
-    id: "2", mrn: "MRN-2023-001101", name: "Patricia Gomez", dob: "1968-07-22", age: 56,
-    department: "Oncology", status: "transferred", attendingPhysician: "Dr. Lisa Wang",
-    admissionDate: "2023-10-20", dischargeDate: "2023-11-10", dischargeReason: "Transferred to specialized cancer center",
-    archivedAt: "2023-11-10", archivedBy: "Dr. Lisa Wang", conditions: ["Breast Cancer Stage III"], lengthOfStay: 21
-  },
-  {
-    id: "3", mrn: "MRN-2023-001102", name: "Michael Tan", dob: "1942-03-08", age: 82,
-    department: "ICU", status: "deceased", attendingPhysician: "Dr. Robert Kim",
-    admissionDate: "2023-09-01", dischargeDate: "2023-09-15", dischargeReason: "Patient expired - multi-organ failure",
-    archivedAt: "2023-09-15", archivedBy: "Dr. Robert Kim", conditions: ["Sepsis", "COPD", "Renal Failure"], lengthOfStay: 14
-  },
-  {
-    id: "4", mrn: "MRN-2023-001103", name: "Susan Lee", dob: "1975-11-30", age: 48,
-    department: "Orthopedics", status: "discharged", attendingPhysician: "Dr. Sarah Lee",
-    admissionDate: "2023-12-10", dischargeDate: "2023-12-18", dischargeReason: "Post-op recovery complete, PT arranged",
-    archivedAt: "2023-12-18", archivedBy: "Nurse Mary Santos", conditions: ["Total Knee Replacement"], lengthOfStay: 8
-  },
-  {
-    id: "5", mrn: "MRN-2023-001104", name: "David Chen", dob: "1980-05-17", age: 44,
-    department: "Neurology", status: "discharged", attendingPhysician: "Dr. David Kim",
-    admissionDate: "2023-11-25", dischargeDate: "2023-12-05", dischargeReason: "Stable, discharged with rehab plan",
-    archivedAt: "2023-12-05", archivedBy: "Dr. David Kim", conditions: ["Ischemic Stroke"], lengthOfStay: 10
-  },
-  {
-    id: "6", mrn: "MRN-2023-001105", name: "Maria Rodriguez", dob: "1960-09-03", age: 64,
-    department: "Emergency", status: "transferred", attendingPhysician: "Dr. Emily Brown",
-    admissionDate: "2023-10-05", dischargeDate: "2023-10-06", dischargeReason: "Transferred to Cardiology ward",
-    archivedAt: "2023-10-06", archivedBy: "Dr. Emily Brown", conditions: ["Acute Coronary Syndrome"], lengthOfStay: 1
-  },
-]
+function toView(patient: ArchivedPatient): ArchivedPatientView {
+  return {
+    id: patient.id,
+    mrn: patient.mrn,
+    name: patient.name,
+    dob: patient.dob?.toISOString(),
+    age: patient.age,
+    department: patient.department,
+    status: patient.status,
+    attendingPhysician: patient.attendingPhysician,
+    admissionDate: patient.admissionDate?.toISOString(),
+    dischargeDate: patient.dischargeDate?.toISOString(),
+    dischargeReason: patient.dischargeReason,
+    archivedAt: patient.archivedAt?.toISOString(),
+    archivedBy: patient.archivedBy,
+    conditions: patient.conditions ?? [],
+    lengthOfStay: patient.lengthOfStay,
+  }
+}
 
-function getStatusConfig(status: ArchivedPatient["status"]) {
+function getStatusConfig(status: ArchiveStatus) {
   switch (status) {
     case "discharged": return { label: "Discharged", variant: "success" as const }
     case "transferred": return { label: "Transferred", variant: "warning" as const }
@@ -83,6 +76,9 @@ function getStatusConfig(status: ArchivedPatient["status"]) {
 }
 
 export function ArchivePage() {
+  const { user } = useAuth()
+  const [isLoading, setIsLoading] = useState(true)
+  const [archiveRecords, setArchiveRecords] = useState<ArchivedPatient[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("All")
   const [departmentFilter, setDepartmentFilter] = useState("All")
@@ -92,12 +88,43 @@ export function ArchivePage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [selectedItems, setSelectedItems] = useState<string[]>([])
 
-  const departments = ["All", "Cardiology", "Orthopedics", "ICU", "Emergency", "Neurology", "Oncology", "Pediatrics"]
+  const fetchArchives = useCallback(async () => {
+    if (!user?.hospitalId) {
+      setIsLoading(false)
+      return
+    }
+    try {
+      setIsLoading(true)
+      const result = await queryArchives({
+        hospitalId: user.hospitalId,
+        sortBy: "archivedAt",
+        sortOrder: "desc",
+        limit: 200,
+      })
+      setArchiveRecords(result.archives)
+    } catch (error) {
+      console.error("Failed to fetch archives:", error)
+      toast.error("Failed to load archive")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.hospitalId])
+
+  useEffect(() => {
+    fetchArchives()
+  }, [fetchArchives])
+
+  const patients = useMemo(() => archiveRecords.map(toView), [archiveRecords])
+
+  const departments = useMemo(() => {
+    const depts = Array.from(new Set(patients.map(p => p.department).filter(Boolean)))
+    return ["All", ...depts.sort()]
+  }, [patients])
   const statuses = ["All", "discharged", "transferred", "deceased"]
   const statusOptions = statuses.map(s => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))
   const departmentOptions = departments.map(d => ({ value: d, label: d }))
 
-  const filteredPatients = mockArchivedPatients
+  const filteredPatients = patients
     .filter(p => {
       const fullName = p.name.toLowerCase()
       const matchesSearch = fullName.includes(searchQuery.toLowerCase()) || p.mrn.toLowerCase().includes(searchQuery.toLowerCase())
@@ -108,8 +135,8 @@ export function ArchivePage() {
       return matchesSearch && matchesStatus && matchesDept && matchesDateFrom && matchesDateTo
     })
     .sort((a, b) => {
-      const aVal = a[sortBy as keyof ArchivedPatient]
-      const bVal = b[sortBy as keyof ArchivedPatient]
+      const aVal = a[sortBy as keyof ArchivedPatientView]
+      const bVal = b[sortBy as keyof ArchivedPatientView]
       if (aVal === undefined || aVal === null) return 1
       if (bVal === undefined || bVal === null) return -1
       const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0
@@ -130,6 +157,59 @@ export function ArchivePage() {
     else setSelectedItems(filteredPatients.map(p => p.id))
   }
 
+  const restoreSelected = useCallback(async () => {
+    if (selectedItems.length === 0) return
+    const records = archiveRecords.filter(a => selectedItems.includes(a.id))
+    try {
+      await Promise.all(records.map(restoreArchive))
+      toast.success(`Restored ${records.length} record(s)`)
+      setSelectedItems([])
+      await fetchArchives()
+    } catch (error) {
+      console.error("Failed to restore records:", error)
+      toast.error("Failed to restore records")
+    }
+  }, [selectedItems, archiveRecords, fetchArchives])
+
+  const deleteSelected = useCallback(async () => {
+    if (selectedItems.length === 0) return
+    try {
+      await bulkDeleteArchives(selectedItems)
+      toast.success(`Deleted ${selectedItems.length} record(s)`)
+      setSelectedItems([])
+      await fetchArchives()
+    } catch (error) {
+      console.error("Failed to delete records:", error)
+      toast.error("Failed to delete records")
+    }
+  }, [selectedItems, fetchArchives])
+
+  const archiveCurrent = useCallback(async () => {
+    if (!user?.hospitalId) {
+      toast.error("Hospital context unavailable")
+      return
+    }
+    try {
+      const result = await queryPatients({
+        hospitalId: user.hospitalId,
+        sortBy: "lastName",
+        sortOrder: "asc",
+        pageSize: 200,
+      })
+      const toArchive = result.patients.filter(p => p.status === "discharged" || p.status === "transferred")
+      if (toArchive.length === 0) {
+        toast.info("No discharged or transferred patients to archive")
+        return
+      }
+      await Promise.all(toArchive.map(archivePatientAsDischarged))
+      toast.success(`Archived ${toArchive.length} patient(s)`)
+      await fetchArchives()
+    } catch (error) {
+      console.error("Failed to archive current patients:", error)
+      toast.error("Failed to archive patients")
+    }
+  }, [user?.hospitalId, fetchArchives])
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -143,7 +223,7 @@ export function ArchivePage() {
             <Download className="h-4 w-4" />
             Export Archive
           </Button>
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" onClick={archiveCurrent}>
             <Archive className="h-4 w-4" />
             Archive Current
           </Button>
@@ -192,9 +272,9 @@ export function ArchivePage() {
             {selectedItems.length} record(s) selected
           </span>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1"><RotateCcw className="h-4 w-4" /> Restore</Button>
+            <Button variant="outline" size="sm" className="gap-1" onClick={restoreSelected}><RotateCcw className="h-4 w-4" /> Restore</Button>
             <Button variant="outline" size="sm" className="gap-1"><Download className="h-4 w-4" /> Export</Button>
-            <Button variant="danger" size="sm" className="gap-1"><Trash2 className="h-4 w-4" /> Delete</Button>
+            <Button variant="danger" size="sm" className="gap-1" onClick={deleteSelected}><Trash2 className="h-4 w-4" /> Delete</Button>
             <Button variant="ghost" size="sm" onClick={() => setSelectedItems([])}>Clear</Button>
           </div>
         </div>
@@ -260,8 +340,28 @@ export function ArchivePage() {
                     <td className="px-4 py-4">
                       <div className="flex items-center justify-end gap-1">
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="View record"><Eye className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Restore record"><RotateCcw className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="More options"><FileText className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Restore record" onClick={async () => {
+                          const record = archiveRecords.find(a => a.id === patient.id)
+                          if (!record) return
+                          try {
+                            await restoreArchive(record)
+                            toast.success(`Restored ${record.name}`)
+                            await fetchArchives()
+                          } catch (error) {
+                            console.error("Failed to restore record:", error)
+                            toast.error("Failed to restore record")
+                          }
+                        }}><RotateCcw className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Delete record" onClick={async () => {
+                          try {
+                            await deleteArchive(patient.id)
+                            toast.success("Record deleted")
+                            await fetchArchives()
+                          } catch (error) {
+                            console.error("Failed to delete record:", error)
+                            toast.error("Failed to delete record")
+                          }
+                        }}><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -271,7 +371,14 @@ export function ArchivePage() {
           </table>
         </div>
 
-        {filteredPatients.length === 0 && (
+        {isLoading && patients.length === 0 ? (
+          <div className="py-16 text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">
+              <Loader2 className="h-6 w-6 animate-spin text-text-muted/40" />
+            </div>
+            <p className="text-lg font-medium text-text">Loading archive...</p>
+          </div>
+        ) : filteredPatients.length === 0 && (
           <div className="py-16 text-center">
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">
               <Archive className="h-6 w-6 text-text-muted/40" />

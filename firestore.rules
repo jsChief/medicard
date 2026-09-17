@@ -1,0 +1,115 @@
+rules_version = '2';
+
+// Firestore security rules for Medicard
+// Every hospital-scoped document carries a `hospitalId` that must match
+// the signed-in user's profile hospital. The user profile lives at
+// /users/{uid} and is created during registration.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getRole() {
+      return userProfile().role;
+    }
+
+    function getHospitalId() {
+      return userProfile().hospitalId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && getRole() == 'admin';
+    }
+
+    // --- Hospital-scoped access helpers --------------------------------
+    // Read: doc must already belong to the caller's hospital.
+    function canReadHospitalDoc() {
+      return isSignedIn() && resource.data.hospitalId == getHospitalId();
+    }
+
+    // Create: incoming data must set hospitalId to the caller's hospital.
+    function canCreateHospitalDoc() {
+      return isSignedIn() && request.resource.data.hospitalId == getHospitalId();
+    }
+
+    // Update/delete: existing doc AND incoming data must stay in the caller's hospital.
+    function canWriteHospitalDoc() {
+      return isSignedIn()
+        && resource.data.hospitalId == getHospitalId()
+        && request.resource.data.hospitalId == getHospitalId();
+    }
+
+    function canDeleteHospitalDoc() {
+      return isSignedIn() && resource.data.hospitalId == getHospitalId();
+    }
+
+    // --- Users ----------------------------------------------------------
+    match /users/{userId} {
+      // A user manages their own profile; admins of the same hospital may view hospital members.
+      allow read: if isSignedIn()
+        && (request.auth.uid == userId || getHospitalId() == resource.data.hospitalId);
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // --- Hospitals ------------------------------------------------------
+    // Readable by any signed-in user; managed by owner (created during registration).
+    match /hospitals/{hospitalId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // --- Hospital-scoped collections -----------------------------------
+    // patients, staff, locations, checkouts, hmo_approvals, archives
+    match /patients/{id} {
+      allow read: if canReadHospitalDoc();
+      allow create: if canCreateHospitalDoc();
+      allow update: if canWriteHospitalDoc();
+      allow delete: if canDeleteHospitalDoc();
+    }
+
+    match /staff/{id} {
+      allow read: if canReadHospitalDoc();
+      allow create: if canCreateHospitalDoc();
+      allow update: if canWriteHospitalDoc();
+      allow delete: if canDeleteHospitalDoc();
+    }
+
+    match /locations/{id} {
+      allow read: if canReadHospitalDoc();
+      allow create: if canCreateHospitalDoc();
+      allow update: if canWriteHospitalDoc();
+      allow delete: if canDeleteHospitalDoc();
+    }
+
+    match /checkouts/{id} {
+      allow read: if canReadHospitalDoc();
+      allow create: if canCreateHospitalDoc();
+      allow update: if canWriteHospitalDoc();
+      allow delete: if canDeleteHospitalDoc();
+    }
+
+    match /hmo_approvals/{id} {
+      allow read: if canReadHospitalDoc();
+      allow create: if canCreateHospitalDoc();
+      allow update: if canWriteHospitalDoc();
+      allow delete: if canDeleteHospitalDoc();
+    }
+
+    match /archives/{id} {
+      allow read: if canReadHospitalDoc();
+      allow create: if canCreateHospitalDoc();
+      allow update: if canWriteHospitalDoc();
+      allow delete: if canDeleteHospitalDoc();
+    }
+  }
+}
