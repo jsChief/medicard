@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect, useMemo, useRef, type ChangeEvent } from "react"
 import {
   Search,
   Plus,
@@ -12,6 +12,7 @@ import {
   FileText,
   BadgeCheck,
   Bed,
+  Loader2,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
@@ -19,6 +20,11 @@ import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/context/AuthContext"
+import { queryPatients, bulkCreatePatients, type Patient } from "@/lib/firestore"
+import { patientsToCsv, parsePatientImportCsv } from "@/lib/patientCsv"
+import { toast } from "sonner"
+import type { DocumentSnapshot } from "firebase/firestore"
 
 interface PatientCard {
   id: string
@@ -36,38 +42,22 @@ interface PatientCard {
   bed?: string
 }
 
-const mockPatientCards: PatientCard[] = [
-  {
-    id: "1", mrn: "MRN-2024-001234", name: "Maria Santos", dob: "1985-03-15", age: 39,
-    department: "Cardiology", status: "active", attendingPhysician: "Dr. James Doe",
-    admissionDate: "2024-01-10", lastVisit: "2024-01-20", conditions: ["Hypertension", "Diabetes"],
-    room: "301", bed: "A"
-  },
-  {
-    id: "2", mrn: "MRN-2024-001235", name: "Juan Cruz", dob: "1972-08-22", age: 52,
-    department: "Orthopedics", status: "active", attendingPhysician: "Dr. Sarah Lee",
-    admissionDate: "2024-01-12", lastVisit: "2024-01-20", conditions: ["Fractured Femur"],
-    room: "205", bed: "B"
-  },
-  {
-    id: "3", mrn: "MRN-2024-001236", name: "Ana Reyes", dob: "1990-11-05", age: 33,
-    department: "ICU", status: "critical", attendingPhysician: "Dr. Michael Chen",
-    admissionDate: "2024-01-18", lastVisit: "2024-01-20", conditions: ["Sepsis", "ARDS"],
-    room: "ICU-04", bed: "1"
-  },
-  {
-    id: "4", mrn: "MRN-2024-001237", name: "Roberto Garcia", dob: "1965-04-30", age: 59,
-    department: "Emergency", status: "pending", attendingPhysician: "Dr. Emily Brown",
-    admissionDate: "2024-01-20", lastVisit: "2024-01-20", conditions: ["Chest Pain"],
-    room: "ER-12", bed: "3"
-  },
-  {
-    id: "5", mrn: "MRN-2024-001238", name: "Carmen Lopez", dob: "1978-09-17", age: 45,
-    department: "Neurology", status: "active", attendingPhysician: "Dr. David Kim",
-    admissionDate: "2024-01-08", lastVisit: "2024-01-19", conditions: ["Stroke", "Aphasia"],
-    room: "402", bed: "A"
-  },
-]
+function toCardData(patient: Patient): PatientCard {
+  const dob = patient.dob instanceof Date ? patient.dob : new Date(patient.dob)
+  return {
+    id: patient.id,
+    mrn: patient.mrn,
+    name: `${patient.firstName} ${patient.lastName}`.trim(),
+    dob: dob.toISOString(),
+    age: dob.getFullYear() > 1900 ? new Date().getFullYear() - dob.getFullYear() : 0,
+    department: patient.department,
+    status: patient.status,
+    attendingPhysician: patient.attendingPhysician,
+    admissionDate: patient.admissionDate instanceof Date ? patient.admissionDate.toISOString() : new Date(patient.admissionDate).toISOString(),
+    lastVisit: patient.lastVisit instanceof Date ? patient.lastVisit.toISOString() : new Date(patient.lastVisit).toISOString(),
+    conditions: patient.conditions ?? [],
+  }
+}
 
 function getStatusConfig(status: PatientCard["status"]) {
   switch (status) {
@@ -84,16 +74,136 @@ function formatDate(date: string) {
 }
 
 export function PatientCardsPage() {
+  const { user } = useAuth()
+  const [isLoading, setIsLoading] = useState(true)
+  const [patients, setPatients] = useState<Patient[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("All")
   const [departmentFilter, setDepartmentFilter] = useState("All")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [selectedCards, setSelectedCards] = useState<string[]>([])
 
-  const departments = ["All", "Cardiology", "Orthopedics", "ICU", "Emergency", "Neurology", "Oncology", "Pediatrics"]
-  const statuses = ["All", "active", "discharged", "transferred", "critical", "pending"]
+  useEffect(() => {
+    let cancelled = false
+    const fetchCards = async () => {
+      if (!user?.hospitalId) {
+        setIsLoading(false)
+        return
+      }
+      try {
+        setIsLoading(true)
+        const result = await queryPatients({
+          hospitalId: user.hospitalId,
+          sortBy: "lastName",
+          sortOrder: "asc",
+          pageSize: 100,
+        })
+        if (!cancelled) setPatients(result.patients)
+      } catch (error) {
+        console.error("Failed to fetch patient cards:", error)
+        toast.error("Failed to load patient cards")
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+    fetchCards()
+    return () => { cancelled = true }
+  }, [user?.hospitalId])
 
-  const filteredCards = mockPatientCards.filter(card => {
+  const refreshCards = async () => {
+    if (!user?.hospitalId) return
+    try {
+      const result = await queryPatients({
+        hospitalId: user.hospitalId,
+        sortBy: "lastName",
+        sortOrder: "asc",
+        pageSize: 100,
+      })
+      setPatients(result.patients)
+    } catch (error) {
+      console.error("Failed to refresh patient cards:", error)
+      toast.error("Failed to refresh patient cards")
+    }
+  }
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isExporting, setIsExporting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+
+  const handleExport = async () => {
+    if (!user?.hospitalId) return
+    setIsExporting(true)
+    try {
+      const all: Patient[] = []
+      let lastDoc: DocumentSnapshot | null = null
+      let hasMore = true
+      while (hasMore) {
+        const result = await queryPatients({
+          hospitalId: user.hospitalId,
+          sortBy: "lastName",
+          sortOrder: "asc",
+          pageSize: 1000,
+          startAfterDoc: lastDoc ?? undefined,
+        })
+        all.push(...result.patients)
+        lastDoc = result.lastDoc
+        hasMore = result.patients.length > 0
+      }
+      const csv = patientsToCsv(all)
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `patients-export-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      toast.success(`Exported ${all.length} patient(s)`)
+    } catch (error) {
+      console.error("Failed to export patients:", error)
+      toast.error("Failed to export patients")
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file || !user?.hospitalId) return
+    setIsImporting(true)
+    try {
+      const text = await file.text()
+      const { patients: records, issues } = parsePatientImportCsv(text, {
+        hospitalId: user.hospitalId,
+        createdBy: user.id,
+        attendingPhysician: user.name,
+      })
+      if (records.length === 0) {
+        toast.error("No valid patient rows found in the file")
+        return
+      }
+      await bulkCreatePatients(records)
+      toast.success(`Imported ${records.length} patient(s)${issues.length > 0 ? `, ${issues.length} row(s) skipped` : ""}`)
+      await refreshCards()
+    } catch (error) {
+      console.error("Failed to import patients:", error)
+      toast.error("Failed to import patients")
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  const patientCards = useMemo(() => patients.map(toCardData), [patients])
+
+  const statuses = ["All", "active", "discharged", "transferred", "critical", "pending"]
+  const departments = useMemo(() => {
+    const depts = Array.from(new Set(patients.map(p => p.department).filter(Boolean)))
+    return ["All", ...depts.sort()]
+  }, [patients])
+
+  const filteredCards = patientCards.filter(card => {
     const fullName = card.name.toLowerCase()
     const matchesSearch = fullName.includes(searchQuery.toLowerCase()) || card.mrn.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesStatus = statusFilter === "All" || card.status === statusFilter
@@ -144,14 +254,21 @@ export function PatientCardsPage() {
               <List className="h-4 w-4" />
             </Button>
           </div>
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" isLoading={isExporting} onClick={handleExport}>
             <Download className="h-4 w-4" />
             Export
           </Button>
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" isLoading={isImporting} onClick={() => fileInputRef.current?.click()}>
             <Upload className="h-4 w-4" />
             Import
           </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleImportFile}
+          />
           <Button className="gap-2">
             <Plus className="h-4 w-4" />
             New Card
@@ -201,7 +318,14 @@ export function PatientCardsPage() {
         </div>
       )}
 
-      {filteredCards.length === 0 ? (
+      {isLoading && patientCards.length === 0 ? (
+        <div className="py-16 text-center">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">
+            <Loader2 className="h-6 w-6 text-text-muted/40 animate-spin" />
+          </div>
+          <p className="text-lg font-medium text-text">Loading patient cards...</p>
+        </div>
+      ) : filteredCards.length === 0 ? (
         <div className="text-center py-16">
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">
             <Search className="h-6 w-6 text-text-muted/40" />
@@ -250,16 +374,16 @@ export function PatientCardsPage() {
                   <div className="mt-3 flex flex-wrap gap-1.5 text-xs text-text-muted">
                     <span className="inline-flex items-center gap-1 rounded-md bg-bg px-2 py-1">
                       <Bed className="h-3 w-3" />
-                      {card.room} / {card.bed}
+                      {card.room && card.bed ? `${card.room} / ${card.bed}` : "Not assigned"}
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-md bg-bg px-2 py-1">
                       <BadgeCheck className="h-3 w-3" />
-                      {card.department}
+                      {card.department || "Unassigned"}
                     </span>
                   </div>
 
                   <p className="mt-3 text-xs text-text-muted">
-                    Dr. {card.attendingPhysician.split(" ")[1]}
+                    {card.attendingPhysician || "No physician assigned"}
                   </p>
 
                   <div className="mt-3 flex flex-wrap gap-1">
@@ -302,7 +426,7 @@ export function PatientCardsPage() {
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted">Status</th>
                   <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted xl:table-cell">Physician</th>
                   <th className="hidden px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted xl:table-cell">Admitted</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-text-muted">Actions</th>
+                  <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -324,13 +448,15 @@ export function PatientCardsPage() {
                         <p className="text-xs text-text-muted">{card.conditions[0] || "No conditions"}</p>
                       </td>
                       <td className="hidden px-4 py-4 font-mono text-sm text-text md:table-cell">{card.mrn}</td>
-                      <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">Rm {card.room} / Bed {card.bed}</td>
-                      <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">{card.department}</td>
+                      <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">
+                        {card.room && card.bed ? `Rm ${card.room} / Bed ${card.bed}` : "Not assigned"}
+                      </td>
+                      <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">{card.department || "Unassigned"}</td>
                       <td className="px-4 py-4">
                         <Badge variant={statusConfig.variant} className="capitalize">{statusConfig.label}</Badge>
                       </td>
                       <td className="hidden px-4 py-4 text-sm text-text xl:table-cell">
-                        Dr. {card.attendingPhysician.split(" ")[1]}
+                        {card.attendingPhysician || "No physician assigned"}
                       </td>
                       <td className="hidden px-4 py-4 text-sm text-text xl:table-cell">
                         {formatDate(card.admissionDate)}

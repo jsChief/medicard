@@ -32,7 +32,7 @@ export function FilterDropdown({ value, onChange, options, className }: FilterDr
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="min-w-[10rem] w-[var(--radix-dropdown-menu-trigger-width)]"
+        className="min-w-40 w-(--radix-dropdown-menu-trigger-width)"
       >
         <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
           {options.map((option) => (

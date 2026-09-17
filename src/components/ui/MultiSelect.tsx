@@ -113,7 +113,7 @@ export function MultiSelect({
             aria-invalid={error ? "true" : "false"}
             aria-describedby={error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined}
           >
-            <div className="flex flex-wrap gap-1.5 min-h-[1.5rem] items-center">
+            <div className="flex flex-wrap gap-1.5 min-h-6 items-center">
               {selectedOptions.map((opt) => (
                 <span
                   key={opt.value}
@@ -154,7 +154,7 @@ export function MultiSelect({
               </div>
             </div>
           )}
-          <div className="max-h-[300px] overflow-auto">
+          <div className="max-h-75 overflow-auto">
             {filteredOptions.length === 0 ? (
               <div className="p-4 text-center text-text-muted text-sm">
                 {searchQuery ? "No options match your search" : "No options available"}
@@ -352,7 +352,7 @@ export function TagInput({
           onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
           placeholder={value.length === 0 ? placeholder : ""}
           disabled={!!(disabled || (maxTags && value.length >= maxTags))}
-          className="flex-1 min-w-[80px] bg-transparent border-none outline-none text-sm text-text placeholder:text-text-muted"
+          className="flex-1 min-w-20 bg-transparent border-none outline-none text-sm text-text placeholder:text-text-muted"
           aria-label={label}
           aria-describedby={error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined}
         />

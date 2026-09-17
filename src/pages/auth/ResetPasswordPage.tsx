@@ -1,9 +1,9 @@
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Link, useSearchParams } from "react-router-dom"
 import { Eye, EyeOff, Lock, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, ShieldCheck } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardFooter } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
@@ -40,29 +40,23 @@ function EyeToggle({ show, onToggle, disabled }: { show: boolean; onToggle: () =
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get("token")
+  const isInvalidToken = !token
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
-  const [isInvalidToken, setIsInvalidToken] = useState(false)
   const [passwordStrength, setPasswordStrength] = useState(0)
 
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     formState: { errors },
   } = useForm<ResetPasswordFormData>({
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: { password: "", confirmPassword: "" },
   })
 
-  const password = watch("password", "")
-
-  useEffect(() => {
-    if (!token) {
-      setIsInvalidToken(true)
-    }
-  }, [token])
+  const password = useWatch({ control, name: "password" })
 
   const calculateStrength = (pwd: string) => {
     let strength = 0

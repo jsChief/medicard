@@ -19,7 +19,7 @@ import {
   Bell,
   Search,
   User,
-  Menu,
+  //Menu,
   Sun,
   Moon,
 } from "lucide-react";
@@ -48,7 +48,7 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarRail,
-  useSidebar,
+  //useSidebar,
 } from "@/components/ui/sidebar";
 import {CustomTrigger} from "@/components/ui/SidebarTrigger";
 
@@ -65,18 +65,18 @@ const navigation = [
 
 const userNavigation = [{ name: "Profile", href: "/profile", icon: User }];
 
-function MobileMenuButton() {
-  const { toggleSidebar } = useSidebar();
-  return (
-    <button
-      className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-surface border border-border shadow-lg"
-      onClick={toggleSidebar}
-      aria-label="Open menu"
-    >
-      <Menu className="h-6 w-6 stroke-current" />
-    </button>
-  );
-}
+// function MobileMenuButton() {
+//   const { toggleSidebar } = useSidebar();
+//   return (
+//     <button
+//       className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-surface border border-border shadow-lg"
+//       onClick={toggleSidebar}
+//       aria-label="Open menu"
+//     >
+//       <Menu className="h-6 w-6 stroke-current" />
+//     </button>
+//   );
+// }
 
 export function DashboardLayout() {
   const location = useLocation();
@@ -245,19 +245,29 @@ export function DashboardLayout() {
             </div>
           </div>
           <div className="mt-3 space-y-1">
-            {userNavigation.map((item) => (
-              <SidebarMenuItem key={item.name}>
-                <SidebarMenuButton asChild>
-                  <NavLink
-                    to={item.href}
-                    className="flex items-center gap-3 text-text-muted hover:text-sidebar-accent-foreground"
-                  >
-                    <item.icon className="h-5 w-5" aria-hidden="true" />
-                    <span>{item.name}</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
+            {userNavigation.map((item) => {
+              const isActive = location.pathname === item.href
+              return (
+                <SidebarMenuItem
+                  key={item.name}
+                  className={cn(isActive ? " bg-primary/20 rounded-2xl" : "")}
+                >
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.href}
+                      className={cn(
+                        "flex items-center gap-3",
+                        isActive ? "text-primary" : "text-text-muted hover:text-sidebar-accent-foreground",
+                      )}
+                      aria-current={isActive ? "page" : undefined}
+                    >
+                      <item.icon className={cn("h-5 w-5 shrink-0", isActive ? "text-primary" : "text-text-muted")} aria-hidden="true" />
+                      <span>{item.name}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            })}
             <SidebarMenuItem>
               <SidebarMenuButton
                 variant="default"

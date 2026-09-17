@@ -1,4 +1,4 @@
-import { useState, Fragment } from "react"
+import { useState, Fragment, useEffect, useMemo, useCallback } from "react"
 import {
   Search,
   ChevronDown,
@@ -15,7 +15,6 @@ import {
   Settings,
   Bell,
   Grid,
-  List,
   Table2,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/Card"
@@ -24,22 +23,43 @@ import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { SortableTh } from "@/components/ui/SortableTh"
-import { cn } from "@/lib/utils"
+import { cn, formatRelativeTime } from "@/lib/utils"
+import { useAuth } from "@/context/AuthContext"
+import { queryLocations, type Location as FSLocation } from "@/lib/firestore"
+import { toast } from "sonner"
 
-interface Location {
+interface LocationView {
   id: string
   name: string
-  type: "ward" | "icu" | "er" | "clinic" | "ot"
+  type: FSLocation["type"]
   floor: string
   wing: string
   capacity: number
   occupied: number
   available: number
-  status: "normal" | "warning" | "critical" | "maintenance"
+  status: FSLocation["status"]
   staffOnDuty: number
-  equipmentStatus: "operational" | "degraded" | "offline"
+  equipmentStatus: FSLocation["equipmentStatus"]
   lastUpdated: string
   notes?: string
+}
+
+function toView(location: FSLocation): LocationView {
+  return {
+    id: location.id,
+    name: location.name,
+    type: location.type,
+    floor: location.floor,
+    wing: location.wing,
+    capacity: location.capacity,
+    occupied: location.occupied,
+    available: location.available,
+    status: location.status,
+    staffOnDuty: location.staffOnDuty,
+    equipmentStatus: location.equipmentStatus,
+    lastUpdated: formatRelativeTime(location.updatedAt.toISOString()),
+    notes: location.notes,
+  }
 }
 
 const locationTypes = {
@@ -50,24 +70,6 @@ const locationTypes = {
   ot: { label: "OT", icon: UserCheck, container: "bg-purple-500/10", fg: "text-purple-500" },
 }
 
-const mockLocations: Location[] = [
-  { id: "1", name: "General Ward A", type: "ward", floor: "3", wing: "North", capacity: 40, occupied: 32, available: 8, status: "normal", staffOnDuty: 8, equipmentStatus: "operational", lastUpdated: "2 min ago", notes: "Standard medical-surgical ward" },
-  { id: "2", name: "General Ward B", type: "ward", floor: "3", wing: "South", capacity: 35, occupied: 28, available: 7, status: "normal", staffOnDuty: 7, equipmentStatus: "operational", lastUpdated: "5 min ago", notes: "Post-surgical recovery" },
-  { id: "3", name: "ICU Unit 1", type: "icu", floor: "4", wing: "North", capacity: 12, occupied: 11, available: 1, status: "critical", staffOnDuty: 6, equipmentStatus: "operational", lastUpdated: "1 min ago", notes: "Critical care - high acuity" },
-  { id: "4", name: "ICU Unit 2", type: "icu", floor: "4", wing: "South", capacity: 10, occupied: 7, available: 3, status: "warning", staffOnDuty: 5, equipmentStatus: "degraded", lastUpdated: "3 min ago", notes: "Step-down ICU, ventilator #3 offline" },
-  { id: "5", name: "Emergency Room", type: "er", floor: "1", wing: "Main", capacity: 25, occupied: 22, available: 3, status: "warning", staffOnDuty: 12, equipmentStatus: "operational", lastUpdated: "Just now", notes: "High volume - divert status active" },
-  { id: "6", name: "Trauma Bay", type: "er", floor: "1", wing: "Main", capacity: 8, occupied: 8, available: 0, status: "critical", staffOnDuty: 8, equipmentStatus: "operational", lastUpdated: "Just now", notes: "All bays occupied - trauma alert" },
-  { id: "7", name: "Cardiology Clinic", type: "clinic", floor: "2", wing: "East", capacity: 20, occupied: 15, available: 5, status: "normal", staffOnDuty: 4, equipmentStatus: "operational", lastUpdated: "10 min ago", notes: "Outpatient consultations" },
-  { id: "8", name: "Orthopedic Clinic", type: "clinic", floor: "2", wing: "West", capacity: 15, occupied: 8, available: 7, status: "normal", staffOnDuty: 3, equipmentStatus: "operational", lastUpdated: "15 min ago", notes: "Follow-ups and pre-op assessments" },
-  { id: "9", name: "Operating Theater 1", type: "ot", floor: "5", wing: "Main", capacity: 1, occupied: 1, available: 0, status: "normal", staffOnDuty: 6, equipmentStatus: "operational", lastUpdated: "5 min ago", notes: "Case in progress - Lap chole" },
-  { id: "10", name: "Operating Theater 2", type: "ot", floor: "5", wing: "Main", capacity: 1, occupied: 0, available: 1, status: "normal", staffOnDuty: 6, equipmentStatus: "operational", lastUpdated: "20 min ago", notes: "Available - next case 14:00" },
-  { id: "11", name: "Operating Theater 3", type: "ot", floor: "5", wing: "Main", capacity: 1, occupied: 0, available: 1, status: "maintenance", staffOnDuty: 0, equipmentStatus: "offline", lastUpdated: "1 hour ago", notes: "Scheduled maintenance - HVAC repair" },
-  { id: "12", name: "Pediatric Ward", type: "ward", floor: "6", wing: "North", capacity: 30, occupied: 18, available: 12, status: "normal", staffOnDuty: 6, equipmentStatus: "operational", lastUpdated: "8 min ago", notes: "Pediatric medical-surgical" },
-  { id: "13", name: "NICU", type: "icu", floor: "6", wing: "South", capacity: 15, occupied: 12, available: 3, status: "warning", staffOnDuty: 8, equipmentStatus: "operational", lastUpdated: "4 min ago", notes: "Neonatal intensive care" },
-  { id: "14", name: "Psychiatric Ward", type: "ward", floor: "7", wing: "East", capacity: 20, occupied: 14, available: 6, status: "normal", staffOnDuty: 5, equipmentStatus: "operational", lastUpdated: "12 min ago", notes: "Acute psychiatric care" },
-  { id: "15", name: "Dialysis Unit", type: "clinic", floor: "1", wing: "West", capacity: 18, occupied: 16, available: 2, status: "warning", staffOnDuty: 6, equipmentStatus: "degraded", lastUpdated: "7 min ago", notes: "Machine #4 under repair" },
-]
-
 function getOccupancyRate(occupied: number, capacity: number) {
   return Math.round((occupied / capacity) * 100)
 }
@@ -76,7 +78,7 @@ function getOccupancyBarColor(rate: number) {
   return rate >= 90 ? "bg-danger" : rate >= 75 ? "bg-warning" : "bg-primary"
 }
 
-function getStatusConfig(status: Location["status"]) {
+function getStatusConfig(status: LocationView["status"]) {
   switch (status) {
     case "normal":
       return { label: "Normal", variant: "success" as const, icon: UserCheck }
@@ -89,7 +91,7 @@ function getStatusConfig(status: Location["status"]) {
   }
 }
 
-function getEquipmentConfig(status: Location["equipmentStatus"]) {
+function getEquipmentConfig(status: LocationView["equipmentStatus"]) {
   switch (status) {
     case "operational": return { label: "Operational", variant: "success" as const, color: "text-success" }
     case "degraded": return { label: "Degraded", variant: "warning" as const, color: "text-warning" }
@@ -115,6 +117,9 @@ function OccupancyBar({ occupied, capacity }: { occupied: number; capacity: numb
 }
 
 export function LocationMatrixPage() {
+  const { user } = useAuth()
+  const [isLoading, setIsLoading] = useState(true)
+  const [locations, setLocations] = useState<FSLocation[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("All")
   const [statusFilter, setStatusFilter] = useState("All")
@@ -125,15 +130,46 @@ export function LocationMatrixPage() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<"table" | "grid">("table")
 
+  const fetchLocations = useCallback(async () => {
+    if (!user?.hospitalId) {
+      setIsLoading(false)
+      return
+    }
+    try {
+      setIsLoading(true)
+      const result = await queryLocations({
+        hospitalId: user.hospitalId,
+        sortBy: "name",
+        sortOrder: "asc",
+        limit: 200,
+      })
+      setLocations(result)
+    } catch (error) {
+      console.error("Failed to fetch locations:", error)
+      toast.error("Failed to load locations")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.hospitalId])
+
+  useEffect(() => {
+    fetchLocations()
+  }, [fetchLocations])
+
+  const viewLocations = useMemo(() => locations.map(toView), [locations])
+
   const types = ["All", "ward", "icu", "er", "clinic", "ot"]
   const statuses = ["All", "normal", "warning", "critical", "maintenance"]
-  const floors = ["All", "1", "2", "3", "4", "5", "6", "7"]
+  const floors = useMemo(() => {
+    const list = Array.from(new Set(viewLocations.map(l => l.floor).filter(Boolean)))
+    return ["All", ...list.sort()]
+  }, [viewLocations])
 
   const typeOptions = types.map(t => ({ value: t, label: t === "All" ? "All Types" : locationTypes[t as keyof typeof locationTypes]?.label || t }))
   const statusOptions = statuses.map(s => ({ value: s, label: s === "All" ? "All Status" : s.charAt(0).toUpperCase() + s.slice(1) }))
   const floorOptions = floors.map(f => ({ value: f, label: f === "All" ? "All Floors" : `Floor ${f}` }))
 
-  const filteredLocations = mockLocations
+  const filteredLocations = viewLocations
     .filter(l => {
       const matchesSearch = l.name.toLowerCase().includes(searchQuery.toLowerCase()) || l.wing.toLowerCase().includes(searchQuery.toLowerCase())
       const matchesType = typeFilter === "All" || l.type === typeFilter
@@ -142,8 +178,12 @@ export function LocationMatrixPage() {
       return matchesSearch && matchesType && matchesStatus && matchesFloor
     })
     .sort((a, b) => {
-      const aVal = a[sortBy as keyof Location]
-      const bVal = b[sortBy as keyof Location]
+      const aVal = sortBy === "occupied"
+        ? getOccupancyRate(a.occupied, a.capacity)
+        : a[sortBy as keyof LocationView]
+      const bVal = sortBy === "occupied"
+        ? getOccupancyRate(b.occupied, b.capacity)
+        : b[sortBy as keyof LocationView]
       if (aVal === undefined || aVal === null) return 1
       if (bVal === undefined || bVal === null) return -1
       const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0
@@ -164,13 +204,13 @@ export function LocationMatrixPage() {
     else setSelectedItems(filteredLocations.map(l => l.id))
   }
 
-  const totalCapacity = mockLocations.reduce((sum, l) => sum + l.capacity, 0)
-  const totalOccupied = mockLocations.reduce((sum, l) => sum + l.occupied, 0)
+  const totalCapacity = viewLocations.reduce((sum, l) => sum + l.capacity, 0)
+  const totalOccupied = viewLocations.reduce((sum, l) => sum + l.occupied, 0)
   const totalAvailable = totalCapacity - totalOccupied
-  const overallOccupancy = Math.round((totalOccupied / totalCapacity) * 100)
-  const criticalCount = mockLocations.filter(l => l.status === "critical").length
-  const warningCount = mockLocations.filter(l => l.status === "warning").length
-  const maintenanceCount = mockLocations.filter(l => l.status === "maintenance").length
+  const overallOccupancy = totalCapacity > 0 ? Math.round((totalOccupied / totalCapacity) * 100) : 0
+  const criticalCount = viewLocations.filter(l => l.status === "critical").length
+  const warningCount = viewLocations.filter(l => l.status === "warning").length
+  const maintenanceCount = viewLocations.filter(l => l.status === "maintenance").length
 
   const stats = [
     { label: "Total Beds", value: String(totalCapacity), icon: Building2, iconBg: "bg-primary/10 text-primary" },
@@ -211,8 +251,8 @@ export function LocationMatrixPage() {
               <Grid className="h-4 w-4" />
             </Button>
           </div>
-          <Button variant="outline" className="gap-2">
-            <RefreshCw className="h-4 w-4" />
+          <Button variant="outline" className="gap-2" onClick={fetchLocations}>
+            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
             Refresh
           </Button>
           <Button variant="outline" className="gap-2">
@@ -281,7 +321,14 @@ export function LocationMatrixPage() {
         </div>
       )}
 
-      {filteredLocations.length === 0 ? (
+      {isLoading && viewLocations.length === 0 ? (
+        <div className="py-16 text-center">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">
+            <Loader2 className="h-6 w-6 animate-spin text-text-muted/40" />
+          </div>
+          <p className="text-lg font-medium text-text">Loading locations...</p>
+        </div>
+      ) : filteredLocations.length === 0 ? (
         <div className="py-16 text-center">
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">
             <MapPin className="h-6 w-6 text-text-muted/40" />
@@ -293,7 +340,7 @@ export function LocationMatrixPage() {
         <Card className="overflow-hidden p-0">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <p className="text-sm font-medium text-text">Location Details</p>
-            <p className="text-xs text-text-muted">{filteredLocations.length} of {mockLocations.length} locations</p>
+            <p className="text-xs text-text-muted">{filteredLocations.length} of {viewLocations.length} locations</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full" role="table">
@@ -359,9 +406,9 @@ export function LocationMatrixPage() {
                           <Badge variant="secondary" className="text-xs">{typeConfig.label}</Badge>
                         </td>
                         <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">Floor {location.floor}</td>
-                        <td className="px-4 py-4 text-right font-mono text-sm text-text">{location.capacity}</td>
+                        <td className="px-12 py-4 text-right font-mono text-sm text-text">{location.capacity}</td>
                         <td className="px-4 py-4">
-                          <div className="w-28">
+                          <div className="w-28 pt-4">
                             <OccupancyBar occupied={location.occupied} capacity={location.capacity} />
                           </div>
                         </td>

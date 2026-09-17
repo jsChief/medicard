@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState, type ComponentType } from "react"
+import { useRef, useState, type ComponentType } from "react"
 import { useNavigate } from "react-router-dom"
 import { Search, FileText, Settings, MapPin, ArrowRight, Command } from "lucide-react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/Input"
-import { cn } from "@/lib/utils"
 
 interface NavLinks {
   name: string
@@ -29,12 +28,11 @@ export function SearchDialog({ open, onOpenChange, links }: SearchDialogProps) {
   const navigate = useNavigate()
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    if (open) {
-      setQuery("")
-      requestAnimationFrame(() => inputRef.current?.focus())
-    }
-  }, [open])
+  const resetOnOpen = (event: Event) => {
+    event.preventDefault()
+    setQuery("")
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }
 
   const q = query.trim().toLowerCase()
   const navResults = links.filter(l => l.name.toLowerCase().includes(q))
@@ -49,7 +47,7 @@ export function SearchDialog({ open, onOpenChange, links }: SearchDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="gap-0 p-0 sm:max-w-xl" showCloseButton={false}>
+      <DialogContent className="gap-0 p-0 sm:max-w-xl" showCloseButton={false} onOpenAutoFocus={resetOnOpen}>
         <DialogTitle className="sr-only">Search</DialogTitle>
         <div className="relative border-b border-border">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted mt-px" />

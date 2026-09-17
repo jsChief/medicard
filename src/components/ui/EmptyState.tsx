@@ -110,7 +110,7 @@ export function EmptyStatePage({
   className,
 }: Omit<EmptyStateProps, "illustration"> & { className?: string }) {
   return (
-    <div className={cn("min-h-[400px] flex items-center justify-center", className)}>
+    <div className={cn("min-h-100 flex items-center justify-center", className)}>
       <EmptyState
         icon={icon}
         title={title}

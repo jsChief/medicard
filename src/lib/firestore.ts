@@ -17,6 +17,7 @@ import {
   serverTimestamp,
   Timestamp,
   writeBatch,
+  getCountFromServer,
 } from "firebase/firestore"
 import { db } from "./firebase"
 
@@ -69,6 +70,8 @@ export interface Patient {
   status: "active" | "discharged" | "transferred" | "critical" | "pending"
   admissionDate: Date
   lastVisit: Date
+  room?: string
+  bed?: string
   createdAt: Date
   updatedAt: Date
   createdBy: string
@@ -146,6 +149,17 @@ export async function createPatient(patient: Omit<Patient, "id" | "createdAt" | 
   await setDoc(docRef, patient as Patient)
   console.log("🟢 [createPatient] Success, ID:", docRef.id)
   return docRef.id
+}
+
+export async function bulkCreatePatients(
+  patients: Array<Omit<Patient, "id" | "createdAt" | "updatedAt">>,
+): Promise<void> {
+  const batch = writeBatch(getDb())
+  patients.forEach((patient) => {
+    const patientRef = doc(collection(getDb(), PATIENTS_COLLECTION).withConverter(patientConverter))
+    batch.set(patientRef, patient as Patient)
+  })
+  await batch.commit()
 }
 
 export async function getPatient(id: string): Promise<Patient | null> {
@@ -347,4 +361,751 @@ export async function deleteStaffMember(id: string): Promise<void> {
   
   const staffRef = doc(getDb(), STAFF_COLLECTION, id)
   await deleteDoc(staffRef)
+}
+
+export type LocationType = "ward" | "icu" | "er" | "clinic" | "ot"
+export type LocationStatus = "normal" | "warning" | "critical" | "maintenance"
+export type EquipmentStatus = "operational" | "degraded" | "offline"
+
+export interface Location {
+  id: string
+  name: string
+  type: LocationType
+  floor: string
+  wing: string
+  capacity: number
+  occupied: number
+  available: number
+  status: LocationStatus
+  staffOnDuty: number
+  equipmentStatus: EquipmentStatus
+  notes?: string
+  hospitalId: string
+  updatedAt: Date
+}
+
+const LOCATIONS_COLLECTION = "locations"
+
+const locationConverter: FirestoreDataConverter<Location> = {
+  toFirestore(location: Location) {
+    return {
+      ...location,
+      updatedAt: serverTimestamp(),
+    }
+  },
+  fromFirestore(snapshot) {
+    const data = snapshot.data()
+    return {
+      id: snapshot.id,
+      ...data,
+      updatedAt: timestampToDate(data.updatedAt),
+    } as Location
+  },
+}
+
+export async function createLocation(location: Omit<Location, "id" | "updatedAt">): Promise<string> {
+  
+  const locationsRef = collection(getDb(), LOCATIONS_COLLECTION).withConverter(locationConverter)
+  const docRef = doc(locationsRef)
+  await setDoc(docRef, location as Location)
+  return docRef.id
+}
+
+export interface LocationQueryOptions {
+  hospitalId?: string
+  type?: LocationType
+  status?: LocationStatus
+  sortBy?: string
+  sortOrder?: "asc" | "desc"
+  limit?: number
+}
+
+export async function queryLocations(options: LocationQueryOptions = {}): Promise<Location[]> {
+  
+  const constraints: QueryConstraint[] = []
+  
+  if (options.hospitalId) {
+    constraints.push(where("hospitalId", "==", options.hospitalId))
+  }
+  if (options.type) {
+    constraints.push(where("type", "==", options.type))
+  }
+  if (options.status) {
+    constraints.push(where("status", "==", options.status))
+  }
+  
+  constraints.push(orderBy(options.sortBy || "name", options.sortOrder || "asc"))
+  
+  if (options.limit) {
+    constraints.push(limit(options.limit))
+  }
+  
+  const locationsRef = collection(getDb(), LOCATIONS_COLLECTION).withConverter(locationConverter)
+  const q = query(locationsRef, ...constraints)
+  const snapshot = await getDocs(q)
+  
+  return snapshot.docs.map((doc) => doc.data())
+}
+
+export async function updateLocation(id: string, data: Partial<Location>): Promise<void> {
+  
+  const locationRef = doc(getDb(), LOCATIONS_COLLECTION, id).withConverter(locationConverter)
+  await updateDoc(locationRef, {
+    ...data,
+    updatedAt: serverTimestamp(),
+  } as Partial<Location> & { updatedAt: FieldValue })
+}
+
+export async function deleteLocation(id: string): Promise<void> {
+  
+  const locationRef = doc(getDb(), LOCATIONS_COLLECTION, id)
+  await deleteDoc(locationRef)
+}
+
+export type CheckoutStatus = "pending" | "approved" | "in-progress" | "completed" | "cancelled" | "delayed"
+export type DischargeType = "home" | "transfer" | "home-care" | "rehab" | "other"
+
+export interface FollowUpAppointment {
+  specialty: string
+  date: Date
+  provider: string
+}
+
+export interface Checkout {
+  id: string
+  patientId: string
+  patientName: string
+  mrn: string
+  department: string
+  room?: string
+  bed?: string
+  attendingPhysician: string
+  admissionDate: Date
+  expectedDischargeDate: Date
+  actualDischargeDate?: Date
+  status: CheckoutStatus
+  dischargeType: DischargeType
+  dischargeSummary?: string
+  medications: string[]
+  followUpAppointments: FollowUpAppointment[]
+  pendingTasks: string[]
+  hospitalId: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+const CHECKOUTS_COLLECTION = "checkouts"
+
+const checkoutConverter: FirestoreDataConverter<Checkout> = {
+  toFirestore(checkout: Checkout) {
+    return {
+      ...checkout,
+      admissionDate: dateToTimestamp(checkout.admissionDate),
+      expectedDischargeDate: dateToTimestamp(checkout.expectedDischargeDate),
+      actualDischargeDate: dateToTimestamp(checkout.actualDischargeDate),
+      followUpAppointments: checkout.followUpAppointments.map((appt) => ({
+        ...appt,
+        date: dateToTimestamp(appt.date),
+      })),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }
+  },
+  fromFirestore(snapshot) {
+    const data = snapshot.data()
+    return {
+      id: snapshot.id,
+      ...data,
+      admissionDate: timestampToDate(data.admissionDate),
+      expectedDischargeDate: timestampToDate(data.expectedDischargeDate),
+      actualDischargeDate: timestampToDate(data.actualDischargeDate),
+      followUpAppointments: (data.followUpAppointments || []).map((appt: any) => ({
+        ...appt,
+        date: timestampToDate(appt?.date),
+      })),
+      createdAt: timestampToDate(data.createdAt),
+      updatedAt: timestampToDate(data.updatedAt),
+    } as Checkout
+  },
+}
+
+export async function createCheckout(checkout: Omit<Checkout, "id" | "createdAt" | "updatedAt">): Promise<string> {
+  
+  const checkoutsRef = collection(getDb(), CHECKOUTS_COLLECTION).withConverter(checkoutConverter)
+  const docRef = doc(checkoutsRef)
+  await setDoc(docRef, checkout as Checkout)
+  return docRef.id
+}
+
+export interface CheckoutQueryOptions {
+  hospitalId?: string
+  status?: CheckoutStatus
+  patientId?: string
+  sortBy?: string
+  sortOrder?: "asc" | "desc"
+  limit?: number
+  startAfterDoc?: DocumentSnapshot
+}
+
+export async function queryCheckouts(
+  options: CheckoutQueryOptions = {}
+): Promise<{ checkouts: Checkout[]; lastDoc: DocumentSnapshot | null }> {
+  
+  const constraints: QueryConstraint[] = []
+  
+  if (options.hospitalId) {
+    constraints.push(where("hospitalId", "==", options.hospitalId))
+  }
+  if (options.status) {
+    constraints.push(where("status", "==", options.status))
+  }
+  if (options.patientId) {
+    constraints.push(where("patientId", "==", options.patientId))
+  }
+  
+  constraints.push(orderBy(options.sortBy || "expectedDischargeDate", options.sortOrder || "asc"))
+  
+  if (options.limit) {
+    constraints.push(limit(options.limit))
+  }
+  if (options.startAfterDoc) {
+    constraints.push(startAfter(options.startAfterDoc))
+  }
+  
+  const checkoutsRef = collection(getDb(), CHECKOUTS_COLLECTION).withConverter(checkoutConverter)
+  const q = query(checkoutsRef, ...constraints)
+  const snapshot = await getDocs(q)
+  
+  const checkouts = snapshot.docs.map((doc) => doc.data())
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null
+  
+  return { checkouts, lastDoc }
+}
+
+export async function updateCheckout(id: string, data: Partial<Checkout>): Promise<void> {
+  
+  const checkoutRef = doc(getDb(), CHECKOUTS_COLLECTION, id).withConverter(checkoutConverter)
+  await updateDoc(checkoutRef, {
+    ...data,
+    updatedAt: serverTimestamp(),
+  } as Partial<Checkout> & { updatedAt: FieldValue })
+}
+
+export async function deleteCheckout(id: string): Promise<void> {
+  
+  const checkoutRef = doc(getDb(), CHECKOUTS_COLLECTION, id)
+  await deleteDoc(checkoutRef)
+}
+
+export type HMOApprovalStatus = "pending" | "approved" | "denied" | "partial" | "more-info" | "appealed"
+export type HMORequestType = "admission" | "procedure" | "medication" | "extension" | "transfer"
+
+export interface HMODocument {
+  name: string
+  type: string
+  date: Date
+}
+
+export interface HMOApproval {
+  id: string
+  patientId: string
+  patientName: string
+  mrn: string
+  hmoProvider: string
+  policyNumber: string
+  department: string
+  attendingPhysician: string
+  admissionDate: Date
+  requestDate: Date
+  requestedAmount: number
+  approvedAmount?: number
+  status: HMOApprovalStatus
+  requestType: HMORequestType
+  procedureName?: string
+  diagnosis: string
+  clinicalNotes: string
+  hmoNotes?: string
+  reviewedBy?: string
+  reviewedAt?: Date
+  validityStart?: Date
+  validityEnd?: Date
+  documents: HMODocument[]
+  hospitalId: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+const HMO_APPROVALS_COLLECTION = "hmo_approvals"
+
+const hmoApprovalConverter: FirestoreDataConverter<HMOApproval> = {
+  toFirestore(approval: HMOApproval) {
+    return {
+      ...approval,
+      admissionDate: dateToTimestamp(approval.admissionDate),
+      requestDate: dateToTimestamp(approval.requestDate),
+      reviewedAt: dateToTimestamp(approval.reviewedAt),
+      validityStart: dateToTimestamp(approval.validityStart),
+      validityEnd: dateToTimestamp(approval.validityEnd),
+      documents: (approval.documents || []).map((docInfo) => ({
+        ...docInfo,
+        date: dateToTimestamp(docInfo.date),
+      })),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }
+  },
+  fromFirestore(snapshot) {
+    const data = snapshot.data()
+    return {
+      id: snapshot.id,
+      ...data,
+      admissionDate: timestampToDate(data.admissionDate),
+      requestDate: timestampToDate(data.requestDate),
+      reviewedAt: timestampToDate(data.reviewedAt),
+      validityStart: timestampToDate(data.validityStart),
+      validityEnd: timestampToDate(data.validityEnd),
+      documents: (data.documents || []).map((docInfo: any) => ({
+        ...docInfo,
+        date: timestampToDate(docInfo?.date),
+      })),
+      createdAt: timestampToDate(data.createdAt),
+      updatedAt: timestampToDate(data.updatedAt),
+    } as HMOApproval
+  },
+}
+
+export async function createHMOApproval(approval: Omit<HMOApproval, "id" | "createdAt" | "updatedAt">): Promise<string> {
+  
+  const approvalsRef = collection(getDb(), HMO_APPROVALS_COLLECTION).withConverter(hmoApprovalConverter)
+  const docRef = doc(approvalsRef)
+  await setDoc(docRef, approval as HMOApproval)
+  return docRef.id
+}
+
+export interface HMOApprovalQueryOptions {
+  hospitalId?: string
+  status?: HMOApprovalStatus
+  hmoProvider?: string
+  patientId?: string
+  sortBy?: string
+  sortOrder?: "asc" | "desc"
+  limit?: number
+  startAfterDoc?: DocumentSnapshot
+}
+
+export async function queryHMOApprovals(
+  options: HMOApprovalQueryOptions = {}
+): Promise<{ approvals: HMOApproval[]; lastDoc: DocumentSnapshot | null }> {
+  
+  const constraints: QueryConstraint[] = []
+  
+  if (options.hospitalId) {
+    constraints.push(where("hospitalId", "==", options.hospitalId))
+  }
+  if (options.status) {
+    constraints.push(where("status", "==", options.status))
+  }
+  if (options.hmoProvider) {
+    constraints.push(where("hmoProvider", "==", options.hmoProvider))
+  }
+  if (options.patientId) {
+    constraints.push(where("patientId", "==", options.patientId))
+  }
+  
+  constraints.push(orderBy(options.sortBy || "requestDate", options.sortOrder || "desc"))
+  
+  if (options.limit) {
+    constraints.push(limit(options.limit))
+  }
+  if (options.startAfterDoc) {
+    constraints.push(startAfter(options.startAfterDoc))
+  }
+  
+  const approvalsRef = collection(getDb(), HMO_APPROVALS_COLLECTION).withConverter(hmoApprovalConverter)
+  const q = query(approvalsRef, ...constraints)
+  const snapshot = await getDocs(q)
+  
+  const approvals = snapshot.docs.map((doc) => doc.data())
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null
+  
+  return { approvals, lastDoc }
+}
+
+export async function updateHMOApproval(id: string, data: Partial<HMOApproval>): Promise<void> {
+  
+  const approvalRef = doc(getDb(), HMO_APPROVALS_COLLECTION, id).withConverter(hmoApprovalConverter)
+  await updateDoc(approvalRef, {
+    ...data,
+    updatedAt: serverTimestamp(),
+  } as Partial<HMOApproval> & { updatedAt: FieldValue })
+}
+
+export async function deleteHMOApproval(id: string): Promise<void> {
+  
+  const approvalRef = doc(getDb(), HMO_APPROVALS_COLLECTION, id)
+  await deleteDoc(approvalRef)
+}
+
+export type ArchiveStatus = "discharged" | "transferred" | "deceased"
+
+export interface ArchivedPatient {
+  id: string
+  mrn: string
+  name: string
+  dob: Date
+  age: number
+  department: string
+  status: ArchiveStatus
+  attendingPhysician: string
+  admissionDate: Date
+  dischargeDate: Date
+  dischargeReason: string
+  archivedAt: Date
+  archivedBy: string
+  conditions: string[]
+  lengthOfStay: number
+  hospitalId: string
+  createdBy: string
+}
+
+const ARCHIVES_COLLECTION = "archives"
+
+const archiveConverter: FirestoreDataConverter<ArchivedPatient> = {
+  toFirestore(archived: ArchivedPatient) {
+    return {
+      ...archived,
+      dob: dateToTimestamp(archived.dob),
+      admissionDate: dateToTimestamp(archived.admissionDate),
+      dischargeDate: dateToTimestamp(archived.dischargeDate),
+      archivedAt: dateToTimestamp(archived.archivedAt),
+    }
+  },
+  fromFirestore(snapshot) {
+    const data = snapshot.data()
+    return {
+      id: snapshot.id,
+      ...data,
+      dob: timestampToDate(data.dob),
+      admissionDate: timestampToDate(data.admissionDate),
+      dischargeDate: timestampToDate(data.dischargeDate),
+      archivedAt: timestampToDate(data.archivedAt),
+    } as ArchivedPatient
+  },
+}
+
+export async function createArchive(archived: Omit<ArchivedPatient, "id">): Promise<string> {
+  
+  const archivesRef = collection(getDb(), ARCHIVES_COLLECTION).withConverter(archiveConverter)
+  const docRef = doc(archivesRef)
+  await setDoc(docRef, archived as ArchivedPatient)
+  return docRef.id
+}
+
+export interface ArchiveQueryOptions {
+  hospitalId?: string
+  status?: ArchiveStatus
+  department?: string
+  sortBy?: string
+  sortOrder?: "asc" | "desc"
+  limit?: number
+  startAfterDoc?: DocumentSnapshot
+}
+
+export async function queryArchives(
+  options: ArchiveQueryOptions = {}
+): Promise<{ archives: ArchivedPatient[]; lastDoc: DocumentSnapshot | null }> {
+  
+  const constraints: QueryConstraint[] = []
+  
+  if (options.hospitalId) {
+    constraints.push(where("hospitalId", "==", options.hospitalId))
+  }
+  if (options.status) {
+    constraints.push(where("status", "==", options.status))
+  }
+  if (options.department) {
+    constraints.push(where("department", "==", options.department))
+  }
+  
+  constraints.push(orderBy(options.sortBy || "archivedAt", options.sortOrder || "desc"))
+  
+  if (options.limit) {
+    constraints.push(limit(options.limit))
+  }
+  if (options.startAfterDoc) {
+    constraints.push(startAfter(options.startAfterDoc))
+  }
+  
+  const archivesRef = collection(getDb(), ARCHIVES_COLLECTION).withConverter(archiveConverter)
+  const q = query(archivesRef, ...constraints)
+  const snapshot = await getDocs(q)
+  
+  const archives = snapshot.docs.map((doc) => doc.data())
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null
+  
+  return { archives, lastDoc }
+}
+
+export async function updateArchive(id: string, data: Partial<ArchivedPatient>): Promise<void> {
+  
+  const archiveRef = doc(getDb(), ARCHIVES_COLLECTION, id).withConverter(archiveConverter)
+  await updateDoc(archiveRef, data as Partial<ArchivedPatient>)
+}
+
+export async function deleteArchive(id: string): Promise<void> {
+  
+  const archiveRef = doc(getDb(), ARCHIVES_COLLECTION, id)
+  await deleteDoc(archiveRef)
+}
+
+export async function bulkDeleteArchives(ids: string[]): Promise<void> {
+  
+  const batch = writeBatch(getDb())
+  ids.forEach((id) => {
+    const archiveRef = doc(getDb(), ARCHIVES_COLLECTION, id)
+    batch.delete(archiveRef)
+  })
+  await batch.commit()
+}
+
+export async function restoreArchive(archive: ArchivedPatient): Promise<void> {
+  
+  const [firstName, ...rest] = archive.name.split(" ")
+  const batch = writeBatch(getDb())
+
+  const patientRef = doc(collection(getDb(), PATIENTS_COLLECTION))
+  batch.set(patientRef, {
+    mrn: archive.mrn,
+    firstName: firstName || archive.name,
+    lastName: rest.join(" ") || "Unknown",
+    dob: dateToTimestamp(archive.dob),
+    gender: "O",
+    phone: "",
+    address: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: "",
+    bloodType: "Unknown",
+    maritalStatus: "other",
+    conditions: archive.conditions ?? [],
+    medications: [],
+    allergies: [],
+    surgeries: [],
+    familyHistory: [],
+    immunizations: [],
+    emergencyContacts: [],
+    insurance: {
+      provider: "HMO",
+      policyNumber: "",
+      planType: "HMO",
+      effectiveDate: dateToTimestamp(archive.admissionDate),
+      expiryDate: dateToTimestamp(archive.dischargeDate),
+      copayAmount: "",
+      deductibleAmount: "",
+      secondaryInsurance: false,
+      secondaryProvider: "",
+      secondaryPolicyNumber: "",
+    } as unknown as InsuranceInfo,
+    attendingPhysician: archive.attendingPhysician,
+    department: archive.department,
+    status: "active",
+    admissionDate: dateToTimestamp(archive.admissionDate),
+    lastVisit: dateToTimestamp(archive.dischargeDate),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    createdBy: archive.createdBy,
+    hospitalId: archive.hospitalId,
+  })
+
+  batch.delete(doc(getDb(), ARCHIVES_COLLECTION, archive.id))
+  await batch.commit()
+}
+
+export async function archivePatientAsDischarged(patient: Patient): Promise<void> {
+  
+  const lengthOfStay = Math.max(
+    1,
+    Math.round((patient.admissionDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24) * -1)
+  )
+  const archived: Omit<ArchivedPatient, "id"> = {
+    mrn: patient.mrn,
+    name: `${patient.firstName} ${patient.lastName}`.trim(),
+    dob: patient.dob,
+    age: patient.dob.getFullYear() > 1900 ? new Date().getFullYear() - patient.dob.getFullYear() : 0,
+    department: patient.department,
+    status: "discharged",
+    attendingPhysician: patient.attendingPhysician,
+    admissionDate: patient.admissionDate,
+    dischargeDate: new Date(),
+    dischargeReason: patient.notes || "Discharged",
+    archivedAt: new Date(),
+    archivedBy: patient.attendingPhysician || "System",
+    conditions: patient.conditions ?? [],
+    lengthOfStay,
+    hospitalId: patient.hospitalId,
+    createdBy: patient.createdBy,
+  }
+  await createArchive(archived)
+}
+
+export async function countWhere(collectionName: string, constraints: QueryConstraint[]): Promise<number> {
+  
+  const q = query(collection(getDb(), collectionName), ...constraints)
+  const snapshot = await getCountFromServer(q)
+  return snapshot.data().count
+}
+
+export interface CountOptions {
+  hospitalId: string
+  from?: Date
+  to?: Date
+  status?: string
+  statuses?: string[]
+}
+
+export async function countPatients(options: CountOptions): Promise<number> {
+  const constraints: QueryConstraint[] = [where("hospitalId", "==", options.hospitalId)]
+  if (options.status) constraints.push(where("status", "==", options.status))
+  if (options.statuses) constraints.push(where("status", "in", options.statuses))
+  if (options.from) constraints.push(where("admissionDate", ">=", options.from))
+  if (options.to) constraints.push(where("admissionDate", "<", options.to))
+  return countWhere(PATIENTS_COLLECTION, constraints)
+}
+
+export async function countArchives(options: CountOptions): Promise<number> {
+  const constraints: QueryConstraint[] = [where("hospitalId", "==", options.hospitalId)]
+  if (options.status) constraints.push(where("status", "==", options.status))
+  if (options.statuses) constraints.push(where("status", "in", options.statuses))
+  if (options.from) constraints.push(where("archivedAt", ">=", options.from))
+  if (options.to) constraints.push(where("archivedAt", "<", options.to))
+  return countWhere(ARCHIVES_COLLECTION, constraints)
+}
+
+export async function countCheckouts(options: CountOptions): Promise<number> {
+  const constraints: QueryConstraint[] = [where("hospitalId", "==", options.hospitalId)]
+  if (options.status) constraints.push(where("status", "==", options.status))
+  if (options.statuses) constraints.push(where("status", "in", options.statuses))
+  if (options.from) constraints.push(where("createdAt", ">=", options.from))
+  if (options.to) constraints.push(where("createdAt", "<", options.to))
+  return countWhere(CHECKOUTS_COLLECTION, constraints)
+}
+
+export async function countHMOApprovals(options: CountOptions): Promise<number> {
+  const constraints: QueryConstraint[] = [where("hospitalId", "==", options.hospitalId)]
+  if (options.status) constraints.push(where("status", "==", options.status))
+  if (options.statuses) constraints.push(where("status", "in", options.statuses))
+  if (options.from) constraints.push(where("requestDate", ">=", options.from))
+  if (options.to) constraints.push(where("requestDate", "<", options.to))
+  return countWhere(HMO_APPROVALS_COLLECTION, constraints)
+}
+
+export interface SystemStatusTotals {
+  records: number
+  databaseOk: boolean
+}
+
+export async function getSystemStatusTotals(hospitalId: string): Promise<SystemStatusTotals> {
+  try {
+    const [patients, archives, checkouts, approvals, locations] = await Promise.all([
+      countPatients({ hospitalId }),
+      countArchives({ hospitalId }),
+      countCheckouts({ hospitalId }),
+      countHMOApprovals({ hospitalId }),
+      countWhere(LOCATIONS_COLLECTION, [where("hospitalId", "==", hospitalId)]),
+    ])
+    return { records: patients + archives + checkouts + approvals + locations, databaseOk: true }
+  } catch (error) {
+    console.error("Failed to compute system status totals:", error)
+    return { records: 0, databaseOk: false }
+  }
+}
+
+export type DashboardRange = "today" | "week" | "month" | "quarter"
+
+export function getPeriodWindow(
+  range: DashboardRange,
+  now: Date = new Date()
+): { currentStart: Date; previousStart: Date } {
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  switch (range) {
+    case "today":
+      return { currentStart: startOfDay, previousStart: new Date(startOfDay.getTime() - 86400000) }
+    case "week":
+      return { currentStart: new Date(startOfDay.getTime() - 7 * 86400000), previousStart: new Date(startOfDay.getTime() - 14 * 86400000) }
+    case "month":
+      return {
+        currentStart: new Date(now.getFullYear(), now.getMonth(), 1),
+        previousStart: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+      }
+    case "quarter":
+      return {
+        currentStart: new Date(now.getFullYear(), now.getMonth() - 3, 1),
+        previousStart: new Date(now.getFullYear(), now.getMonth() - 6, 1),
+      }
+  }
+}
+
+export function percentChange(previous: number, current: number): number {
+  if (previous === 0) return current > 0 ? 100 : 0
+  return Math.round(((current - previous) / previous) * 100)
+}
+
+export interface DashboardCounts {
+  totalPatients: number
+  archiveBalance: number
+  activeCheckouts: number
+  pendingHMO: number
+  totalPatientsChange: number
+  archiveBalanceChange: number
+  activeCheckoutsChange: number
+  pendingHMOChange: number
+}
+
+const ACTIVE_CHECKOUT_STATUSES: CheckoutStatus[] = ["pending", "approved", "in-progress", "delayed"]
+
+export async function getDashboardCounts(
+  hospitalId: string,
+  range: DashboardRange = "month"
+): Promise<DashboardCounts> {
+  const { currentStart, previousStart } = getPeriodWindow(range)
+
+  const [
+    totalPatients,
+    patientsCurrent,
+    patientsPrevious,
+    archiveBalance,
+    archivesCurrent,
+    archivesPrevious,
+    activeCheckouts,
+    checkoutsCurrent,
+    checkoutsPrevious,
+    pendingHMO,
+    hmoCurrent,
+    hmoPrevious,
+  ] = await Promise.all([
+    countPatients({ hospitalId }),
+    countPatients({ hospitalId, from: currentStart }),
+    countPatients({ hospitalId, from: previousStart, to: currentStart }),
+    countArchives({ hospitalId }),
+    countArchives({ hospitalId, from: currentStart }),
+    countArchives({ hospitalId, from: previousStart, to: currentStart }),
+    countCheckouts({ hospitalId, statuses: ACTIVE_CHECKOUT_STATUSES }),
+    countCheckouts({ hospitalId, from: currentStart }),
+    countCheckouts({ hospitalId, from: previousStart, to: currentStart }),
+    countHMOApprovals({ hospitalId, status: "pending" }),
+    countHMOApprovals({ hospitalId, from: currentStart }),
+    countHMOApprovals({ hospitalId, from: previousStart, to: currentStart }),
+  ])
+
+  return {
+    totalPatients,
+    archiveBalance,
+    activeCheckouts,
+    pendingHMO,
+    totalPatientsChange: percentChange(patientsPrevious, patientsCurrent),
+    archiveBalanceChange: percentChange(archivesPrevious, archivesCurrent),
+    activeCheckoutsChange: percentChange(checkoutsPrevious, checkoutsCurrent),
+    pendingHMOChange: percentChange(hmoPrevious, hmoCurrent),
+  }
 }

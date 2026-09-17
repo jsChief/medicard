@@ -4,6 +4,14 @@ import { Loader2, Mail, CheckCircle2, AlertCircle, RefreshCw, ArrowRight } from 
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent } from "@/components/ui/Card"
 
+function CardFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <Card className="overflow-hidden rounded-2xl border-border/60 shadow-xl shadow-primary/5">
+      <CardContent className="px-7 pb-8 pt-10 text-center sm:px-8">{children}</CardContent>
+    </Card>
+  )
+}
+
 export function VerifyEmailPage() {
   const [status, setStatus] = useState<"checking" | "verified" | "expired" | "error">("checking")
 
@@ -16,12 +24,6 @@ export function VerifyEmailPage() {
     }
     verifyEmail()
   }, [])
-
-  const CardFrame = ({ children }: { children: React.ReactNode }) => (
-    <Card className="overflow-hidden rounded-2xl border-border/60 shadow-xl shadow-primary/5">
-      <CardContent className="px-7 pb-8 pt-10 text-center sm:px-8">{children}</CardContent>
-    </Card>
-  )
 
   if (status === "checking") {
     return (

@@ -1,4 +1,4 @@
-import { useState, Fragment } from "react"
+import { useState, Fragment, useEffect, useMemo, useCallback } from "react"
 import {
   Search,
   ChevronDown,
@@ -12,6 +12,7 @@ import {
   Edit,
   Calendar,
   User,
+  Loader2,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
@@ -20,8 +21,16 @@ import { Badge } from "@/components/ui/Badge"
 import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { SortableTh } from "@/components/ui/SortableTh"
 import { cn, formatDate } from "@/lib/utils"
+import { useAuth } from "@/context/AuthContext"
+import {
+  queryCheckouts,
+  updateCheckout,
+  type Checkout,
+  type CheckoutStatus,
+} from "@/lib/firestore"
+import { toast } from "sonner"
 
-interface Checkout {
+interface CheckoutView {
   id: string
   patientId: string
   patientName: string
@@ -33,7 +42,7 @@ interface Checkout {
   admissionDate: string
   expectedDischargeDate: string
   actualDischargeDate?: string
-  status: "pending" | "approved" | "in-progress" | "completed" | "cancelled" | "delayed"
+  status: CheckoutStatus
   dischargeType: "home" | "transfer" | "home-care" | "rehab" | "other"
   dischargeSummary?: string
   medications: string[]
@@ -43,76 +52,35 @@ interface Checkout {
   updatedAt: string
 }
 
-const mockCheckouts: Checkout[] = [
-  {
-    id: "1", patientId: "1", patientName: "Maria Santos", mrn: "MRN-2024-001234",
-    department: "Cardiology", room: "301", bed: "A", attendingPhysician: "Dr. James Doe",
-    admissionDate: "2024-01-10", expectedDischargeDate: "2024-01-22",
-    status: "approved", dischargeType: "home",
-    dischargeSummary: "Patient stable. Hypertension controlled. Diabetes managed. Follow-up with cardiology in 2 weeks.",
-    medications: ["Metformin 500mg BID", "Lisinopril 10mg Daily", "Atorvastatin 20mg HS"],
-    followUpAppointments: [{ specialty: "Cardiology", date: "2024-02-05", provider: "Dr. James Doe" }],
-    pendingTasks: ["Final medication reconciliation", "Discharge summary signing"],
-    createdAt: "2024-01-20", updatedAt: "2024-01-21"
-  },
-  {
-    id: "2", patientId: "2", patientName: "Juan Cruz", mrn: "MRN-2024-001235",
-    department: "Orthopedics", room: "205", bed: "B", attendingPhysician: "Dr. Sarah Lee",
-    admissionDate: "2024-01-12", expectedDischargeDate: "2024-01-21",
-    status: "in-progress", dischargeType: "rehab",
-    dischargeSummary: "Post-op day 9. Wound healing well. PT progressing. Transfer to rehab facility arranged.",
-    medications: ["Oxycodone 5mg q6h PRN", "Enoxaparin 40mg Daily", "Celecoxib 200mg Daily"],
-    followUpAppointments: [{ specialty: "Orthopedics", date: "2024-02-10", provider: "Dr. Sarah Lee" }, { specialty: "Physical Therapy", date: "2024-01-25", provider: "Rehab Center PT" }],
-    pendingTasks: ["Transport arrangement", "Rehab facility confirmation", "PT discharge summary"],
-    createdAt: "2024-01-19", updatedAt: "2024-01-20"
-  },
-  {
-    id: "3", patientId: "3", patientName: "Ana Reyes", mrn: "MRN-2024-001236",
-    department: "ICU", room: "ICU-04", bed: "1", attendingPhysician: "Dr. Michael Chen",
-    admissionDate: "2024-01-18", expectedDischargeDate: "2024-01-25",
-    status: "delayed", dischargeType: "home-care",
-    dischargeSummary: "Still on vasopressors. Weaning slowly. Home care nursing arranged pending stabilization.",
-    medications: ["Norepinephrine", "Vancomycin", "Meropenem", "Furosemide"],
-    followUpAppointments: [],
-    pendingTasks: ["Vasopressor wean", "Infectious disease clearance", "Home nursing confirmation"],
-    createdAt: "2024-01-20", updatedAt: "2024-01-20"
-  },
-  {
-    id: "4", patientId: "4", patientName: "Roberto Garcia", mrn: "MRN-2024-001237",
-    department: "Emergency", room: "ER-12", bed: "3", attendingPhysician: "Dr. Emily Brown",
-    admissionDate: "2024-01-20", expectedDischargeDate: "2024-01-20",
-    status: "pending", dischargeType: "home",
-    dischargeSummary: "Chest pain ruled out. Negative troponins. Stress test scheduled outpatient.",
-    medications: ["Aspirin 81mg Daily", "Atorvastatin 20mg HS"],
-    followUpAppointments: [{ specialty: "Cardiology", date: "2024-01-27", provider: "Dr. James Doe" }],
-    pendingTasks: ["Final EKG review", "Prescription printing", "Patient education"],
-    createdAt: "2024-01-20", updatedAt: "2024-01-20"
-  },
-  {
-    id: "5", patientId: "5", patientName: "Carmen Lopez", mrn: "MRN-2024-001238",
-    department: "Neurology", room: "402", bed: "A", attendingPhysician: "Dr. David Kim",
-    admissionDate: "2024-01-08", expectedDischargeDate: "2024-01-22",
-    status: "approved", dischargeType: "home-care",
-    dischargeSummary: "Post-stroke day 14. Aphasia improving. Right hemiparesis. Home PT/OT/SLP arranged.",
-    medications: ["Aspirin 81mg Daily", "Atorvastatin 40mg HS", "Lisinopril 10mg Daily", "Donepezil 5mg Daily"],
-    followUpAppointments: [{ specialty: "Neurology", date: "2024-02-12", provider: "Dr. David Kim" }, { specialty: "Speech Therapy", date: "2024-01-26", provider: "Home Health SLP" }],
-    pendingTasks: ["Home health referral confirmation", "Equipment delivery (walker)", "Family training session"],
-    createdAt: "2024-01-18", updatedAt: "2024-01-20"
-  },
-  {
-    id: "6", patientId: "6", patientName: "Pedro Santos", mrn: "MRN-2024-001239",
-    department: "Pediatrics", room: "501", bed: "B", attendingPhysician: "Dr. Anna Cruz",
-    admissionDate: "2024-01-15", expectedDischargeDate: "2024-01-23",
-    status: "pending", dischargeType: "home",
-    dischargeSummary: "Asthma exacerbation resolved. Peak flows improving. Inhaler technique reviewed.",
-    medications: ["Albuterol inhaler q4-6h PRN", "Fluticasone 110mcg BID", "Montelukast 10mg HS"],
-    followUpAppointments: [{ specialty: "Pediatrics", date: "2024-02-01", provider: "Dr. Anna Cruz" }],
-    pendingTasks: ["Asthma action plan printing", "School nurse coordination", "Prescription refills"],
-    createdAt: "2024-01-20", updatedAt: "2024-01-20"
-  },
-]
+function toView(checkout: Checkout): CheckoutView {
+  return {
+    id: checkout.id,
+    patientId: checkout.patientId,
+    patientName: checkout.patientName,
+    mrn: checkout.mrn,
+    department: checkout.department,
+    room: checkout.room ?? "",
+    bed: checkout.bed ?? "",
+    attendingPhysician: checkout.attendingPhysician,
+    admissionDate: checkout.admissionDate.toISOString(),
+    expectedDischargeDate: checkout.expectedDischargeDate.toISOString(),
+    actualDischargeDate: checkout.actualDischargeDate?.toISOString(),
+    status: checkout.status,
+    dischargeType: checkout.dischargeType,
+    dischargeSummary: checkout.dischargeSummary,
+    medications: checkout.medications ?? [],
+    followUpAppointments: (checkout.followUpAppointments ?? []).map(appt => ({
+      specialty: appt.specialty,
+      date: appt.date.toISOString(),
+      provider: appt.provider,
+    })),
+    pendingTasks: checkout.pendingTasks ?? [],
+    createdAt: checkout.createdAt.toISOString(),
+    updatedAt: checkout.updatedAt.toISOString(),
+  }
+}
 
-function getStatusConfig(status: Checkout["status"]) {
+function getStatusConfig(status: CheckoutView["status"]) {
   switch (status) {
     case "pending": return { label: "Pending", variant: "primary" as const, icon: Clock }
     case "approved": return { label: "Approved", variant: "success" as const, icon: CheckCircle2 }
@@ -124,6 +92,9 @@ function getStatusConfig(status: Checkout["status"]) {
 }
 
 export function CheckoutsPage() {
+  const { user } = useAuth()
+  const [isLoading, setIsLoading] = useState(true)
+  const [checkouts, setCheckouts] = useState<Checkout[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("All")
   const [departmentFilter, setDepartmentFilter] = useState("All")
@@ -132,12 +103,43 @@ export function CheckoutsPage() {
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
 
-  const departments = ["All", "Cardiology", "Orthopedics", "ICU", "Emergency", "Neurology", "Oncology", "Pediatrics"]
+  const fetchCheckouts = useCallback(async () => {
+    if (!user?.hospitalId) {
+      setIsLoading(false)
+      return
+    }
+    try {
+      setIsLoading(true)
+      const result = await queryCheckouts({
+        hospitalId: user.hospitalId,
+        sortBy: "expectedDischargeDate",
+        sortOrder: "asc",
+        limit: 200,
+      })
+      setCheckouts(result.checkouts)
+    } catch (error) {
+      console.error("Failed to fetch checkouts:", error)
+      toast.error("Failed to load checkouts")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [user?.hospitalId])
+
+  useEffect(() => {
+    fetchCheckouts()
+  }, [fetchCheckouts])
+
+  const viewCheckouts = useMemo(() => checkouts.map(toView), [checkouts])
+
+  const departments = useMemo(() => {
+    const depts = Array.from(new Set(viewCheckouts.map(c => c.department).filter(Boolean)))
+    return ["All", ...depts.sort()]
+  }, [viewCheckouts])
   const statuses = ["All", "pending", "approved", "in-progress", "completed", "cancelled", "delayed"]
   const statusOptions = statuses.map(s => ({ value: s, label: s === "All" ? "All" : s.charAt(0).toUpperCase() + s.slice(1).replace("-", " ") }))
   const departmentOptions = departments.map(d => ({ value: d, label: d }))
 
-  const filteredCheckouts = mockCheckouts
+  const filteredCheckouts = viewCheckouts
     .filter(c => {
       const matchesSearch = c.patientName.toLowerCase().includes(searchQuery.toLowerCase()) || c.mrn.toLowerCase().includes(searchQuery.toLowerCase())
       const matchesStatus = statusFilter === "All" || c.status === statusFilter
@@ -145,8 +147,8 @@ export function CheckoutsPage() {
       return matchesSearch && matchesStatus && matchesDept
     })
     .sort((a, b) => {
-      const aVal = a[sortBy as keyof Checkout]
-      const bVal = b[sortBy as keyof Checkout]
+      const aVal = a[sortBy as keyof CheckoutView]
+      const bVal = b[sortBy as keyof CheckoutView]
       if (aVal === undefined || aVal === null) return 1
       if (bVal === undefined || bVal === null) return -1
       const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0
@@ -167,24 +169,37 @@ export function CheckoutsPage() {
     else setSelectedItems(filteredCheckouts.map(c => c.id))
   }
 
-  const overdueCheckouts = mockCheckouts.filter(c => c.status !== "completed" && c.status !== "cancelled" && new Date(c.expectedDischargeDate) < new Date()).length
+  const bulkUpdate = useCallback(async (status: CheckoutStatus) => {
+    if (selectedItems.length === 0) return
+    try {
+      await Promise.all(selectedItems.map(id => updateCheckout(id, { status } as Partial<Checkout>)))
+      toast.success(`Updated ${selectedItems.length} checkout(s)`)
+      setSelectedItems([])
+      await fetchCheckouts()
+    } catch (error) {
+      console.error("Failed to update checkouts:", error)
+      toast.error("Failed to update checkouts")
+    }
+  }, [selectedItems, fetchCheckouts])
+
+  const overdueCheckouts = viewCheckouts.filter(c => c.status !== "completed" && c.status !== "cancelled" && new Date(c.expectedDischargeDate) < new Date()).length
 
   const stats = [
     {
       label: "Pending",
-      value: mockCheckouts.filter(c => c.status === "pending").length,
+      value: viewCheckouts.filter(c => c.status === "pending").length,
       icon: Clock,
       iconBg: "bg-primary/10 text-primary",
     },
     {
       label: "Approved",
-      value: mockCheckouts.filter(c => c.status === "approved").length,
+      value: viewCheckouts.filter(c => c.status === "approved").length,
       icon: CheckCircle2,
       iconBg: "bg-success/10 text-success",
     },
     {
       label: "In Progress",
-      value: mockCheckouts.filter(c => c.status === "in-progress").length,
+      value: viewCheckouts.filter(c => c.status === "in-progress").length,
       icon: Clock,
       iconBg: "bg-warning/10 text-warning",
     },
@@ -259,9 +274,9 @@ export function CheckoutsPage() {
             {selectedItems.length} checkout(s) selected
           </span>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1"><CheckCircle2 className="h-4 w-4" /> Approve</Button>
-            <Button variant="outline" size="sm" className="gap-1"><ArrowRight className="h-4 w-4" /> Start</Button>
-            <Button variant="danger" size="sm" className="gap-1"><XCircle className="h-4 w-4" /> Cancel</Button>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => bulkUpdate("approved")}><CheckCircle2 className="h-4 w-4" /> Approve</Button>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => bulkUpdate("in-progress")}><ArrowRight className="h-4 w-4" /> Start</Button>
+            <Button variant="danger" size="sm" className="gap-1" onClick={() => bulkUpdate("cancelled")}><XCircle className="h-4 w-4" /> Cancel</Button>
             <Button variant="ghost" size="sm" onClick={() => setSelectedItems([])}>Clear</Button>
           </div>
         </div>
@@ -422,7 +437,14 @@ export function CheckoutsPage() {
           </table>
         </div>
 
-        {filteredCheckouts.length === 0 && (
+        {isLoading && viewCheckouts.length === 0 ? (
+          <div className="py-16 text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">
+              <Loader2 className="h-6 w-6 animate-spin text-text-muted/40" />
+            </div>
+            <p className="text-lg font-medium text-text">Loading checkouts...</p>
+          </div>
+        ) : filteredCheckouts.length === 0 ? (
           <div className="py-16 text-center">
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">
               <Clock className="h-6 w-6 text-text-muted/40" />
@@ -430,7 +452,7 @@ export function CheckoutsPage() {
             <p className="text-lg font-medium text-text">No checkout records found</p>
             <p className="text-sm text-text-muted">Try adjusting your search or filters</p>
           </div>
-        )}
+        ) : null}
       </Card>
     </div>
   )

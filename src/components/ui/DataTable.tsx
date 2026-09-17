@@ -135,7 +135,7 @@ export function DataTable<T extends Record<string, unknown>>({
     }
 
     return result
-  }, [data, searchQuery, filterValues, sortState, searchable, filterable, searchKeys])
+  }, [data, searchQuery, searchable, filterable, sortable, sortState.key, sortState.order, searchKeys, filterValues])
 
   const totalPages = Math.ceil(filteredData.length / pageSizeState)
   const paginatedData = pagination
