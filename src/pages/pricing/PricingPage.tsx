@@ -127,8 +127,8 @@ export function PricingPage() {
       {/* Hero */}
       <section className="relative overflow-hidden bg-bg pt-20 pb-12 lg:pt-28 lg:pb-16">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-40 top-1/3 h-[28rem] w-[28rem] rounded-full bg-primary/10 blur-3xl" />
-          <div className="absolute -right-40 top-1/2 h-[24rem] w-[24rem] rounded-full bg-blue-500/10 blur-3xl" />
+          <div className="absolute -left-40 top-1/3 h-112 w-md rounded-full bg-primary/10 blur-3xl" />
+          <div className="absolute -right-40 top-1/2 h-96 w-[24rem] rounded-full bg-blue-500/10 blur-3xl" />
         </div>
         <div className="container-app relative z-10 text-center">
           <Badge variant="primary" className="mb-6 inline-flex items-center gap-2 border-primary/20 bg-primary/10 text-primary">
@@ -252,7 +252,7 @@ export function PricingPage() {
           </div>
 
           <div className="mx-auto max-w-4xl overflow-x-auto">
-            <table className="w-full min-w-[600px]">
+            <table className="w-full min-w-150">
               <thead>
                 <tr className="border-b border-border">
                   <th className="py-4 pr-4 text-left text-sm font-semibold text-text">Feature</th>
@@ -295,7 +295,7 @@ export function PricingPage() {
             <div className="pointer-events-none absolute inset-0">
               <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
               <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.08)_1px,transparent_0)] bg-[size:24px_24px]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.08)_1px,transparent_0)] bg-size-[24px_24px]" />
             </div>
             <div className="relative z-10 mx-auto max-w-2xl text-center">
               <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">

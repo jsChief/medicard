@@ -325,7 +325,7 @@ export function ProfilePage() {
             <span className="text-xs text-text-muted">User ID</span>
             <div className="flex items-center gap-2">
               <p className="truncate font-mono text-sm font-medium text-text">{user.id}</p>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopyId} aria-label="Copy user ID">
+              <Button variant="ghost" size="lg" className="h-6 w-6" onClick={handleCopyId} aria-label="Copy user ID">
                 {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5 text-text-muted" />}
               </Button>
             </div>

@@ -236,17 +236,17 @@ interface TimePickerProps {
 }
 
 function TimePicker({ value, onChange, onClose }: TimePickerProps) {
-  const [hours, setHours] = React.useState(() => value?.getHours() || 0)
+  const [prevValue, setPrevValue] = React.useState<Date | null>(value)
+  const [hours, setHours] = React.useState(() => value ? value.getHours() % 12 || 12 : 0)
   const [minutes, setMinutes] = React.useState(() => value?.getMinutes() || 0)
   const [period, setPeriod] = React.useState<"AM" | "PM">(() => (value?.getHours() || 0) >= 12 ? "PM" : "AM")
 
-  React.useEffect(() => {
-    if (value) {
-      setHours(value.getHours() % 12 || 12)
-      setMinutes(value.getMinutes())
-      setPeriod(value.getHours() >= 12 ? "PM" : "AM")
-    }
-  }, [value])
+  if (value?.getTime() !== prevValue?.getTime()) {
+    setPrevValue(value)
+    setHours(value ? value.getHours() % 12 || 12 : 0)
+    setMinutes(value?.getMinutes() || 0)
+    setPeriod((value?.getHours() || 0) >= 12 ? "PM" : "AM")
+  }
 
   const handleApply = () => {
     let hour24 = hours % 12

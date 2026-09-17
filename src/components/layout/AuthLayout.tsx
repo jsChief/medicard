@@ -34,7 +34,7 @@ export function AuthLayout() {
         {/* Decorative layer */}
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-0 bg-linear-to-br from-secondary via-[#0d7d88] to-primary" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.14)_1px,transparent_0)] bg-[size:26px_26px]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.14)_1px,transparent_0)] bg-size-[26px_26px]" />
           <div className="absolute -left-28 -top-28 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
           <div className="absolute -bottom-24 -right-16 h-96 w-96 rounded-full bg-primary/50 blur-3xl" />
           <div className="absolute right-24 top-1/3 h-40 w-40 rounded-full bg-white/10 blur-2xl" />

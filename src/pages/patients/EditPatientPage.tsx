@@ -1,4 +1,4 @@
-import { useForm } from "react-hook-form"
+import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useState, useEffect } from "react"
@@ -165,7 +165,7 @@ export function EditPatientPage() {
     formState: { errors },
     reset,
   } = useForm<PatientFormData>({
-    resolver: zodResolver<PatientFormData>(fullSchema),
+    resolver: zodResolver(fullSchema) as unknown as Resolver<PatientFormData>,
     defaultValues: mockPatientData,
     mode: "onChange",
   })
@@ -254,13 +254,15 @@ export function EditPatientPage() {
               <Select
                 label="Gender *"
                 options={genders}
-                {...register("gender")}
+                value={watch("gender")}
+                onChange={(value) => setValue("gender", value as "M" | "F" | "O", { shouldValidate: true })}
                 error={errors.gender?.message}
               />
               <Select
                 label="Blood Type *"
                 options={bloodTypes.map((b) => ({ value: b, label: b }))}
-                {...register("bloodType")}
+                value={watch("bloodType")}
+                onChange={(value) => setValue("bloodType", value as "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-" | "Unknown", { shouldValidate: true })}
                 error={errors.bloodType?.message}
               />
             </div>
@@ -282,7 +284,8 @@ export function EditPatientPage() {
               <Select
                 label="Marital Status *"
                 options={maritalStatuses}
-                {...register("maritalStatus")}
+                value={watch("maritalStatus")}
+                onChange={(value) => setValue("maritalStatus", value as "single" | "married" | "divorced" | "widowed" | "other", { shouldValidate: true })}
                 error={errors.maritalStatus?.message}
               />
               <Input label="Occupation" placeholder="Software Engineer" {...register("occupation")} error={errors.occupation?.message} />
@@ -492,7 +495,8 @@ export function EditPatientPage() {
               <Select
                 label="Plan Type *"
                 options={planTypes}
-                {...register("planType")}
+                value={watch("planType")}
+                onChange={(value) => setValue("planType", value as "HMO" | "PPO" | "EPO" | "POS" | "Medicare" | "Medicaid" | "Other", { shouldValidate: true })}
                 error={errors.planType?.message}
               />
             </div>

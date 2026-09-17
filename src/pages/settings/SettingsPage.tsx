@@ -100,7 +100,7 @@ export function SettingsPage() {
       await updateProfile({ name, email })
       toast.success("Profile updated successfully")
     } catch (error) {
-      toast.error("Failed to update profile")
+      toast.error(`Failed to update profile: ${error}. Please try again.`)
     } finally {
       setIsSaving(false)
     }
