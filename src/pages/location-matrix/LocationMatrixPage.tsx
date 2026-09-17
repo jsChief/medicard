@@ -142,8 +142,12 @@ export function LocationMatrixPage() {
       return matchesSearch && matchesType && matchesStatus && matchesFloor
     })
     .sort((a, b) => {
-      const aVal = a[sortBy as keyof Location]
-      const bVal = b[sortBy as keyof Location]
+      const aVal = sortBy === "occupied"
+        ? getOccupancyRate(a.occupied, a.capacity)
+        : a[sortBy as keyof Location]
+      const bVal = sortBy === "occupied"
+        ? getOccupancyRate(b.occupied, b.capacity)
+        : b[sortBy as keyof Location]
       if (aVal === undefined || aVal === null) return 1
       if (bVal === undefined || bVal === null) return -1
       const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0
@@ -359,9 +363,9 @@ export function LocationMatrixPage() {
                           <Badge variant="secondary" className="text-xs">{typeConfig.label}</Badge>
                         </td>
                         <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">Floor {location.floor}</td>
-                        <td className="px-4 py-4 text-right font-mono text-sm text-text">{location.capacity}</td>
+                        <td className="px-12 py-4 text-right font-mono text-sm text-text">{location.capacity}</td>
                         <td className="px-4 py-4">
-                          <div className="w-28">
+                          <div className="w-28 pt-4">
                             <OccupancyBar occupied={location.occupied} capacity={location.capacity} />
                           </div>
                         </td>

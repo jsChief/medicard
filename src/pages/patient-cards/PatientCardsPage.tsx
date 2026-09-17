@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import {
   Search,
   Plus,
@@ -12,6 +12,7 @@ import {
   FileText,
   BadgeCheck,
   Bed,
+  Loader2,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
@@ -19,6 +20,9 @@ import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/context/AuthContext"
+import { queryPatients, type Patient } from "@/lib/firestore"
+import { toast } from "sonner"
 
 interface PatientCard {
   id: string
@@ -36,38 +40,22 @@ interface PatientCard {
   bed?: string
 }
 
-const mockPatientCards: PatientCard[] = [
-  {
-    id: "1", mrn: "MRN-2024-001234", name: "Maria Santos", dob: "1985-03-15", age: 39,
-    department: "Cardiology", status: "active", attendingPhysician: "Dr. James Doe",
-    admissionDate: "2024-01-10", lastVisit: "2024-01-20", conditions: ["Hypertension", "Diabetes"],
-    room: "301", bed: "A"
-  },
-  {
-    id: "2", mrn: "MRN-2024-001235", name: "Juan Cruz", dob: "1972-08-22", age: 52,
-    department: "Orthopedics", status: "active", attendingPhysician: "Dr. Sarah Lee",
-    admissionDate: "2024-01-12", lastVisit: "2024-01-20", conditions: ["Fractured Femur"],
-    room: "205", bed: "B"
-  },
-  {
-    id: "3", mrn: "MRN-2024-001236", name: "Ana Reyes", dob: "1990-11-05", age: 33,
-    department: "ICU", status: "critical", attendingPhysician: "Dr. Michael Chen",
-    admissionDate: "2024-01-18", lastVisit: "2024-01-20", conditions: ["Sepsis", "ARDS"],
-    room: "ICU-04", bed: "1"
-  },
-  {
-    id: "4", mrn: "MRN-2024-001237", name: "Roberto Garcia", dob: "1965-04-30", age: 59,
-    department: "Emergency", status: "pending", attendingPhysician: "Dr. Emily Brown",
-    admissionDate: "2024-01-20", lastVisit: "2024-01-20", conditions: ["Chest Pain"],
-    room: "ER-12", bed: "3"
-  },
-  {
-    id: "5", mrn: "MRN-2024-001238", name: "Carmen Lopez", dob: "1978-09-17", age: 45,
-    department: "Neurology", status: "active", attendingPhysician: "Dr. David Kim",
-    admissionDate: "2024-01-08", lastVisit: "2024-01-19", conditions: ["Stroke", "Aphasia"],
-    room: "402", bed: "A"
-  },
-]
+function toCardData(patient: Patient): PatientCard {
+  const dob = patient.dob instanceof Date ? patient.dob : new Date(patient.dob)
+  return {
+    id: patient.id,
+    mrn: patient.mrn,
+    name: `${patient.firstName} ${patient.lastName}`.trim(),
+    dob: dob.toISOString(),
+    age: dob.getFullYear() > 1900 ? new Date().getFullYear() - dob.getFullYear() : 0,
+    department: patient.department,
+    status: patient.status,
+    attendingPhysician: patient.attendingPhysician,
+    admissionDate: patient.admissionDate instanceof Date ? patient.admissionDate.toISOString() : new Date(patient.admissionDate).toISOString(),
+    lastVisit: patient.lastVisit instanceof Date ? patient.lastVisit.toISOString() : new Date(patient.lastVisit).toISOString(),
+    conditions: patient.conditions ?? [],
+  }
+}
 
 function getStatusConfig(status: PatientCard["status"]) {
   switch (status) {
@@ -84,16 +72,51 @@ function formatDate(date: string) {
 }
 
 export function PatientCardsPage() {
+  const { user } = useAuth()
+  const [isLoading, setIsLoading] = useState(true)
+  const [patients, setPatients] = useState<Patient[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("All")
   const [departmentFilter, setDepartmentFilter] = useState("All")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [selectedCards, setSelectedCards] = useState<string[]>([])
 
-  const departments = ["All", "Cardiology", "Orthopedics", "ICU", "Emergency", "Neurology", "Oncology", "Pediatrics"]
-  const statuses = ["All", "active", "discharged", "transferred", "critical", "pending"]
+  useEffect(() => {
+    let cancelled = false
+    const fetchCards = async () => {
+      if (!user?.hospitalId) {
+        setIsLoading(false)
+        return
+      }
+      try {
+        setIsLoading(true)
+        const result = await queryPatients({
+          hospitalId: user.hospitalId,
+          sortBy: "lastName",
+          sortOrder: "asc",
+          pageSize: 100,
+        })
+        if (!cancelled) setPatients(result.patients)
+      } catch (error) {
+        console.error("Failed to fetch patient cards:", error)
+        toast.error("Failed to load patient cards")
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+    fetchCards()
+    return () => { cancelled = true }
+  }, [user?.hospitalId])
 
-  const filteredCards = mockPatientCards.filter(card => {
+  const patientCards = useMemo(() => patients.map(toCardData), [patients])
+
+  const statuses = ["All", "active", "discharged", "transferred", "critical", "pending"]
+  const departments = useMemo(() => {
+    const depts = Array.from(new Set(patients.map(p => p.department).filter(Boolean)))
+    return ["All", ...depts.sort()]
+  }, [patients])
+
+  const filteredCards = patientCards.filter(card => {
     const fullName = card.name.toLowerCase()
     const matchesSearch = fullName.includes(searchQuery.toLowerCase()) || card.mrn.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesStatus = statusFilter === "All" || card.status === statusFilter
@@ -201,7 +224,14 @@ export function PatientCardsPage() {
         </div>
       )}
 
-      {filteredCards.length === 0 ? (
+      {isLoading && patientCards.length === 0 ? (
+        <div className="py-16 text-center">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">
+            <Loader2 className="h-6 w-6 text-text-muted/40 animate-spin" />
+          </div>
+          <p className="text-lg font-medium text-text">Loading patient cards...</p>
+        </div>
+      ) : filteredCards.length === 0 ? (
         <div className="text-center py-16">
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">
             <Search className="h-6 w-6 text-text-muted/40" />
@@ -250,16 +280,16 @@ export function PatientCardsPage() {
                   <div className="mt-3 flex flex-wrap gap-1.5 text-xs text-text-muted">
                     <span className="inline-flex items-center gap-1 rounded-md bg-bg px-2 py-1">
                       <Bed className="h-3 w-3" />
-                      {card.room} / {card.bed}
+                      {card.room && card.bed ? `${card.room} / ${card.bed}` : "Not assigned"}
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-md bg-bg px-2 py-1">
                       <BadgeCheck className="h-3 w-3" />
-                      {card.department}
+                      {card.department || "Unassigned"}
                     </span>
                   </div>
 
                   <p className="mt-3 text-xs text-text-muted">
-                    Dr. {card.attendingPhysician.split(" ")[1]}
+                    {card.attendingPhysician || "No physician assigned"}
                   </p>
 
                   <div className="mt-3 flex flex-wrap gap-1">
@@ -324,13 +354,15 @@ export function PatientCardsPage() {
                         <p className="text-xs text-text-muted">{card.conditions[0] || "No conditions"}</p>
                       </td>
                       <td className="hidden px-4 py-4 font-mono text-sm text-text md:table-cell">{card.mrn}</td>
-                      <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">Rm {card.room} / Bed {card.bed}</td>
-                      <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">{card.department}</td>
+                      <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">
+                        {card.room && card.bed ? `Rm ${card.room} / Bed ${card.bed}` : "Not assigned"}
+                      </td>
+                      <td className="hidden px-4 py-4 text-sm text-text lg:table-cell">{card.department || "Unassigned"}</td>
                       <td className="px-4 py-4">
                         <Badge variant={statusConfig.variant} className="capitalize">{statusConfig.label}</Badge>
                       </td>
                       <td className="hidden px-4 py-4 text-sm text-text xl:table-cell">
-                        Dr. {card.attendingPhysician.split(" ")[1]}
+                        {card.attendingPhysician || "No physician assigned"}
                       </td>
                       <td className="hidden px-4 py-4 text-sm text-text xl:table-cell">
                         {formatDate(card.admissionDate)}

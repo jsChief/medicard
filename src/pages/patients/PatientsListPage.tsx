@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Search, Filter, ChevronDown, ChevronUp, MoreHorizontal, Eye, Edit, Plus, RefreshCw } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
@@ -144,6 +144,10 @@ export function PatientsListPage() {
           <p className="text-text-muted mt-1">Manage and search patient records</p>
         </div>
         <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => fetchPatients(true)} isLoading={isLoading && patients.length > 0} className="gap-2 sm:w-auto">
+            {/*<RefreshCw className={`h-4 w-4 ${isLoading && patients.length > 0 ? "animate-spin" : ""}`} /> */}
+            Refresh
+          </Button>
           <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="gap-2 sm:w-auto">
             <Filter className="h-4 w-4" />
             <span className="hidden sm:inline">Filters</span>
