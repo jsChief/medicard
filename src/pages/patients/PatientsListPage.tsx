@@ -140,8 +140,7 @@ export function PatientsListPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-text">Patients</h1>
-          <p className="text-text-muted mt-1">Manage and search patient records</p>
+          <p className="text-text-muted">Manage and search patient records</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={() => fetchPatients(true)} isLoading={isLoading && patients.length > 0} className="gap-2 sm:w-auto">

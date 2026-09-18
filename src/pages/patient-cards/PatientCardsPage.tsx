@@ -228,8 +228,7 @@ export function PatientCardsPage() {
       {/* Page header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-text">Patient Cards</h1>
-          <p className="text-text-muted mt-1">Manage patient cards and bed assignments</p>
+          <p className="text-text-muted">Manage patient cards and bed assignments</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center rounded-lg border border-border bg-surface p-1">

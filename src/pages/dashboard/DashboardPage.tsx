@@ -190,8 +190,7 @@ export function DashboardPage() {
       {/* Page header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-text">Dashboard</h1>
-          <p className="mt-1 text-text-muted">
+          <p className="text-text-muted">
             Overview of hospital operations and patient card status
           </p>
         </div>

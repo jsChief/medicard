@@ -18,8 +18,6 @@ import {
   LogOut,
   Bell,
   Search,
-  User,
-  //Menu,
   Sun,
   Moon,
 } from "lucide-react";
@@ -35,6 +33,7 @@ import {
   type AppNotification,
 } from "@/components/layout/NotificationsDialog";
 import { useAuth } from "@/context/AuthContext";
+import { getHospital } from "@/lib/firestore";
 import {
   Sidebar,
   SidebarContent,
@@ -63,8 +62,6 @@ const navigation = [
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
-const userNavigation = [{ name: "Profile", href: "/profile", icon: User }];
-
 // function MobileMenuButton() {
 //   const { toggleSidebar } = useSidebar();
 //   return (
@@ -83,6 +80,22 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
+
+  const [hospitalName, setHospitalName] = useState<string>("");
+
+  useEffect(() => {
+    let cancelled = false;
+    if (user?.hospitalId) {
+      getHospital(user.hospitalId)
+        .then((hospital) => {
+          if (!cancelled) setHospitalName(hospital?.name || "");
+        })
+        .catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.hospitalId]);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -217,58 +230,45 @@ export function DashboardLayout() {
           </SidebarGroup>
         </SidebarContent>
 
-        <SidebarFooter className="p-2 border-t border-sidebar-border">
-          <div className="flex items-center gap-3 group-data-[collapsible=icon]:px-0 py-2">
-            {user?.avatar ? (
-              <img
-                src={user.avatar}
-                alt={user.name}
-                className="h-10 w-10 shrink-0 rounded-full object-cover"
-              />
-            ) : (
-              <div className="flex size-10 group-data-[collapsible=icon]:size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-medium">
-                {user?.name
-                  ?.split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase()
-                  .slice(0, 2) || "U"}
-              </div>
-            )}
-            <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-              <p className="text-sm font-medium text-text truncate">
-                {user?.name || "User"}
-              </p>
-              <p className="text-xs text-text-muted truncate capitalize">
-                {user?.role || "user"}
-              </p>
+        <SidebarFooter className="p-1 border-t border-sidebar-border">
+          <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/60 p-3 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0">
+            <div className="flex items-center gap-2 mb-2 group-data-[collapsible=icon]:hidden">
+              <Hospital className="h-6 w-6 shrink-0 text-primary" aria-hidden="true" />
+              <span className="text-lg font-bold text-text truncate">
+                {hospitalName || "My Hospital"}
+              </span>
             </div>
-          </div>
-          <div className="mt-3 space-y-1">
-            {userNavigation.map((item) => {
-              const isActive = location.pathname === item.href
-              return (
-                <SidebarMenuItem
-                  key={item.name}
-                  className={cn(isActive ? " bg-primary/20 rounded-2xl" : "")}
+            <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
+              {user?.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={user.name}
+                  className="h-10 w-10 shrink-0 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex size-7 group-data-[collapsible=icon]:size-6 shrink-0 items-center text-sm justify-center rounded-full bg-primary/10 text-primary font-medium">
+                  {user?.name
+                    ?.split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2) || "U"}
+                </div>
+              )}
+              <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
+                <Link
+                  to="/profile"
+                  className="block text-sm font-small text-text truncate hover:text-primary hover:underline"
                 >
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={item.href}
-                      className={cn(
-                        "flex items-center gap-3",
-                        isActive ? "text-primary" : "text-text-muted hover:text-sidebar-accent-foreground",
-                      )}
-                      aria-current={isActive ? "page" : undefined}
-                    >
-                      <item.icon className={cn("h-5 w-5 shrink-0", isActive ? "text-primary" : "text-text-muted")} aria-hidden="true" />
-                      <span>{item.name}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )
-            })}
-            <SidebarMenuItem>
+                  {user?.name || "User"}
+                </Link>
+                <p className="text-xs text-text-muted truncate capitalize">
+                  {user?.role || "user"}
+                </p>
+              </div>
+            </div>
+            <div className="my-2 border-t border-sidebar-border group-data-[collapsible=icon]:hidden" />
+            {/*<SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
               <SidebarMenuButton
                 variant="default"
                 className="w-full justify-start text-text-muted hover:text-danger hover:bg-danger/10"
@@ -277,11 +277,15 @@ export function DashboardLayout() {
                 <LogOut className="h-5 w-5" aria-hidden="true" />
                 <span>Sign out</span>
               </SidebarMenuButton>
-            </SidebarMenuItem>
+</SidebarMenuItem> */}
+			<Button className="group-data-[collapsible=icon]:hidden w-full rounded-2xl bg-red-600/60 dark:bg-red-500/30 hover:bg-red-700/70" onClick={handleLogout}>
+			<LogOut className="h-5 w-5" aria-hidden="true" />
+			Sign out
+			</Button>
           </div>
-        </SidebarFooter>
-      </Sidebar>
+</SidebarFooter>
 
+      </Sidebar>
       <SidebarRail />
 
       <SidebarInset className="min-w-0">
@@ -290,7 +294,7 @@ export function DashboardLayout() {
 
         {/* Top bar */}
         <header className="sticky top-0 z-30 h-16 border-b border-border bg-background/80 backdrop-blur supports-backdrop-filter:bg-surface/60">
-          <div className="flex h-full items-center justify-between px-4 lg:px-8">
+          <div className="flex h-full items-center justify-between px-1 lg:px-2">
             <div className="flex items-center gap-2">
               {/*<SidebarTrigger />*/}
               <CustomTrigger />

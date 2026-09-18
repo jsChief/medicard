@@ -225,8 +225,7 @@ export function LocationMatrixPage() {
       {/* Page header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-text">Location Matrix</h1>
-          <p className="text-text-muted mt-1">Real-time bed management and facility overview</p>
+          <p className="text-text-muted">Real-time bed management and facility overview</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center rounded-lg border border-border bg-surface p-1">
