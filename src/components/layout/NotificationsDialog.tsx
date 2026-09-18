@@ -1,5 +1,5 @@
 import { Bell, CheckCheck, AlertTriangle, FileText, Calendar, Users } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/Dialog"
 import { Button } from "@/components/ui/Button"
 import { cn } from "@/lib/utils"
 
