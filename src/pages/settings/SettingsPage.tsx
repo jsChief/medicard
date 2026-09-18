@@ -94,8 +94,7 @@ export function SettingsPage() {
     <div className="space-y-6">
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-bold text-text">Settings</h1>
-        <p className="mt-1 text-text-muted">Manage your account preferences and settings</p>
+        <p className="text-text-muted">Manage your account preferences and settings</p>
       </div>
 
       {/* Appearance */}

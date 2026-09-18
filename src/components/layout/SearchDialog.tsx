@@ -1,7 +1,7 @@
 import { useRef, useState, type ComponentType } from "react"
 import { useNavigate } from "react-router-dom"
 import { Search, FileText, Settings, MapPin, ArrowRight, Command } from "lucide-react"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/Dialog"
 import { Input } from "@/components/ui/Input"
 
 interface NavLinks {

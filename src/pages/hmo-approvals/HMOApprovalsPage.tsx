@@ -237,8 +237,7 @@ export function HMOApprovalsPage() {
       {/* Page header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-text">HMO Approvals</h1>
-          <p className="text-text-muted mt-1">Manage insurance authorizations and claims</p>
+          <p className="text-text-muted">Manage insurance authorizations and claims</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" className="gap-2">
