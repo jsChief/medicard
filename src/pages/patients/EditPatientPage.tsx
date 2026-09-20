@@ -595,7 +595,7 @@ export function EditPatientPage() {
                   </div>
                   {index < steps.length - 1 && (
                     <div className={cn(
-                      "hidden lg:block flex-1 h-1 mx-2 rounded",
+                      "hidden lg:block flex-1 h-1 mx-2 -mt-6 rounded",
                       isCompleted ? "bg-success" : "bg-border"
                     )} />
                   )}

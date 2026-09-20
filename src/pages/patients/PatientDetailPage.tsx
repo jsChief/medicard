@@ -277,13 +277,13 @@ export function PatientDetailPage() {
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       {/* Sticky patient header */}
-      <div className="sticky top-16 z-30 rounded-xl border border-border bg-surface/95 px-4 py-3 shadow-sm backdrop-blur">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="h-9 w-9 shrink-0" aria-label="Go back">
-              <ArrowLeft className="h-4 w-4" />
+      <div className="sticky top-16 z-30 rounded-xl border border-border bg-surface/95 p-2 shadow-sm backdrop-blur sm:px-4 sm:py-3">
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="h-8 w-8 shrink-0 p-0 sm:h-9 sm:w-9" aria-label="Go back">
+              <ArrowLeft className="size-5" />
             </Button>
-            <Avatar className="h-10 w-10 shrink-0">
+            <Avatar className="hidden h-10 w-10 shrink-0 sm:flex">
               <AvatarImage src="" alt={patient.name} />
               <AvatarFallback className="bg-primary text-sm font-bold text-white">
                 {initials}
@@ -291,7 +291,7 @@ export function PatientDetailPage() {
             </Avatar>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="truncate text-lg font-semibold text-text">{patient.name}</h1>
+                <h1 className="truncate text-sm font-semibold text-text sm:text-lg">{patient.name}</h1>
                 <StatusBadge status={patient.status} className="hidden shrink-0 sm:inline-flex" />
               </div>
               <p className="truncate text-xs text-text-muted">
@@ -299,7 +299,7 @@ export function PatientDetailPage() {
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <Button variant="outline" size="sm" className="hidden sm:flex">
               <Printer className="mr-2 h-4 w-4" />
               Print
@@ -308,24 +308,24 @@ export function PatientDetailPage() {
               <Download className="mr-2 h-4 w-4" />
               Export
             </Button>
-            <Button variant="primary" size="sm" className="gap-2" onClick={() => navigate(`/patients/${id}/edit`)}>
-              <Edit className="h-4 w-4" />
-              <span className="hidden sm:inline">Edit</span>
+            <Button variant="primary" size="sm" className="hidden sm:flex" onClick={() => navigate(`/patients/${id}/edit`)}>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit
             </Button>
-            <Button variant="ghost" size="sm" className="sm:hidden" onClick={() => setMobileMenuOpen(true)} aria-label="Patient actions">
+            <Button variant="ghost" size="sm" className="h-8 w-8 shrink-0 p-0 sm:hidden" onClick={() => setMobileMenuOpen(true)} aria-label="Patient actions">
               <Menu className="h-5 w-5 stroke-current" />
             </Button>
           </div>
         </div>
 
         {/* Tab bar */}
-        <TabsList className="mt-3 flex h-auto w-full flex-wrap items-center gap-1.5 rounded-none bg-transparent p-0" role="tablist" aria-label="Patient sections">
+        <TabsList className="mt-2 flex h-auto w-full flex-nowrap items-center gap-1 justify-start overflow-x-auto rounded-none bg-transparent p-0 sm:mt-3 sm:flex-wrap sm:justify-center sm:gap-1.5 scrollbar-none [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Patient sections">
           {tabs.map((tab) => (
             <TabsTrigger
               key={tab.id}
               value={tab.id}
               className={cn(
-                "flex-1 gap-1.5 whitespace-nowrap rounded-lg border border-transparent px-3 py-2 text-xs font-medium transition-colors sm:flex-none sm:px-4 sm:text-sm",
+                "shrink-0 gap-1.5 whitespace-nowrap rounded-lg border border-transparent px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:py-2 sm:text-sm",
                 "text-text-muted hover:bg-bg hover:text-text",
                 "data-[state=active]:border-primary/20 data-[state=active]:bg-primary data-[state=active]:text-white dark:data-[state=active]:border-primary/20 dark:data-[state=active]:bg-primary dark:data-[state=active]:text-white"
               )}
@@ -386,7 +386,7 @@ export function PatientDetailPage() {
                         {initials}
                       </AvatarFallback>
                     </Avatar>
-                    <StatusBadge status={patient.status} className="absolute -bottom-2 -right-2" />
+                    {/* <StatusBadge status={patient.status} className="absolute -bottom-2 -right-2" /> */}
                   </div>
                   <div className="min-w-0">
                     <h2 className="truncate text-2xl font-bold text-text sm:text-3xl">{patient.name}</h2>
@@ -423,8 +423,8 @@ export function PatientDetailPage() {
               </div>
 
               {/* Quick Info Bar */}
-              <div className="grid grid-cols-2 gap-4 bg-surface/50 p-6 md:grid-cols-3 lg:grid-cols-6 lg:px-8">
-                <InfoRow label="MRN" value={patient.mrn} icon={<FileText className="h-4 w-4" />} />
+              <div className="grid grid-cols-2 gap-4 bg-surface/50 p-6 md:grid-cols-3 lg:grid-cols-5 lg:px-8">
+                {/* <InfoRow label="MRN" value={patient.mrn} icon={<FileText className="h-4 w-4" />} /> */}
                 <InfoRow label="Department" value={patient.department} icon={<Building2 className="h-4 w-4" />} />
                 <InfoRow label="Physician" value={patient.attendingPhysician} icon={<User className="h-4 w-4" />} />
                 <InfoRow label="Admitted" value={formatDate(patient.admissionDate)} icon={<Calendar className="h-4 w-4" />} />

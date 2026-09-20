@@ -92,10 +92,6 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div>
-        <p className="text-text-muted">Manage your account preferences and settings</p>
-      </div>
 
       {/* Appearance */}
       <Card className="p-0">
@@ -109,7 +105,7 @@ export function SettingsPage() {
               <p className="text-sm text-text-muted">Customize how MediCard looks on your device</p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center rounded-lg border border-border bg-surface p-1">
+          <div className="flex shrink-0 items-center rounded-lg border border-border bg-surface p-1 w-fit">
             <Button
               variant="ghost"
               size="sm"

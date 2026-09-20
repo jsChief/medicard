@@ -13,7 +13,8 @@ export function CustomTrigger() {
       onClick={toggleSidebar}
       aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
     >
-      <TriggerIcon className="h-5 w-5 text-text" />
+      <TriggerIcon className="h-5 w-5 text-text hidden md:block" />
+      <PanelLeft className="h-5 w-5 text-text block md:hidden" />
     </Button>
   )
 }

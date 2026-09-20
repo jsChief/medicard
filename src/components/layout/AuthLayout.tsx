@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom"
 import { Link } from "react-router-dom"
-import { Hospital, ShieldCheck, Lock, Users, Activity, ArrowRight } from "lucide-react"
+import { ShieldCheck, Lock, Users, Activity, ArrowRight } from "lucide-react"
+import medicardLogo from "@/assets/medicard.png"
 
 const features = [
   { icon: ShieldCheck, label: "HIPAA & GDPR compliant" },
@@ -18,9 +19,11 @@ const stats = [
 function BrandMark({ className }: { className?: string }) {
   return (
     <Link to="/" className={`flex items-center gap-2.5 ${className ?? ""}`} aria-label="MediCard Home">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-primary shadow-lg shadow-black/10">
-        <Hospital className="h-5 w-5" aria-hidden="true" />
-      </span>
+      <img
+        src={medicardLogo}
+        alt="MediCard"
+        className="h-9 w-9 rounded-xl bg-white object-contain p-1 shadow-lg shadow-black/10"
+      />
       <span className="text-xl font-bold tracking-tight">MediCard</span>
     </Link>
   )
