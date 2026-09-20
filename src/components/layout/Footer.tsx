@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom"
-import { Hospital, Mail, X } from "lucide-react"
+import { Mail, X } from "lucide-react"
+import medicardLogo from "@/assets/medicard.png"
 
 export function Footer() {
   const footerLinks = {
@@ -43,9 +44,7 @@ export function Footer() {
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4 lg:grid-cols-5">
           <div className="col-span-2 lg:col-span-1">
             <Link to="/" className="flex items-center gap-2" aria-label="MediCard Home">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-                <Hospital className="h-5 w-5 text-white" aria-hidden="true" />
-              </div>
+              <img src={medicardLogo} alt="MediCard" className="h-9 w-9 object-contain" />
               <span className="text-xl font-bold text-text">MediCard</span>
             </Link>
             <p className="mt-4 text-sm text-text-muted max-w-xs">

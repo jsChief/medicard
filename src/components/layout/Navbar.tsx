@@ -1,9 +1,10 @@
 import { Link, useLocation } from "react-router-dom"
-import { Hospital, Menu, X, Sun, Moon } from "lucide-react"
+import { Menu, X, Sun, Moon } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/Button"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/context/ThemeContext"
+import medicardLogo from "@/assets/medicard.png"
 
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -36,9 +37,7 @@ export function Navbar() {
       <nav className="container-app" aria-label="Main navigation">
         <div className="flex h-16 items-center justify-between ml-2">
           <Link to="/" className="flex items-center gap-2" aria-label="MediCard Home">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <Hospital className="h-5 w-5 text-white" aria-hidden="true" />
-            </div>
+            <img src={medicardLogo} alt="MediCard" className="h-9 w-9 object-contain" />
             <span className="text-xl font-bold text-text">MediCard</span>
           </Link>
 

@@ -654,6 +654,7 @@ export function AddPatientPage() {
         </Button>
       </div>
 
+
       {/* Progress Steps */}
       <Card>
         <CardContent className="pt-6">

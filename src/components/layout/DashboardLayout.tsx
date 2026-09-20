@@ -25,6 +25,7 @@ import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import medicardLogo from "@/assets/medicard.png";
 import {
   SearchDialog,
 } from "@/components/layout/SearchDialog";
@@ -175,9 +176,11 @@ export function DashboardLayout() {
             className="flex items-center gap-3 mt-2"
             aria-label="MediCard Dashboard"
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary">
-              <Hospital className="h-5 w-5 text-white" aria-hidden="true" />
-            </div>
+            <img
+              src={medicardLogo}
+              alt="MediCard"
+              className="h-8 w-8 shrink-0 rounded-lg bg-white object-contain p-0.5"
+            />
             <span className="text-xl font-bold text-text group-data-[collapsible=icon]:hidden">
               MediCard
             </span>
@@ -231,7 +234,7 @@ export function DashboardLayout() {
         </SidebarContent>
 
         <SidebarFooter className="p-1 border-t border-sidebar-border">
-          <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/60 p-3 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0">
+          <div className="rounded-xl border border-sidebar-border bg-bg p-3 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0">
             <div className="flex items-center gap-2 mb-2 group-data-[collapsible=icon]:hidden">
               <Hospital className="h-6 w-6 shrink-0 text-primary" aria-hidden="true" />
               <span className="text-lg font-bold text-text truncate">
@@ -347,7 +350,7 @@ export function DashboardLayout() {
         </header>
 
         {/* Page content */}
-        <div className="min-w-0 overflow-x-clip p-4 lg:p-6">
+        <div className="min-w-0 overflow-x-clip p-3 lg:p-4">
           <Outlet />
         </div>
       </SidebarInset>
