@@ -54,11 +54,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setFirebaseUser(firebaseUser)
       if (firebaseUser) {
         try {
+          // Force refresh token and user data to avoid stale emailVerified/claims
+          try {
+            await firebaseUser.getIdToken(true)
+          } catch (tokenErr) {
+            console.warn("Failed to refresh ID token:", tokenErr)
+          }
+          try {
+            await firebaseUser.reload()
+          } catch (reloadErr) {
+            console.warn("Failed to reload firebase user:", reloadErr)
+          }
+
+          // If the user's email is not verified, do not set the app-level `user`.
+          if (!firebaseUser.emailVerified) {
+            setUser(null)
+            setIsLoading(false)
+            return
+          }
+
           const profile = await getUserProfile(firebaseUser.uid)
-          setUser(profile)
+          if (profile) {
+            setUser(profile)
+          } else {
+            // Fallback to a minimal profile if no user doc exists
+            setUser({ id: firebaseUser.uid, email: firebaseUser.email || "", name: firebaseUser.displayName || "User", role: "admin", hospitalId: "default" })
+          }
         } catch (error) {
           console.error("Failed to get user profile:", error)
-          // Keep user authenticated even if profile fetch fails
           setUser({ id: firebaseUser.uid, email: firebaseUser.email || "", name: firebaseUser.displayName || "User", role: "admin", hospitalId: "default" })
         }
       } else {
@@ -74,7 +97,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     try {
       await loginWithEmail(email, password)
-      navigate("/dashboard")
+
+      // Ensure current user data is refreshed before allowing access
+      const current = auth.currentUser
+      if (current) {
+        try {
+          await current.getIdToken(true)
+        } catch (err) {
+          console.warn("Failed to refresh token after login:", err)
+        }
+        try {
+          await current.reload()
+        } catch (err) {
+          console.warn("Failed to reload user after login:", err)
+        }
+
+        // Block sign-in if email is not verified
+        if (!current.emailVerified) {
+          try {
+            await firebaseLogout()
+          } catch (err) {
+            console.warn("Failed to sign out unverified user:", err)
+          }
+          throw new Error("Please verify your email address before signing in.")
+        }
+
+        try {
+          const profile = await getUserProfile(current.uid)
+          if (profile) setUser(profile)
+        } catch (err) {
+          console.warn("Failed to fetch profile after login:", err)
+        }
+      }
     } catch (error) {
       throw error
     } finally {
@@ -85,8 +139,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (data: RegisterData) => {
     setIsLoading(true)
     try {
+      // Delegate registration to firebase helper which sends verification email
       await registerWithEmail(data.email, data.password, data.name, data.role, data.hospitalName)
-      navigate("/dashboard")
+      // Do not auto-navigate here; page components should direct users to verification flow
     } catch (error) {
       throw error
     } finally {
@@ -121,7 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         firebaseUser,
         isLoading,
-        isAuthenticated: !!user,
+        isAuthenticated: !!user && !!firebaseUser?.emailVerified,
         login,
         register,
         logout,

@@ -1,5 +1,5 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app"
-import { getAuth, type Auth } from "firebase/auth"
+import { getAuth, type Auth, setPersistence, browserLocalPersistence } from "firebase/auth"
 import { getFirestore, type Firestore } from "firebase/firestore"
 import { getStorage, type FirebaseStorage } from "firebase/storage"
 
@@ -33,6 +33,12 @@ if (missingKeys.length === 0) {
       app = getApps()[0]
     }
     auth = getAuth(app)
+    // Prefer IndexedDB-backed persistence to avoid third-party cookie issues
+    try {
+      void setPersistence(auth, browserLocalPersistence)
+    } catch (err) {
+      console.warn("Failed to set auth persistence:", err)
+    }
     db = getFirestore(app)
     storage = getStorage(app)
   } catch (error) {

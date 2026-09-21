@@ -398,10 +398,10 @@ export function EditPatientPage() {
               <Input placeholder="e.g., COVID-19 (2023), Flu (2024), Hepatitis B" {...register("immunizations")} />
             </div>
             <div>
-              <label className="label">Additional Notes</label>
+              <label className="mb-1.5 text-sm font-medium text-text">Additional Notes</label>
               <textarea
                 {...register("notes")}
-                className="input border rounded-lg p-2 min-h-25 resize-y"
+                className="w-full resize-y rounded-lg border border-border bg-surface px-4 py-2.5 text-sm placeholder:text-text-muted transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-24"
                 placeholder="Any additional medical history notes..."
               />
             </div>
@@ -514,10 +514,10 @@ export function EditPatientPage() {
             </div>
             <Input label="Expiry Date *" type="date" {...register("expiryDate")} error={errors.expiryDate?.message} />
             <div>
-              <label className="label">Coverage Notes</label>
+              <label className="mb-1.5 text-sm font-medium text-text">Coverage Notes</label>
               <textarea
                 {...register("coverageNotes")}
-                className="input border rounded-lg p-2 min-h-20 resize-y"
+                className="w-full resize-y rounded-lg border border-border bg-surface px-4 py-2.5 text-sm placeholder:text-text-muted transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-24"
                 placeholder="Coverage details, limitations, special instructions..."
               />
             </div>
