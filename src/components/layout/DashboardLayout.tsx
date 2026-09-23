@@ -11,7 +11,6 @@ import {
   FileText,
   Archive,
   Clock,
-  AlertTriangle,
   MapPin,
   Settings,
   Hospital,
@@ -58,7 +57,6 @@ const navigation = [
   { name: "Patient Cards", href: "/patient-cards", icon: FileText },
   { name: "Archive", href: "/archive", icon: Archive },
   { name: "Active Checkouts", href: "/checkouts", icon: Clock },
-  { name: "HMO Approvals", href: "/hmo-approvals", icon: AlertTriangle },
   { name: "Location Matrix", href: "/location-matrix", icon: MapPin },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -110,13 +108,6 @@ export function DashboardLayout() {
     },
     {
       id: "2",
-      title: "HMO approval pending",
-      description: "Approval request #HMO-0231 for ₦250,000 is awaiting your review.",
-      time: "18 minutes ago",
-      type: "approval",
-    },
-    {
-      id: "3",
       title: "New patient admitted",
       description: "Adaeze Nnamdi was admitted to General Ward A (Bed 12).",
       time: "1 hour ago",

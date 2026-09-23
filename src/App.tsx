@@ -20,7 +20,6 @@ import { ProfilePage } from "./pages/profile/ProfilePage"
 import { PatientCardsPage } from "./pages/patient-cards/PatientCardsPage"
 import { ArchivePage } from "./pages/archive/ArchivePage"
 import { CheckoutsPage } from "./pages/checkouts/CheckoutsPage"
-import { HMOApprovalsPage } from "./pages/hmo-approvals/HMOApprovalsPage"
 import { LocationMatrixPage } from "./pages/location-matrix/LocationMatrixPage"
 import { PricingPage } from "./pages/pricing/PricingPage"
 import React from "react"
@@ -123,7 +122,6 @@ function App() {
             <Route path="/patient-cards" element={<PatientCardsPage />} />
             <Route path="/archive" element={<ArchivePage />} />
             <Route path="/checkouts" element={<CheckoutsPage />} />
-            <Route path="/hmo-approvals" element={<HMOApprovalsPage />} />
             <Route path="/location-matrix" element={<LocationMatrixPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/profile" element={<ProfilePage />} />

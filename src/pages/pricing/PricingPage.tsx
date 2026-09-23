@@ -40,7 +40,6 @@ const plans = [
       "Custom templates & forms",
       "Priority support",
       "Full audit trails",
-      "HMO integration",
       "Location matrix",
       "Discharge management",
     ],
@@ -95,7 +94,6 @@ const featureGroups = [
   {
     category: "Integrations & Support",
     features: [
-      { name: "HMO integration", starter: false, pro: true, enterprise: true },
       { name: "API access", starter: false, pro: false, enterprise: true },
       { name: "Support", starter: "Email", pro: "Priority", enterprise: "Dedicated" },
       { name: "SLA guarantee", starter: false, pro: false, enterprise: "99.99%" },

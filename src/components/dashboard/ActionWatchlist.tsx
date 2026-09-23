@@ -5,19 +5,18 @@ import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { cn, formatDate } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
-import { queryCheckouts, queryHMOApprovals, type Checkout, type HMOApproval } from "@/lib/firestore"
+import { queryCheckouts, type Checkout } from "@/lib/firestore"
 
 interface OverdueCard {
   id: string
   patientName: string
   patientId: string
-  cardType: "admission" | "discharge" | "transfer" | "referral" | "hmo"
+  cardType: "admission" | "discharge" | "transfer" | "referral"
   department: string
   dueDate: string
   daysOverdue: number
   priority: "low" | "medium" | "high" | "critical"
   assignedTo?: string
-  hmoProvider?: string
 }
 
 function toMsDays(ms: number) {
@@ -31,9 +30,7 @@ function getPriority(daysOverdue: number): OverdueCard["priority"] {
   return "low"
 }
 
-const HMO_SLA_DAYS = 3
-
-function buildWatchlist(checkouts: Checkout[], approvals: HMOApproval[]): OverdueCard[] {
+function buildWatchlist(checkouts: Checkout[]): OverdueCard[] {
   const now = new Date()
   const cards: OverdueCard[] = []
 
@@ -53,25 +50,6 @@ function buildWatchlist(checkouts: Checkout[], approvals: HMOApproval[]): Overdu
       daysOverdue,
       priority: getPriority(daysOverdue),
       assignedTo: checkout.attendingPhysician,
-    })
-  }
-
-  for (const approval of approvals) {
-    if (approval.status !== "pending") continue
-    const due = approval.requestDate.getTime() + HMO_SLA_DAYS * 24 * 60 * 60 * 1000
-    const daysOverdue = Math.floor(toMsDays(now.getTime() - due))
-    if (daysOverdue < 0) continue
-
-    cards.push({
-      id: approval.id,
-      patientName: approval.patientName,
-      patientId: approval.mrn,
-      cardType: "hmo",
-      department: approval.department,
-      dueDate: approval.requestDate.toISOString(),
-      daysOverdue,
-      priority: getPriority(daysOverdue),
-      hmoProvider: approval.hmoProvider,
     })
   }
 
@@ -101,15 +79,12 @@ function getCardTypeConfig(type: OverdueCard["cardType"]) {
       return { label: "Transfer", color: "bg-purple-100 text-purple-700" }
     case "referral":
       return { label: "Referral", color: "bg-orange-100 text-orange-700" }
-    case "hmo":
-      return { label: "HMO", color: "bg-red-100 text-red-700" }
   }
 }
 
 export function ActionWatchlist() {
   const { user } = useAuth()
   const [checkouts, setCheckouts] = useState<Checkout[]>([])
-  const [approvals, setApprovals] = useState<HMOApproval[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -120,24 +95,14 @@ export function ActionWatchlist() {
         return
       }
       try {
-        const [checkoutResult, approvalResult] = await Promise.all([
-          queryCheckouts({
-            hospitalId: user.hospitalId,
-            sortBy: "expectedDischargeDate",
-            sortOrder: "asc",
-            limit: 200,
-          }),
-          queryHMOApprovals({
-            hospitalId: user.hospitalId,
-            status: "pending",
-            sortBy: "requestDate",
-            sortOrder: "asc",
-            limit: 200,
-          }),
-        ])
+        const checkoutResult = await queryCheckouts({
+          hospitalId: user.hospitalId,
+          sortBy: "expectedDischargeDate",
+          sortOrder: "asc",
+          limit: 200,
+        })
         if (!cancelled) {
           setCheckouts(checkoutResult.checkouts)
-          setApprovals(approvalResult.approvals)
         }
       } catch (error) {
         console.error("Failed to fetch watchlist data:", error)
@@ -149,7 +114,7 @@ export function ActionWatchlist() {
     return () => { cancelled = true }
   }, [user?.hospitalId])
 
-  const overdueCards = useMemo(() => buildWatchlist(checkouts, approvals), [checkouts, approvals])
+  const overdueCards = useMemo(() => buildWatchlist(checkouts), [checkouts])
 
   return (
     <Card className="w-full">
@@ -165,7 +130,7 @@ export function ActionWatchlist() {
           <div className="p-8 text-center text-sm text-text-muted">Loading watchlist...</div>
         ) : overdueCards.length === 0 ? (
           <div className="p-8 text-center text-sm text-text-muted">
-            No overdue items. All checkouts and HMO requests are on track.
+            No overdue items. All checkouts are on track.
           </div>
         ) : (
         <div className="overflow-x-auto">
@@ -237,11 +202,6 @@ export function ActionWatchlist() {
                         <div className="flex items-center gap-1.5 text-sm text-text-muted">
                           <User className="h-3.5 w-3.5" aria-hidden="true" />
                           {card.assignedTo}
-                        </div>
-                      ) : card.hmoProvider ? (
-                        <div className="flex items-center gap-1.5 text-sm text-text-muted">
-                          <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
-                          {card.hmoProvider}
                         </div>
                       ) : (
                         <span className="text-sm text-text-muted">Unassigned</span>
