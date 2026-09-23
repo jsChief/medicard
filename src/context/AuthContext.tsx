@@ -99,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await loginWithEmail(email, password)
 
       // Ensure current user data is refreshed before allowing access
-      const current = auth.currentUser
+      const current = auth?.currentUser
       if (current) {
         try {
           await current.getIdToken(true)
