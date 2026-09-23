@@ -597,155 +597,6 @@ export async function deleteCheckout(id: string): Promise<void> {
   await deleteDoc(checkoutRef)
 }
 
-export type HMOApprovalStatus = "pending" | "approved" | "denied" | "partial" | "more-info" | "appealed"
-export type HMORequestType = "admission" | "procedure" | "medication" | "extension" | "transfer"
-
-export interface HMODocument {
-  name: string
-  type: string
-  date: Date
-}
-
-export interface HMOApproval {
-  id: string
-  patientId: string
-  patientName: string
-  mrn: string
-  hmoProvider: string
-  policyNumber: string
-  department: string
-  attendingPhysician: string
-  admissionDate: Date
-  requestDate: Date
-  requestedAmount: number
-  approvedAmount?: number
-  status: HMOApprovalStatus
-  requestType: HMORequestType
-  procedureName?: string
-  diagnosis: string
-  clinicalNotes: string
-  hmoNotes?: string
-  reviewedBy?: string
-  reviewedAt?: Date
-  validityStart?: Date
-  validityEnd?: Date
-  documents: HMODocument[]
-  hospitalId: string
-  createdAt: Date
-  updatedAt: Date
-}
-
-const HMO_APPROVALS_COLLECTION = "hmo_approvals"
-
-const hmoApprovalConverter: FirestoreDataConverter<HMOApproval> = {
-  toFirestore(approval: HMOApproval) {
-    return {
-      ...approval,
-      admissionDate: dateToTimestamp(approval.admissionDate),
-      requestDate: dateToTimestamp(approval.requestDate),
-      reviewedAt: dateToTimestamp(approval.reviewedAt),
-      validityStart: dateToTimestamp(approval.validityStart),
-      validityEnd: dateToTimestamp(approval.validityEnd),
-      documents: (approval.documents || []).map((docInfo) => ({
-        ...docInfo,
-        date: dateToTimestamp(docInfo.date),
-      })),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    }
-  },
-  fromFirestore(snapshot) {
-    const data = snapshot.data()
-    return {
-      id: snapshot.id,
-      ...data,
-      admissionDate: timestampToDate(data.admissionDate),
-      requestDate: timestampToDate(data.requestDate),
-      reviewedAt: timestampToDate(data.reviewedAt),
-      validityStart: timestampToDate(data.validityStart),
-      validityEnd: timestampToDate(data.validityEnd),
-      documents: (data.documents || []).map((docInfo: any) => ({
-        ...docInfo,
-        date: timestampToDate(docInfo?.date),
-      })),
-      createdAt: timestampToDate(data.createdAt),
-      updatedAt: timestampToDate(data.updatedAt),
-    } as HMOApproval
-  },
-}
-
-export async function createHMOApproval(approval: Omit<HMOApproval, "id" | "createdAt" | "updatedAt">): Promise<string> {
-  
-  const approvalsRef = collection(getDb(), HMO_APPROVALS_COLLECTION).withConverter(hmoApprovalConverter)
-  const docRef = doc(approvalsRef)
-  await setDoc(docRef, approval as HMOApproval)
-  return docRef.id
-}
-
-export interface HMOApprovalQueryOptions {
-  hospitalId?: string
-  status?: HMOApprovalStatus
-  hmoProvider?: string
-  patientId?: string
-  sortBy?: string
-  sortOrder?: "asc" | "desc"
-  limit?: number
-  startAfterDoc?: DocumentSnapshot
-}
-
-export async function queryHMOApprovals(
-  options: HMOApprovalQueryOptions = {}
-): Promise<{ approvals: HMOApproval[]; lastDoc: DocumentSnapshot | null }> {
-  
-  const constraints: QueryConstraint[] = []
-  
-  if (options.hospitalId) {
-    constraints.push(where("hospitalId", "==", options.hospitalId))
-  }
-  if (options.status) {
-    constraints.push(where("status", "==", options.status))
-  }
-  if (options.hmoProvider) {
-    constraints.push(where("hmoProvider", "==", options.hmoProvider))
-  }
-  if (options.patientId) {
-    constraints.push(where("patientId", "==", options.patientId))
-  }
-  
-  constraints.push(orderBy(options.sortBy || "requestDate", options.sortOrder || "desc"))
-  
-  if (options.limit) {
-    constraints.push(limit(options.limit))
-  }
-  if (options.startAfterDoc) {
-    constraints.push(startAfter(options.startAfterDoc))
-  }
-  
-  const approvalsRef = collection(getDb(), HMO_APPROVALS_COLLECTION).withConverter(hmoApprovalConverter)
-  const q = query(approvalsRef, ...constraints)
-  const snapshot = await getDocs(q)
-  
-  const approvals = snapshot.docs.map((doc) => doc.data())
-  const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null
-  
-  return { approvals, lastDoc }
-}
-
-export async function updateHMOApproval(id: string, data: Partial<HMOApproval>): Promise<void> {
-  
-  const approvalRef = doc(getDb(), HMO_APPROVALS_COLLECTION, id).withConverter(hmoApprovalConverter)
-  await updateDoc(approvalRef, {
-    ...data,
-    updatedAt: serverTimestamp(),
-  } as Partial<HMOApproval> & { updatedAt: FieldValue })
-}
-
-export async function deleteHMOApproval(id: string): Promise<void> {
-  
-  const approvalRef = doc(getDb(), HMO_APPROVALS_COLLECTION, id)
-  await deleteDoc(approvalRef)
-}
-
 export type ArchiveStatus = "discharged" | "transferred" | "deceased"
 
 export interface ArchivedPatient {
@@ -991,15 +842,6 @@ export async function countCheckouts(options: CountOptions): Promise<number> {
   return countWhere(CHECKOUTS_COLLECTION, constraints)
 }
 
-export async function countHMOApprovals(options: CountOptions): Promise<number> {
-  const constraints: QueryConstraint[] = [where("hospitalId", "==", options.hospitalId)]
-  if (options.status) constraints.push(where("status", "==", options.status))
-  if (options.statuses) constraints.push(where("status", "in", options.statuses))
-  if (options.from) constraints.push(where("requestDate", ">=", options.from))
-  if (options.to) constraints.push(where("requestDate", "<", options.to))
-  return countWhere(HMO_APPROVALS_COLLECTION, constraints)
-}
-
 export interface SystemStatusTotals {
   records: number
   databaseOk: boolean
@@ -1007,14 +849,13 @@ export interface SystemStatusTotals {
 
 export async function getSystemStatusTotals(hospitalId: string): Promise<SystemStatusTotals> {
   try {
-    const [patients, archives, checkouts, approvals, locations] = await Promise.all([
+    const [patients, archives, checkouts, locations] = await Promise.all([
       countPatients({ hospitalId }),
       countArchives({ hospitalId }),
       countCheckouts({ hospitalId }),
-      countHMOApprovals({ hospitalId }),
       countWhere(LOCATIONS_COLLECTION, [where("hospitalId", "==", hospitalId)]),
     ])
-    return { records: patients + archives + checkouts + approvals + locations, databaseOk: true }
+    return { records: patients + archives + checkouts + locations, databaseOk: true }
   } catch (error) {
     console.error("Failed to compute system status totals:", error)
     return { records: 0, databaseOk: false }
@@ -1055,11 +896,9 @@ export interface DashboardCounts {
   totalPatients: number
   archiveBalance: number
   activeCheckouts: number
-  pendingHMO: number
   totalPatientsChange: number
   archiveBalanceChange: number
   activeCheckoutsChange: number
-  pendingHMOChange: number
 }
 
 const ACTIVE_CHECKOUT_STATUSES: CheckoutStatus[] = ["pending", "approved", "in-progress", "delayed"]
@@ -1080,9 +919,6 @@ export async function getDashboardCounts(
     activeCheckouts,
     checkoutsCurrent,
     checkoutsPrevious,
-    pendingHMO,
-    hmoCurrent,
-    hmoPrevious,
   ] = await Promise.all([
     countPatients({ hospitalId }),
     countPatients({ hospitalId, from: currentStart }),
@@ -1093,19 +929,14 @@ export async function getDashboardCounts(
     countCheckouts({ hospitalId, statuses: ACTIVE_CHECKOUT_STATUSES }),
     countCheckouts({ hospitalId, from: currentStart }),
     countCheckouts({ hospitalId, from: previousStart, to: currentStart }),
-    countHMOApprovals({ hospitalId, status: "pending" }),
-    countHMOApprovals({ hospitalId, from: currentStart }),
-    countHMOApprovals({ hospitalId, from: previousStart, to: currentStart }),
   ])
 
   return {
     totalPatients,
     archiveBalance,
     activeCheckouts,
-    pendingHMO,
     totalPatientsChange: percentChange(patientsPrevious, patientsCurrent),
     archiveBalanceChange: percentChange(archivesPrevious, archivesCurrent),
     activeCheckoutsChange: percentChange(checkoutsPrevious, checkoutsCurrent),
-    pendingHMOChange: percentChange(hmoPrevious, hmoCurrent),
   }
 }

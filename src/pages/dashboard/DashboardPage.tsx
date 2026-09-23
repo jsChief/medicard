@@ -4,14 +4,12 @@ import {
   Users,
   Archive,
   Clock,
-  AlertTriangle,
   FileText,
   ChevronDown,
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { LocationMatrix } from "@/components/dashboard/LocationMatrix";
 import { ActionWatchlist } from "@/components/dashboard/ActionWatchlist";
-import { HMOBottleneckCallout } from "@/components/dashboard/HMOBottleneckCallout";
 import { Card, CardContent } from "@/components/ui/Card";
 import {
   DropdownMenu,
@@ -100,17 +98,6 @@ export function DashboardPage() {
           trend: counts.activeCheckoutsChange > 0 ? ("up" as const) : counts.activeCheckoutsChange < 0 ? ("down" as const) : ("neutral" as const),
           href: "/checkouts",
         },
-        {
-          title: "Pending HMO Approvals",
-          value: counts.pendingHMO.toLocaleString(),
-          change: counts.pendingHMOChange,
-          changeLabel: "vs last period",
-          icon: AlertTriangle,
-          iconColor: "text-danger",
-          iconBg: "bg-danger/10",
-          trend: counts.pendingHMOChange > 0 ? ("up" as const) : counts.pendingHMOChange < 0 ? ("down" as const) : ("neutral" as const),
-          href: "/hmo-approvals",
-        },
       ]
     : [];
 
@@ -128,13 +115,6 @@ export function DashboardPage() {
       icon: FileText,
       iconBg: "bg-success/10 text-success",
       href: "/patient-cards/new",
-    },
-    {
-      label: "Review HMO Approvals",
-      description: counts ? `${counts.pendingHMO.toLocaleString()} pending approvals` : "Review pending approvals",
-      icon: AlertTriangle,
-      iconBg: "bg-warning/10 text-warning",
-      href: "/hmo-approvals",
     },
     {
       label: "Manage Archive",
@@ -237,9 +217,6 @@ export function DashboardPage() {
               <MetricCard key={metric.title} {...metric} />
             ))}
       </div>
-
-      {/* HMO Bottleneck Callout - Full Width */}
-      <HMOBottleneckCallout />
 
       {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-12">

@@ -69,7 +69,7 @@ service cloud.firestore {
     }
 
     // --- Hospital-scoped collections -----------------------------------
-    // patients, staff, locations, checkouts, hmo_approvals, archives
+    // patients, staff, locations, checkouts, archives
     match /patients/{id} {
       allow read: if canReadHospitalDoc();
       allow create: if canCreateHospitalDoc();
@@ -92,13 +92,6 @@ service cloud.firestore {
     }
 
     match /checkouts/{id} {
-      allow read: if canReadHospitalDoc();
-      allow create: if canCreateHospitalDoc();
-      allow update: if canWriteHospitalDoc();
-      allow delete: if canDeleteHospitalDoc();
-    }
-
-    match /hmo_approvals/{id} {
       allow read: if canReadHospitalDoc();
       allow create: if canCreateHospitalDoc();
       allow update: if canWriteHospitalDoc();
