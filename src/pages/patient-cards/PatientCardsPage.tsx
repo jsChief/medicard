@@ -21,8 +21,8 @@ import { Badge } from "@/components/ui/Badge"
 import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
-import { queryPatients, bulkCreatePatients, type Patient } from "@/lib/firestore"
-import { patientsToCsv, parsePatientImportCsv } from "@/lib/patientCsv"
+import { queryPatients, bulkCreatePatients, getExistingMrns, type Patient } from "@/lib/firestore"
+import { patientsToCsv, parsePatientImportCsv, importIssuesToCsv, type ImportIssue } from "@/lib/patientCsv"
 import { toast } from "sonner"
 import type { DocumentSnapshot } from "firebase/firestore"
 
@@ -71,6 +71,23 @@ function getStatusConfig(status: PatientCard["status"]) {
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+}
+
+function downloadCsvFile(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+function downloadImportReport(issues: ImportIssue[]) {
+  const stamp = new Date().toISOString().slice(0, 10)
+  downloadCsvFile(`patient-import-issues-${stamp}.csv`, importIssuesToCsv(issues))
 }
 
 export function PatientCardsPage() {
@@ -150,15 +167,7 @@ export function PatientCardsPage() {
         hasMore = result.patients.length > 0
       }
       const csv = patientsToCsv(all)
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `patients-export-${new Date().toISOString().slice(0, 10)}.csv`
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(url)
+      downloadCsvFile(`patients-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
       toast.success(`Exported ${all.length} patient(s)`)
     } catch (error) {
       console.error("Failed to export patients:", error)
@@ -175,19 +184,58 @@ export function PatientCardsPage() {
     setIsImporting(true)
     try {
       const text = await file.text()
-      const { patients: records, issues } = parsePatientImportCsv(text, {
+      const { patients: records, issues, rowNumbers } = parsePatientImportCsv(text, {
         hospitalId: user.hospitalId,
         createdBy: user.id,
         attendingPhysician: user.name,
       })
-      if (records.length === 0) {
-        toast.error("No valid patient rows found in the file")
+
+      const existingMrns = await getExistingMrns(user.hospitalId)
+      const toCreate: typeof records = []
+      const duplicateIssues: ImportIssue[] = []
+      records.forEach((record, i) => {
+        if (existingMrns.has(record.mrn.trim().toLowerCase())) {
+          duplicateIssues.push({
+            row: rowNumbers[i],
+            message: `MRN already exists: "${record.mrn}"`,
+            mrn: record.mrn,
+            firstName: record.firstName,
+            lastName: record.lastName,
+          })
+        } else {
+          toCreate.push(record)
+        }
+      })
+
+      const allIssues = [...issues, ...duplicateIssues].sort((a, b) => a.row - b.row)
+      const reportAction = allIssues.length
+        ? { label: "Download report", onClick: () => downloadImportReport(allIssues) }
+        : undefined
+
+      if (toCreate.length === 0) {
+        toast.error(
+          `No new patients to import — ${allIssues.length} row(s) skipped`,
+          reportAction ? { action: reportAction } : undefined
+        )
         return
       }
-      await bulkCreatePatients(records)
-      toast.success(`Imported ${records.length} patient(s)${issues.length > 0 ? `, ${issues.length} row(s) skipped` : ""}`)
+
+      await bulkCreatePatients(toCreate, (written, total) => {
+        if (written === total) return
+        toast.loading(`Importing patients… ${written}/${total}`, { id: "import-progress" })
+      })
+      toast.dismiss("import-progress")
+
+      const skipped = allIssues.length
+      toast.success(
+        skipped
+          ? `Imported ${toCreate.length} patient(s), skipped ${skipped} row(s)`
+          : `Imported ${toCreate.length} patient(s)`,
+        reportAction ? { action: reportAction } : undefined
+      )
       await refreshCards()
     } catch (error) {
+      toast.dismiss("import-progress")
       console.error("Failed to import patients:", error)
       toast.error("Failed to import patients")
     } finally {

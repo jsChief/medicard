@@ -151,15 +151,46 @@ export async function createPatient(patient: Omit<Patient, "id" | "createdAt" | 
   return docRef.id
 }
 
+const FIRESTORE_BATCH_LIMIT = 500
+
 export async function bulkCreatePatients(
   patients: Array<Omit<Patient, "id" | "createdAt" | "updatedAt">>,
+  onProgress?: (written: number, total: number) => void,
 ): Promise<void> {
-  const batch = writeBatch(getDb())
-  patients.forEach((patient) => {
-    const patientRef = doc(collection(getDb(), PATIENTS_COLLECTION).withConverter(patientConverter))
-    batch.set(patientRef, patient as Patient)
-  })
-  await batch.commit()
+  const total = patients.length
+  for (let offset = 0; offset < total; offset += FIRESTORE_BATCH_LIMIT) {
+    const chunk = patients.slice(offset, offset + FIRESTORE_BATCH_LIMIT)
+    const batch = writeBatch(getDb())
+    chunk.forEach((patient) => {
+      const patientRef = doc(collection(getDb(), PATIENTS_COLLECTION).withConverter(patientConverter))
+      batch.set(patientRef, patient as Patient)
+    })
+    await batch.commit()
+    onProgress?.(Math.min(offset + chunk.length, total), total)
+  }
+}
+
+export async function getExistingMrns(hospitalId: string): Promise<Set<string>> {
+  const mrns = new Set<string>()
+  let lastDoc: DocumentSnapshot | null = null
+  let hasMore = true
+
+  while (hasMore) {
+    const { patients, lastDoc: cursor } = await queryPatients({
+      hospitalId,
+      sortBy: "mrn",
+      sortOrder: "asc",
+      pageSize: 1000,
+      startAfterDoc: lastDoc ?? undefined,
+    })
+    patients.forEach((patient) => {
+      if (patient.mrn) mrns.add(patient.mrn.trim().toLowerCase())
+    })
+    lastDoc = cursor
+    hasMore = patients.length === 1000
+  }
+
+  return mrns
 }
 
 export async function getPatient(id: string): Promise<Patient | null> {

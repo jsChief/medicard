@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, type ChangeEvent } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import {
-  User, Heart, Pill, AlertTriangle, Phone, Shield, FileText, Calendar, MapPin, Mail, Edit, ArrowLeft, Printer, Download, Share2, Clock, Stethoscope, Building2, Shield as ShieldIcon, AlertCircle, CheckCircle2, XCircle, Info, ExternalLink, Menu, X,
+  User, Heart, Pill, AlertTriangle, Phone, Shield, FileText, Calendar, MapPin, Mail, Edit, ArrowLeft, Printer, Download, Share2, Clock, Stethoscope, Building2, Shield as ShieldIcon, AlertCircle, CheckCircle2, XCircle, Info, ExternalLink, Menu, X, Upload, Trash2, Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
@@ -9,13 +9,30 @@ import { Badge } from "@/components/ui/Badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar"
 import { Separator } from "@/components/ui/Separator"
+import { Select } from "@/components/ui/Select"
+import { EmptyState } from "@/components/ui/EmptyState"
 import { cn, formatDate } from "@/lib/utils"
 import { getPatient, type Patient as FirestorePatient } from "@/lib/firestore"
+import { useAuth } from "@/context/AuthContext"
+import { toast } from "sonner"
+import {
+  ALLOWED_DOCUMENT_MIME_TYPES,
+  MAX_DOCUMENT_SIZE_BYTES,
+  deletePatientDocument,
+  formatFileSize,
+  getPatientDocumentDownloadUrl,
+  isAllowedDocumentType,
+  queryPatientDocuments,
+  uploadPatientDocument,
+  type PatientDocument,
+  type PatientDocumentCategory,
+} from "@/lib/patientDocuments"
 
 interface Patient {
   id: string
   mrn: string
   name: string
+  hospitalId: string
   dob: string
   age: number
   gender: "M" | "F" | "O"
@@ -82,6 +99,7 @@ function mapFirestorePatient(fp: FirestorePatient): Patient {
     id: fp.id,
     mrn: fp.mrn,
     name: `${fp.firstName} ${fp.lastName}`.trim(),
+    hospitalId: fp.hospitalId,
     dob: formatDateStr(fp.dob),
     age,
     gender: fp.gender,
@@ -198,29 +216,44 @@ const tabs = [
   { id: "documents", label: "Documents", icon: FileText },
 ]
 
-const mockDocuments = [
-  { name: "Admission Orders", type: "PDF", date: "2024-01-10", size: "245 KB" },
-  { name: "Consent Forms", type: "PDF", date: "2024-01-10", size: "1.2 MB" },
-  { name: "H&P Note", type: "PDF", date: "2024-01-10", size: "356 KB" },
-  { name: "Progress Notes (Daily)", type: "PDF", date: "2024-01-20", size: "892 KB" },
-  { name: "Lab Results - CBC", type: "PDF", date: "2024-01-15", size: "156 KB" },
-  { name: "Lab Results - BMP", type: "PDF", date: "2024-01-15", size: "178 KB" },
-  { name: "ECG Report", type: "PDF", date: "2024-01-12", size: "445 KB" },
-  { name: "Chest X-Ray Report", type: "PDF", date: "2024-01-11", size: "2.1 MB" },
-  { name: "Medication Reconciliation", type: "PDF", date: "2024-01-10", size: "189 KB" },
-  { name: "Discharge Summary (Draft)", type: "PDF", date: "2024-01-20", size: "567 KB" },
-  { name: "Insurance Verification", type: "PDF", date: "2024-01-10", size: "234 KB" },
-  { name: "Advance Directive", type: "PDF", date: "2023-06-15", size: "412 KB" },
+const documentCategoryOptions: { value: PatientDocumentCategory; label: string }[] = [
+  { value: "admission", label: "Admission" },
+  { value: "lab", label: "Lab Results" },
+  { value: "imaging", label: "Imaging" },
+  { value: "notes", label: "Clinical Notes" },
+  { value: "consent", label: "Consent Form" },
+  { value: "insurance", label: "Insurance" },
+  { value: "discharge", label: "Discharge" },
+  { value: "other", label: "Other" },
 ]
+
+function getDocumentTypeLabel(document: PatientDocument): string {
+  const extension = document.fileName.includes(".")
+    ? document.fileName.split(".").pop()?.toUpperCase()
+    : undefined
+  if (extension) return extension
+  if (document.mimeType.startsWith("image/")) return "IMAGE"
+  return "FILE"
+}
 
 export function PatientDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("overview")
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [patient, setPatient] = useState<Patient | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const [documents, setDocuments] = useState<PatientDocument[]>([])
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadCategory, setUploadCategory] = useState<PatientDocumentCategory>("other")
+  const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null)
+  const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null)
+  const [downloadingDocumentId, setDownloadingDocumentId] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!id) return
@@ -245,6 +278,123 @@ export function PatientDetailPage() {
 
     fetchPatient()
   }, [id])
+
+  useEffect(() => {
+    if (!patient) return
+
+    let cancelled = false
+
+    const fetchDocuments = async () => {
+      setIsLoadingDocuments(true)
+      try {
+        const result = await queryPatientDocuments(patient.hospitalId, patient.id)
+        if (!cancelled) setDocuments(result)
+      } catch (err) {
+        console.error("Failed to fetch patient documents:", err)
+        if (!cancelled) toast.error("Failed to load documents")
+      } finally {
+        if (!cancelled) setIsLoadingDocuments(false)
+      }
+    }
+
+    fetchDocuments()
+
+    return () => {
+      cancelled = true
+    }
+  }, [patient])
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file || !patient) return
+
+    if (!isAllowedDocumentType(file)) {
+      toast.error(`${file.name}: unsupported file type`)
+      return
+    }
+    if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
+      toast.error(`${file.name}: exceeds the ${formatFileSize(MAX_DOCUMENT_SIZE_BYTES)} limit`)
+      return
+    }
+
+    setIsUploading(true)
+    try {
+      const uploaded = await uploadPatientDocument({
+        hospitalId: patient.hospitalId,
+        patientId: patient.id,
+        file,
+        category: uploadCategory,
+        uploadedBy: user?.id || "",
+        uploadedByName: user?.name || "Unknown user",
+      })
+      setDocuments((prev) => [uploaded, ...prev])
+      toast.success(`Uploaded ${uploaded.name}`)
+    } catch (err) {
+      console.error("Failed to upload document:", err)
+      toast.error("Failed to upload document")
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleOpenDocument = async (document: PatientDocument) => {
+    setOpeningDocumentId(document.id)
+    try {
+      const url = await getPatientDocumentDownloadUrl(document.storagePath)
+      window.open(url, "_blank", "noopener,noreferrer")
+    } catch (err) {
+      console.error("Failed to open document:", err)
+      toast.error("Failed to open document")
+    } finally {
+      setOpeningDocumentId(null)
+    }
+  }
+
+  const handleDownloadDocument = async (document: PatientDocument) => {
+    setDownloadingDocumentId(document.id)
+    try {
+      const url = await getPatientDocumentDownloadUrl(document.storagePath)
+      // Pull the file through a blob so the browser honours `download`
+      // instead of navigating away — the `download` attribute is ignored
+      // for cross-origin URLs.
+      const response = await fetch(url)
+      if (!response.ok) throw new Error(`Request failed with status ${response.status}`)
+      const objectUrl = URL.createObjectURL(await response.blob())
+      const link = window.document.createElement("a")
+      link.href = objectUrl
+      link.download = document.fileName
+      window.document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch (err) {
+      console.error("Failed to download document:", err)
+      toast.error("Failed to download document")
+    } finally {
+      setDownloadingDocumentId(null)
+    }
+  }
+
+  const handleDeleteDocument = async (document: PatientDocument) => {
+    if (!window.confirm(`Delete "${document.name}"? This cannot be undone.`)) return
+
+    setDeletingDocumentId(document.id)
+    try {
+      await deletePatientDocument(document)
+      setDocuments((prev) => prev.filter((d) => d.id !== document.id))
+      toast.success(`Deleted ${document.name}`)
+    } catch (err) {
+      console.error("Failed to delete document:", err)
+      toast.error("Failed to delete document")
+    } finally {
+      setDeletingDocumentId(null)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -418,7 +568,7 @@ export function PatientDetailPage() {
                   <Separator orientation="vertical" className="hidden h-12 lg:block" />
                   <StatCard label="Allergies" value={patient.allergies.length} icon={<AlertTriangle className="h-5 w-5" />} color="bg-amber-100 text-amber-600" />
                   <Separator orientation="vertical" className="hidden h-12 lg:block" />
-                  <StatCard label="Documents" value={mockDocuments.length} icon={<FileText className="h-5 w-5" />} color="bg-purple-100 text-purple-600" />
+                  <StatCard label="Documents" value={documents.length} icon={<FileText className="h-5 w-5" />} color="bg-purple-100 text-purple-600" />
                 </div>
               </div>
 
@@ -758,30 +908,108 @@ export function PatientDetailPage() {
                 Patient Documents
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {mockDocuments.map((doc, index) => (
-                  <div key={index} className="flex items-center justify-between rounded-lg border border-border/50 bg-bg p-3 transition-colors hover:border-primary/50 hover:bg-surface">
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-danger/10 text-danger">
-                        <FileText className="h-5 w-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-text">{doc.name}</p>
-                        <p className="text-xs text-text-muted">{doc.type} • {formatDate(doc.date)} • {doc.size}</p>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <Button variant="ghost" size="sm" className="h-8 w-8" aria-label="View document">
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8" aria-label="Download document">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+            <CardContent className="space-y-4">
+              <div className="flex flex-col gap-3 rounded-lg border border-dashed border-border bg-bg p-4 sm:flex-row sm:items-end">
+                <div className="flex-1">
+                  <Select
+                    label="Category"
+                    value={uploadCategory}
+                    onChange={(value) => setUploadCategory(value as PatientDocumentCategory)}
+                    options={documentCategoryOptions}
+                    disabled={isUploading}
+                  />
+                </div>
+                <Button onClick={handleUploadClick} isLoading={isUploading} className="sm:mb-0">
+                  {!isUploading && <Upload className="h-4 w-4" />}
+                  Upload Document
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept={ALLOWED_DOCUMENT_MIME_TYPES.join(",")}
+                  onChange={handleFileSelected}
+                />
               </div>
+
+              <p className="text-xs text-text-muted">
+                PDF, images, Word, Excel, or plain text up to {formatFileSize(MAX_DOCUMENT_SIZE_BYTES)}.
+              </p>
+
+              {isLoadingDocuments ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-text-muted">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading documents...
+                </div>
+              ) : documents.length === 0 ? (
+                <EmptyState
+                  icon={<FileText className="h-full w-full" />}
+                  title="No documents yet"
+                  description="Upload lab results, imaging reports, consent forms, or any other file for this patient."
+                  action={{
+                    label: "Upload Document",
+                    onClick: handleUploadClick,
+                    icon: <Upload className="h-4 w-4" />,
+                  }}
+                />
+              ) : (
+                <div className="space-y-2">
+                  {documents.map((doc) => {
+                    const isOpening = openingDocumentId === doc.id
+                    const isDownloading = downloadingDocumentId === doc.id
+                    const isDeleting = deletingDocumentId === doc.id
+                    const isBusy = isOpening || isDownloading || isDeleting
+                    return (
+                      <div key={doc.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-bg p-3 transition-colors hover:border-primary/50 hover:bg-surface">
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-danger/10 text-danger">
+                            <FileText className="h-5 w-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-text">{doc.name}</p>
+                            <p className="truncate text-xs text-text-muted">
+                              {getDocumentTypeLabel(doc)} • {formatDate(doc.createdAt.toISOString())} • {formatFileSize(doc.sizeBytes)}
+                              {doc.uploadedByName && ` • by ${doc.uploadedByName}`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8"
+                            aria-label="View document"
+                            disabled={isBusy}
+                            onClick={() => handleOpenDocument(doc)}
+                          >
+                            {isOpening ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8"
+                            aria-label="Download document"
+                            disabled={isBusy}
+                            onClick={() => handleDownloadDocument(doc)}
+                          >
+                            {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 text-danger hover:bg-danger/10"
+                            aria-label="Delete document"
+                            disabled={isBusy}
+                            onClick={() => handleDeleteDocument(doc)}
+                          >
+                            {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

@@ -1,0 +1,48 @@
+rules_version = '2';
+
+// Firebase Storage security rules for Medicard
+// Patient documents are stored at:
+//   /patientDocuments/{hospitalId}/{patientId}/{documentId}/{fileName}
+// The path segment `hospitalId` must match the signed-in user's profile
+// hospital (same source of truth as the Firestore rules in firestore.rules).
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userProfile() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getHospitalId() {
+      return userProfile().hospitalId;
+    }
+
+    // Same ceiling as MAX_DOCUMENT_SIZE_BYTES in src/lib/patientDocuments.ts (10 MB).
+    function isUnderSizeLimit() {
+      return request.resource.size < 10 * 1024 * 1024;
+    }
+
+    function isAllowedContentType() {
+      return request.resource.contentType.matches(
+        'application/pdf|image/.*|text/plain|text/csv|application/msword|application/vnd.openxmlformats-officedocument.wordprocessingml.document|application/vnd.ms-excel|application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+    }
+
+    match /patientDocuments/{hospitalId}/{patientId}/{allPaths=**} {
+      allow read: if isSignedIn() && hospitalId == getHospitalId();
+      allow create, update: if isSignedIn()
+        && hospitalId == getHospitalId()
+        && isUnderSizeLimit()
+        && isAllowedContentType();
+      allow delete: if isSignedIn() && hospitalId == getHospitalId();
+    }
+
+    // Everything else is denied by default.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

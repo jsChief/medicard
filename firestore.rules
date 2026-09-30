@@ -104,5 +104,14 @@ service cloud.firestore {
       allow update: if canWriteHospitalDoc();
       allow delete: if canDeleteHospitalDoc();
     }
+
+    // Metadata for files stored in Cloud Storage under
+    // /patientDocuments/{hospitalId}/{patientId}/{documentId}/{fileName}
+    match /patientDocuments/{id} {
+      allow read: if canReadHospitalDoc();
+      allow create: if canCreateHospitalDoc();
+      allow update: if canWriteHospitalDoc();
+      allow delete: if canDeleteHospitalDoc();
+    }
   }
 }

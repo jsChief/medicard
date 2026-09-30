@@ -51,11 +51,17 @@ export const PATIENT_CSV_COLUMNS = [
 export interface ImportIssue {
   row: number
   message: string
+  mrn?: string
+  firstName?: string
+  lastName?: string
 }
+
+export const IMPORT_ISSUE_CSV_COLUMNS = ["row", "mrn", "firstName", "lastName", "message"] as const
 
 export interface PatientImportResult {
   patients: Array<Omit<Patient, "id" | "createdAt" | "updatedAt">>
   issues: ImportIssue[]
+  rowNumbers: number[]
 }
 
 const GENDERS = ["M", "F", "O"]
@@ -146,6 +152,14 @@ export function patientsToCsv(patients: Patient[]): string {
   return [header, ...lines].join("\n")
 }
 
+export function importIssuesToCsv(issues: ImportIssue[]): string {
+  const header = IMPORT_ISSUE_CSV_COLUMNS.join(",")
+  const lines = issues.map((issue) =>
+    IMPORT_ISSUE_CSV_COLUMNS.map((col) => csvEscape(String(issue[col] ?? ""))).join(",")
+  )
+  return [header, ...lines].join("\n")
+}
+
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = []
   let row: string[] = []
@@ -227,9 +241,16 @@ function strToBool(value: string): boolean {
   return ["true", "1", "yes"].includes(value.trim().toLowerCase())
 }
 
-function makeMrn(): string {
-  const now = new Date()
-  return `MRN-${now.getFullYear()}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`
+function makeMrn(taken: Set<string>): string {
+  const year = new Date().getFullYear()
+  const randomMrn = () => `MRN-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`
+  let candidate = randomMrn()
+  let suffix = 1
+  while (taken.has(candidate.toLowerCase())) {
+    suffix += 1
+    candidate = `${randomMrn()}-${suffix}`
+  }
+  return candidate
 }
 
 export function parsePatientImportCsv(
@@ -237,15 +258,17 @@ export function parsePatientImportCsv(
   context: { hospitalId: string; createdBy: string; attendingPhysician: string }
 ): PatientImportResult {
   const allRows = parseCsv(text)
-  const result: PatientImportResult = { patients: [], issues: [] }
+  const result: PatientImportResult = { patients: [], issues: [], rowNumbers: [] }
 
   if (allRows.length < 2) {
-    return { patients: [], issues: [{ row: 1, message: "No data rows found (header + at least one row required)" }] }
+    return { patients: [], issues: [{ row: 1, message: "No data rows found (header + at least one row required)" }], rowNumbers: [] }
   }
 
   const headers = allRows[0].map((h) => h.trim().toLowerCase())
   const indexOf = (header: string) => headers.indexOf(header.toLowerCase())
   const dataRows = allRows.slice(1)
+
+  const seenMrns = new Set<string>()
 
   dataRows.forEach((cells, idx) => {
     const rowNumber = idx + 2
@@ -257,14 +280,25 @@ export function parsePatientImportCsv(
     const firstName = field("firstName")
     const lastName = field("lastName")
     const dob = field("dob")
+    const rawMrn = field("mrn")
+
+    const addIssue = (message: string) => {
+      result.issues.push({
+        row: rowNumber,
+        message,
+        mrn: rawMrn || undefined,
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
+      })
+    }
 
     if (!firstName || !lastName || !dob) {
-      result.issues.push({ row: rowNumber, message: "Missing required field(s): firstName, lastName, dob" })
+      addIssue("Missing required field(s): firstName, lastName, dob")
       return
     }
     const dobDate = parseDate(dob)
     if (!dobDate) {
-      result.issues.push({ row: rowNumber, message: `Invalid dob: "${dob}"` })
+      addIssue(`Invalid dob: "${dob}"`)
       return
     }
 
@@ -275,25 +309,33 @@ export function parsePatientImportCsv(
     const statusRaw = field("status") || "pending"
 
     if (!GENDERS.includes(genderRaw)) {
-      result.issues.push({ row: rowNumber, message: `Invalid gender: "${genderRaw}"` })
+      addIssue(`Invalid gender: "${genderRaw}"`)
       return
     }
     if (!BLOOD_TYPES.includes(bloodTypeRaw)) {
-      result.issues.push({ row: rowNumber, message: `Invalid bloodType: "${bloodTypeRaw}"` })
+      addIssue(`Invalid bloodType: "${bloodTypeRaw}"`)
       return
     }
     if (!MARITAL_STATUSES.includes(maritalStatusRaw)) {
-      result.issues.push({ row: rowNumber, message: `Invalid maritalStatus: "${maritalStatusRaw}"` })
+      addIssue(`Invalid maritalStatus: "${maritalStatusRaw}"`)
       return
     }
     if (!PLAN_TYPES.includes(planTypeRaw)) {
-      result.issues.push({ row: rowNumber, message: `Invalid insurancePlanType: "${planTypeRaw}"` })
+      addIssue(`Invalid insurancePlanType: "${planTypeRaw}"`)
       return
     }
     if (!STATUSES.includes(statusRaw)) {
-      result.issues.push({ row: rowNumber, message: `Invalid status: "${statusRaw}"` })
+      addIssue(`Invalid status: "${statusRaw}"`)
       return
     }
+
+    const mrn = rawMrn || makeMrn(seenMrns)
+    const mrnKey = mrn.toLowerCase()
+    if (seenMrns.has(mrnKey)) {
+      addIssue(`Duplicate MRN in file: "${mrn}"`)
+      return
+    }
+    seenMrns.add(mrnKey)
 
     const admissionDate = parseDate(field("admissionDate")) || new Date()
     const lastVisit = parseDate(field("lastVisit")) || new Date()
@@ -317,7 +359,7 @@ export function parsePatientImportCsv(
     }
 
     result.patients.push({
-      mrn: field("mrn") || makeMrn(),
+      mrn,
       firstName,
       lastName,
       middleName: field("middleName") || undefined,
@@ -353,6 +395,7 @@ export function parsePatientImportCsv(
       createdBy: context.createdBy,
       hospitalId: context.hospitalId,
     })
+    result.rowNumbers.push(rowNumber)
   })
 
   return result
