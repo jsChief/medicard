@@ -11,8 +11,9 @@ import { Select } from "@/components/ui/Select"
 import { cn } from "@/lib/utils"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/context/AuthContext"
-import { createPatient, type Patient } from "@/lib/firestore"
+import { createPatient, type Patient } from "@/lib/database"
 import { toast } from "sonner"
+import { describeError } from "@/lib/errors"
 
 const steps = [
   { id: 1, title: "Personal Info", icon: User, description: "Basic patient information" },
@@ -276,7 +277,7 @@ export function AddPatientPage() {
 
   const onSubmit: SubmitHandler<PatientFormData> = async (data) => {
     if (!user?.hospitalId) {
-      toast.error("User hospital not found")
+      toast.error("Your account is not linked to a hospital. Please sign in again.")
       return
     }
     setIsSubmitting(true)
@@ -339,7 +340,7 @@ export function AddPatientPage() {
       navigate("/patients")
     } catch (error) {
       console.error("Failed to create patient:", error)
-      toast.error("Failed to create patient. Please try again.")
+      toast.error(describeError(error, "create the patient"))
     } finally {
       setIsSubmitting(false)
     }

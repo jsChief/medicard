@@ -9,6 +9,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/Card"
 import { AuthInput } from "@/components/auth/AuthInput"
 import { toast } from "@/components/ui/Toast"
 import { useAuth } from "@/context/AuthContext"
+import { describeError } from "@/lib/errors"
 
 const loginSchema = z.object({
   email: z.string().min(1, "Email is required").email("Invalid email address"),
@@ -48,7 +49,7 @@ export function LoginPage() {
       })
       navigate("/dashboard")
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to sign in. Please try again."
+      const message = describeError(error, "sign in")
       toast({
         title: "Sign in failed",
         description: message,

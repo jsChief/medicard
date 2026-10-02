@@ -25,8 +25,9 @@ import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { SortableTh } from "@/components/ui/SortableTh"
 import { cn, formatRelativeTime } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
-import { queryLocations, type Location as FSLocation } from "@/lib/firestore"
-import { toast } from "sonner"
+import { queryLocations, type Location as FSLocation } from "@/lib/database"
+import { describeError } from "@/lib/errors"
+import { ErrorState } from "@/components/common/ErrorState"
 
 interface LocationView {
   id: string
@@ -129,6 +130,7 @@ export function LocationMatrixPage() {
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<"table" | "grid">("table")
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const fetchLocations = useCallback(async () => {
     if (!user?.hospitalId) {
@@ -137,6 +139,7 @@ export function LocationMatrixPage() {
     }
     try {
       setIsLoading(true)
+      setLoadError(null)
       const result = await queryLocations({
         hospitalId: user.hospitalId,
         sortBy: "name",
@@ -145,8 +148,9 @@ export function LocationMatrixPage() {
       })
       setLocations(result)
     } catch (error) {
-      console.error("Failed to fetch locations:", error)
-      toast.error("Failed to load locations")
+      // Rendered as a panel error rather than an empty location list.
+      setLoadError(describeError(error, "fetch locations"))
+      setLocations([])
     } finally {
       setIsLoading(false)
     }
@@ -327,6 +331,8 @@ export function LocationMatrixPage() {
           </div>
           <p className="text-lg font-medium text-text">Loading locations...</p>
         </div>
+      ) : loadError ? (
+        <ErrorState title="Could not load locations" message={loadError} onRetry={fetchLocations} isRetrying={isLoading} />
       ) : filteredLocations.length === 0 ? (
         <div className="py-16 text-center">
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">

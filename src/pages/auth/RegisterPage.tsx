@@ -11,6 +11,7 @@ import { PasswordStrength } from "@/components/auth/PasswordStrength"
 import { toast } from "@/components/ui/Toast"
 import { useAuth } from "@/context/AuthContext"
 import { cn } from "@/lib/utils"
+import { describeError } from "@/lib/errors"
 
 const registerSchema = z
   .object({
@@ -145,7 +146,7 @@ export function RegisterPage() {
       })
       navigate("/verify-email")
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create account. Please try again."
+      const message = describeError(error, "create your account")
       toast({
         title: "Registration failed",
         description: message,

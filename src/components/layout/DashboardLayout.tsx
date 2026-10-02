@@ -33,7 +33,9 @@ import {
   type AppNotification,
 } from "@/components/layout/NotificationsDialog";
 import { useAuth } from "@/context/AuthContext";
-import { getHospital } from "@/lib/firestore";
+import { getHospital } from "@/lib/database";
+import { describeError } from "@/lib/errors";
+import { toast } from "sonner";
 import {
   Sidebar,
   SidebarContent,
@@ -89,7 +91,11 @@ export function DashboardLayout() {
         .then((hospital) => {
           if (!cancelled) setHospitalName(hospital?.name || "");
         })
-        .catch(() => {});
+        .catch((error) => {
+          // Cosmetic only: the shell still works without the name, so this must
+          // not escalate to a toast on every layout mount.
+          console.error("Failed to load hospital name:", error);
+        });
     }
     return () => {
       cancelled = true;
@@ -154,8 +160,13 @@ export function DashboardLayout() {
   };
 
   const handleLogout = async () => {
-    await logout();
-    navigate("/login");
+    // logout() navigates to /login itself, including when the network call fails.
+    try {
+      await logout();
+    } catch (error) {
+      toast.error(describeError(error, "sign out"));
+      navigate("/login");
+    }
   };
 
   return (

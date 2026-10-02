@@ -1,30 +1,38 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { useNavigate } from "react-router-dom"
-import type { User as FirebaseUser } from "firebase/auth"
-import { onAuthStateChanged } from "firebase/auth"
-import { auth } from "@/lib/firebase"
+import type { User as SupabaseUser } from "@supabase/supabase-js"
 import {
   loginWithEmail,
   registerWithEmail,
-  logout as firebaseLogout,
+  logout as supabaseLogout,
   forgotPassword,
   getUserProfile,
   updateUserProfile,
+  isEmailVerified,
+  onAuthStateChange,
   type User,
-} from "@/lib/firebaseAuth"
+} from "@/lib/auth"
+import { describeError } from "@/lib/errors"
 
 interface AuthContextType {
   user: User | null
-  firebaseUser: FirebaseUser | null
+  authUser: SupabaseUser | null
   isLoading: boolean
   isAuthenticated: boolean
+  /**
+   * Set when the session could not be resolved at all (Supabase unreachable or
+   * misconfigured). Routes render this instead of spinning forever.
+   */
+  authError: string | null
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>
   register: (data: RegisterData) => Promise<void>
   logout: () => Promise<void>
   forgotPassword: (email: string) => Promise<void>
-  updateProfile: (data: Partial<User>) => Promise<void>
+  updateProfile: (data: Partial<User>) => Promise<{ emailChangeRequested: boolean }>
+  /** Clears authError after the user has seen it, e.g. by retrying. */
+  clearAuthError: () => void
 }
 
 interface RegisterData {
@@ -37,151 +45,175 @@ interface RegisterData {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+/** Resolves the app-level profile for an authenticated, verified Supabase user. */
+async function loadProfile(sessionUser: SupabaseUser | null): Promise<User | null> {
+  if (!sessionUser) return null
+
+  // Unverified accounts are treated as signed out, matching the old Firebase
+  // flow which required email verification before sign-in.
+  if (!isEmailVerified(sessionUser)) return null
+
+  const profile = await getUserProfile(sessionUser.id)
+  if (profile) return profile
+
+  console.warn("No profile row found for the signed-in user:", sessionUser.id)
+  return null
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null)
+  const [authUser, setAuthUser] = useState<SupabaseUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [authError, setAuthError] = useState<string | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (!auth) {
-      console.warn("Firebase Auth not initialized, skipping auth state listener")
-      setIsLoading(false)
-      return
+    let cancelled = false
+    let unsubscribe: (() => void) | null = null
+    // Without this, an auth listener that never fires (network down, blocked
+    // script) leaves isLoading true and every route spinning forever.
+    const failsafe = setTimeout(() => {
+      if (!cancelled) {
+        setAuthError(
+          "We could not verify your sign-in status. Check your connection and try again.",
+        )
+        setIsLoading(false)
+      }
+    }, 15000)
+
+    const settle = () => {
+      if (!cancelled) setIsLoading(false)
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setFirebaseUser(firebaseUser)
-      if (firebaseUser) {
-        try {
-          // Force refresh token and user data to avoid stale emailVerified/claims
+    try {
+      unsubscribe = onAuthStateChange((sessionUser) => {
+        // supabase-js serialises auth callbacks, so any additional request made
+        // from inside this handler has to be deferred to the next tick.
+        void (async () => {
+          if (cancelled) return
+          clearTimeout(failsafe)
+          setAuthUser(sessionUser)
+
           try {
-            await firebaseUser.getIdToken(true)
-          } catch (tokenErr) {
-            console.warn("Failed to refresh ID token:", tokenErr)
+            const profile = await loadProfile(sessionUser)
+            if (!cancelled) {
+              setUser(profile)
+              setAuthError(null)
+            }
+          } catch (error) {
+            console.error("Failed to load user profile:", error)
+            if (!cancelled) {
+              setUser(null)
+              setAuthError(describeError(error, "load profile"))
+            }
+          } finally {
+            settle()
           }
-          try {
-            await firebaseUser.reload()
-          } catch (reloadErr) {
-            console.warn("Failed to reload firebase user:", reloadErr)
-          }
+        })()
+      })
+    } catch (error) {
+      // Supabase is unconfigured or unreachable: fail visibly instead of hanging.
+      clearTimeout(failsafe)
+      console.error("Failed to initialise the auth listener:", error)
+      setAuthError(describeError(error, "auth init"))
+      settle()
+    }
 
-          // If the user's email is not verified, do not set the app-level `user`.
-          if (!firebaseUser.emailVerified) {
-            setUser(null)
-            setIsLoading(false)
-            return
-          }
-
-          const profile = await getUserProfile(firebaseUser.uid)
-          if (profile) {
-            setUser(profile)
-          } else {
-            // Fallback to a minimal profile if no user doc exists
-            setUser({ id: firebaseUser.uid, email: firebaseUser.email || "", name: firebaseUser.displayName || "User", role: "admin", hospitalId: "default" })
-          }
-        } catch (error) {
-          console.error("Failed to get user profile:", error)
-          setUser({ id: firebaseUser.uid, email: firebaseUser.email || "", name: firebaseUser.displayName || "User", role: "admin", hospitalId: "default" })
-        }
-      } else {
-        setUser(null)
-      }
-      setIsLoading(false)
-    })
-
-    return () => unsubscribe()
+    return () => {
+      cancelled = true
+      clearTimeout(failsafe)
+      unsubscribe?.()
+    }
   }, [])
 
-  const login = async (email: string, password: string, _rememberMe = false) => {
+  const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true)
     try {
-      await loginWithEmail(email, password)
+      const { user: signedInUser } = await loginWithEmail(email, password)
 
-      // Ensure current user data is refreshed before allowing access
-      const current = auth?.currentUser
-      if (current) {
-        try {
-          await current.getIdToken(true)
-        } catch (err) {
-          console.warn("Failed to refresh token after login:", err)
-        }
-        try {
-          await current.reload()
-        } catch (err) {
-          console.warn("Failed to reload user after login:", err)
-        }
-
-        // Block sign-in if email is not verified
-        if (!current.emailVerified) {
-          try {
-            await firebaseLogout()
-          } catch (err) {
-            console.warn("Failed to sign out unverified user:", err)
-          }
-          throw new Error("Please verify your email address before signing in.")
-        }
-
-        try {
-          const profile = await getUserProfile(current.uid)
-          if (profile) setUser(profile)
-        } catch (err) {
-          console.warn("Failed to fetch profile after login:", err)
-        }
+      if (!isEmailVerified(signedInUser)) {
+        await supabaseLogout().catch((error) => {
+          console.warn("Failed to sign out unverified user:", error)
+        })
+        throw new Error("Please verify your email address before signing in.")
       }
-    } catch (error) {
-      throw error
+
+      // Resolve the profile before resolving so callers can navigate straight
+      // into the app. onAuthStateChange performs the same load for later
+      // session changes.
+      setAuthUser(signedInUser)
+      setUser(await loadProfile(signedInUser))
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
-  const register = async (data: RegisterData) => {
+  const register = useCallback(async (data: RegisterData) => {
     setIsLoading(true)
     try {
-      // Delegate registration to firebase helper which sends verification email
-      await registerWithEmail(data.email, data.password, data.name, data.role, data.hospitalName)
-      // Do not auto-navigate here; page components should direct users to verification flow
-    } catch (error) {
-      throw error
+      // The database trigger provisions the hospital and profile rows.
+      await registerWithEmail({
+        email: data.email,
+        password: data.password,
+        name: data.name,
+        role: data.role,
+        hospitalName: data.hospitalName,
+      })
+      // Do not auto-navigate here; page components should direct users to the
+      // verification flow.
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     setIsLoading(true)
     try {
-      await firebaseLogout()
+      await supabaseLogout()
+      setUser(null)
+      setAuthUser(null)
+    } finally {
+      setIsLoading(false)
+      // Always leave the app on a known route, even if the network call failed.
       navigate("/login")
-    } finally {
-      setIsLoading(false)
     }
-  }
+  }, [navigate])
 
-  const handleForgotPassword = async (email: string) => {
+  const handleForgotPassword = useCallback(async (email: string) => {
     await forgotPassword(email)
-  }
+  }, [])
 
-  const updateProfile = async (data: Partial<User>) => {
-    if (firebaseUser) {
-      await updateUserProfile(firebaseUser.uid, data)
-      setUser((prev) => (prev ? { ...prev, ...data } : null))
-    }
-  }
+  const updateProfile = useCallback(
+    async (data: Partial<User>): Promise<{ emailChangeRequested: boolean }> => {
+      if (!authUser) {
+        throw new Error("Your session has expired. Please sign in again.")
+      }
+      const { emailChangeRequested } = await updateUserProfile(authUser.id, data)
+      // Re-read rather than merging the patch: an email change has to round-trip
+      // through Supabase Auth, so local state must reflect what was actually saved.
+      const fresh = await getUserProfile(authUser.id)
+      setUser(fresh)
+      return { emailChangeRequested }
+    },
+    [authUser],
+  )
+
+  const clearAuthError = useCallback(() => setAuthError(null), [])
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        firebaseUser,
+        authUser,
         isLoading,
-        isAuthenticated: !!user && !!firebaseUser?.emailVerified,
+        isAuthenticated: !!user && isEmailVerified(authUser),
+        authError,
         login,
         register,
         logout,
         forgotPassword: handleForgotPassword,
         updateProfile,
+        clearAuthError,
       }}
     >
       {children}
@@ -197,9 +229,4 @@ export function useAuth() {
   return context
 }
 
-export async function getToken(): Promise<string | null> {
-  if (typeof window === "undefined") return null
-  const user = auth?.currentUser
-  if (!user) return null
-  return user.getIdToken()
-}
+export { getToken } from "@/lib/auth"

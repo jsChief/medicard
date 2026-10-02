@@ -1,4 +1,4 @@
-import type { Patient, EmergencyContact, InsuranceInfo } from "./firestore"
+import type { Patient, EmergencyContact, InsuranceInfo } from "./database"
 
 export const PATIENT_CSV_COLUMNS = [
   "mrn",

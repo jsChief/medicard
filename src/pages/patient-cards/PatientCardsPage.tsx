@@ -21,10 +21,11 @@ import { Badge } from "@/components/ui/Badge"
 import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
-import { queryPatients, bulkCreatePatients, getExistingMrns, type Patient } from "@/lib/firestore"
+import { queryPatients, bulkCreatePatients, getExistingMrns, type Patient, type PageCursor } from "@/lib/database"
 import { patientsToCsv, parsePatientImportCsv, importIssuesToCsv, type ImportIssue } from "@/lib/patientCsv"
 import { toast } from "sonner"
-import type { DocumentSnapshot } from "firebase/firestore"
+import { describeError } from "@/lib/errors"
+import { ErrorState } from "@/components/common/ErrorState"
 
 interface PatientCard {
   id: string
@@ -99,6 +100,8 @@ export function PatientCardsPage() {
   const [departmentFilter, setDepartmentFilter] = useState("All")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [selectedCards, setSelectedCards] = useState<string[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -109,6 +112,7 @@ export function PatientCardsPage() {
       }
       try {
         setIsLoading(true)
+        setLoadError(null)
         const result = await queryPatients({
           hospitalId: user.hospitalId,
           sortBy: "lastName",
@@ -117,31 +121,21 @@ export function PatientCardsPage() {
         })
         if (!cancelled) setPatients(result.patients)
       } catch (error) {
-        console.error("Failed to fetch patient cards:", error)
-        toast.error("Failed to load patient cards")
+        // Rendered as a panel error rather than an empty card grid.
+        const message = describeError(error, "fetch patient cards")
+        if (!cancelled) {
+          setLoadError(message)
+          setPatients([])
+        }
       } finally {
         if (!cancelled) setIsLoading(false)
       }
     }
     fetchCards()
     return () => { cancelled = true }
-  }, [user?.hospitalId])
+  }, [user?.hospitalId, reloadKey])
 
-  const refreshCards = async () => {
-    if (!user?.hospitalId) return
-    try {
-      const result = await queryPatients({
-        hospitalId: user.hospitalId,
-        sortBy: "lastName",
-        sortOrder: "asc",
-        pageSize: 100,
-      })
-      setPatients(result.patients)
-    } catch (error) {
-      console.error("Failed to refresh patient cards:", error)
-      toast.error("Failed to refresh patient cards")
-    }
-  }
+  const refreshCards = () => setReloadKey((n) => n + 1)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isExporting, setIsExporting] = useState(false)
@@ -152,7 +146,7 @@ export function PatientCardsPage() {
     setIsExporting(true)
     try {
       const all: Patient[] = []
-      let lastDoc: DocumentSnapshot | null = null
+      let lastDoc: PageCursor | null = null
       let hasMore = true
       while (hasMore) {
         const result = await queryPatients({
@@ -171,7 +165,7 @@ export function PatientCardsPage() {
       toast.success(`Exported ${all.length} patient(s)`)
     } catch (error) {
       console.error("Failed to export patients:", error)
-      toast.error("Failed to export patients")
+      toast.error(describeError(error, "export patients"))
     } finally {
       setIsExporting(false)
     }
@@ -237,7 +231,7 @@ export function PatientCardsPage() {
     } catch (error) {
       toast.dismiss("import-progress")
       console.error("Failed to import patients:", error)
-      toast.error("Failed to import patients")
+      toast.error(describeError(error, "import patients"))
     } finally {
       setIsImporting(false)
     }
@@ -372,6 +366,8 @@ export function PatientCardsPage() {
           </div>
           <p className="text-lg font-medium text-text">Loading patient cards...</p>
         </div>
+      ) : loadError ? (
+        <ErrorState title="Could not load patient cards" message={loadError} onRetry={refreshCards} isRetrying={isLoading} />
       ) : filteredCards.length === 0 ? (
         <div className="text-center py-16">
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">

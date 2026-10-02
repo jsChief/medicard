@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/Separator"
 import { Badge } from "@/components/ui/Badge"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { describeError } from "@/lib/errors"
 
 const roleConfig = {
   admin: { label: "Administrator", variant: "primary" as const },
@@ -80,7 +81,7 @@ function QuickInfo({ icon, label, value }: { icon: React.ReactNode; label: strin
 }
 
 export function ProfilePage() {
-  const { user, firebaseUser, updateProfile, forgotPassword, isLoading, logout } = useAuth()
+  const { user, authUser, updateProfile, forgotPassword, isLoading, logout } = useAuth()
   const fileRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState(user?.name || "")
   const [email, setEmail] = useState(user?.email || "")
@@ -106,10 +107,18 @@ export function ProfilePage() {
   const handleSaveProfile = async () => {
     setIsSaving(true)
     try {
-      await updateProfile({ name: name.trim(), email: email.trim() })
-      toast.success("Profile updated successfully")
-    } catch {
-      toast.error("Failed to update profile")
+      const { emailChangeRequested } = await updateProfile({ name: name.trim(), email: email.trim() })
+      if (emailChangeRequested) {
+        // Supabase mails the new address; it is not live until that link is used.
+        toast.success("Profile updated", {
+          description: "Check the new email for a confirmation link to finish changing your address.",
+        })
+      } else {
+        toast.success("Profile updated successfully")
+      }
+    } catch (error) {
+      console.error("Failed to update profile:", error)
+      toast.error(describeError(error, "update your profile"))
     } finally {
       setIsSaving(false)
     }
@@ -127,8 +136,9 @@ export function ProfilePage() {
       try {
         await updateProfile({ avatar: reader.result as string })
         toast.success("Profile photo updated")
-      } catch {
-        toast.error("Failed to update profile photo")
+      } catch (error) {
+        console.error("Failed to update profile photo:", error)
+        toast.error(describeError(error, "update your profile photo"))
       }
     }
     reader.readAsDataURL(file)
@@ -141,10 +151,22 @@ export function ProfilePage() {
     try {
       await forgotPassword(user.email)
       toast.success("Password reset email sent")
-    } catch {
-      toast.error("Failed to send reset email")
+    } catch (error) {
+      console.error("Failed to send reset email:", error)
+      toast.error(describeError(error, "send the reset email"))
     } finally {
       setIsSendingReset(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+    } catch (error) {
+      // AuthContext still navigates to /login; this only reports that the
+      // server-side sign out did not complete.
+      console.error("Failed to sign out:", error)
+      toast.error(describeError(error, "sign out"))
     }
   }
 
@@ -153,8 +175,9 @@ export function ProfilePage() {
       await navigator.clipboard.writeText(user.id)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
-    } catch {
-      toast.error("Failed to copy")
+    } catch (error) {
+      console.error("Failed to copy user id:", error)
+      toast.error(describeError(error, "copy your user ID"))
     }
   }
 
@@ -203,7 +226,7 @@ export function ProfilePage() {
                   <Mail className="h-4 w-4" />
                   {user.email}
                 </span>
-                {firebaseUser?.emailVerified ? (
+                {authUser?.email_confirmed_at ? (
                   <Badge variant="success" className="gap-1">
                     <Check className="h-3 w-3" />
                     Email verified
@@ -221,7 +244,7 @@ export function ProfilePage() {
                 <KeyRound className="h-4 w-4" />
                 Reset Password
               </Button>
-              <Button variant="ghost" size="sm" onClick={logout} className="gap-2 text-text-muted">
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-text-muted">
                 <LogOut className="h-4 w-4" />
                 Sign out
               </Button>
@@ -284,7 +307,7 @@ export function ProfilePage() {
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <p className="font-medium text-text">Password</p>
-              <p className="text-sm text-text-muted">{firebaseUser ? "Last sign-in: " + (firebaseUser.metadata?.lastSignInTime ? new Date(firebaseUser.metadata.lastSignInTime).toLocaleString() : "—") : "No sign-in data"}</p>
+              <p className="text-sm text-text-muted">{authUser ? "Last sign-in: " + (authUser.last_sign_in_at ? new Date(authUser.last_sign_in_at).toLocaleString() : "—") : "No sign-in data"}</p>
             </div>
             <div className="shrink-0">
               <Button variant="outline" size="sm" onClick={handleSendReset} isLoading={isSendingReset} className="gap-2">
@@ -348,7 +371,7 @@ export function ProfilePage() {
           </div>
           <div className="space-y-1">
             <span className="text-xs text-text-muted">Last Sign-in</span>
-            <p className="font-medium text-text">{firebaseUser?.metadata?.lastSignInTime ? new Date(firebaseUser.metadata.lastSignInTime).toLocaleString() : "—"}</p>
+            <p className="font-medium text-text">{authUser?.last_sign_in_at ? new Date(authUser.last_sign_in_at).toLocaleString() : "—"}</p>
           </div>
         </CardContent>
       </Card>

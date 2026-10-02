@@ -12,9 +12,10 @@ import { Separator } from "@/components/ui/Separator"
 import { Select } from "@/components/ui/Select"
 import { EmptyState } from "@/components/ui/EmptyState"
 import { cn, formatDate } from "@/lib/utils"
-import { getPatient, type Patient as FirestorePatient } from "@/lib/firestore"
+import { getPatient, type Patient as FirestorePatient } from "@/lib/database"
 import { useAuth } from "@/context/AuthContext"
 import { toast } from "sonner"
+import { describeError } from "@/lib/errors"
 import {
   ALLOWED_DOCUMENT_MIME_TYPES,
   MAX_DOCUMENT_SIZE_BYTES,
@@ -270,7 +271,7 @@ export function PatientDetailPage() {
         }
       } catch (err) {
         console.error("Failed to fetch patient:", err)
-        setError("Failed to load patient data")
+        setError(describeError(err, "load patient"))
       } finally {
         setIsLoading(false)
       }
@@ -291,7 +292,7 @@ export function PatientDetailPage() {
         if (!cancelled) setDocuments(result)
       } catch (err) {
         console.error("Failed to fetch patient documents:", err)
-        if (!cancelled) toast.error("Failed to load documents")
+        if (!cancelled) toast.error(describeError(err, "load documents"))
       } finally {
         if (!cancelled) setIsLoadingDocuments(false)
       }
@@ -336,7 +337,7 @@ export function PatientDetailPage() {
       toast.success(`Uploaded ${uploaded.name}`)
     } catch (err) {
       console.error("Failed to upload document:", err)
-      toast.error("Failed to upload document")
+      toast.error(describeError(err, "upload document"))
     } finally {
       setIsUploading(false)
     }
@@ -349,7 +350,7 @@ export function PatientDetailPage() {
       window.open(url, "_blank", "noopener,noreferrer")
     } catch (err) {
       console.error("Failed to open document:", err)
-      toast.error("Failed to open document")
+      toast.error(describeError(err, "open document"))
     } finally {
       setOpeningDocumentId(null)
     }
@@ -373,8 +374,7 @@ export function PatientDetailPage() {
       link.remove()
       URL.revokeObjectURL(objectUrl)
     } catch (err) {
-      console.error("Failed to download document:", err)
-      toast.error("Failed to download document")
+      toast.error(describeError(err, "download document"))
     } finally {
       setDownloadingDocumentId(null)
     }
@@ -390,7 +390,7 @@ export function PatientDetailPage() {
       toast.success(`Deleted ${document.name}`)
     } catch (err) {
       console.error("Failed to delete document:", err)
-      toast.error("Failed to delete document")
+      toast.error(describeError(err, "delete document"))
     } finally {
       setDeletingDocumentId(null)
     }

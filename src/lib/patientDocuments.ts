@@ -1,39 +1,8 @@
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-  type FirebaseStorage,
-} from "firebase/storage"
-import {
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  where,
-  type FirestoreDataConverter,
-  type QueryConstraint,
-} from "firebase/firestore"
-import { storage, db } from "./firebase"
-import { timestampToDate } from "./firestore"
+import { getSupabase } from "./supabase"
 
-function getDb() {
-  if (!db) throw new Error("Firebase Firestore not initialized. Check your Firebase configuration.")
-  return db
-}
+const PATIENT_DOCUMENTS_BUCKET = "patient-documents"
 
-function getStorage(): FirebaseStorage {
-  if (!storage) throw new Error("Firebase Storage not initialized. Check your Firebase configuration.")
-  return storage
-}
-
-const PATIENT_DOCUMENTS_COLLECTION = "patientDocuments"
-
-/** 10 MB ceiling for a single patient document. */
+/** 10 MB ceiling for a single patient document. Mirrors file_size_limit on the bucket. */
 export const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024
 
 export const ALLOWED_DOCUMENT_MIME_TYPES = [
@@ -76,41 +45,38 @@ export interface PatientDocument {
   updatedAt: Date
 }
 
-const patientDocumentConverter: FirestoreDataConverter<PatientDocument> = {
-  toFirestore(document: PatientDocument) {
-    return {
-      patientId: document.patientId,
-      hospitalId: document.hospitalId,
-      name: document.name,
-      fileName: document.fileName,
-      mimeType: document.mimeType,
-      sizeBytes: document.sizeBytes,
-      storagePath: document.storagePath,
-      category: document.category,
-      uploadedBy: document.uploadedBy,
-      uploadedByName: document.uploadedByName,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    }
-  },
-  fromFirestore(snapshot) {
-    const data = snapshot.data()
-    return {
-      id: snapshot.id,
-      patientId: data.patientId,
-      hospitalId: data.hospitalId,
-      name: data.name,
-      fileName: data.fileName,
-      mimeType: data.mimeType,
-      sizeBytes: data.sizeBytes,
-      storagePath: data.storagePath,
-      category: data.category,
-      uploadedBy: data.uploadedBy,
-      uploadedByName: data.uploadedByName,
-      createdAt: timestampToDate(data.createdAt) ?? new Date(),
-      updatedAt: timestampToDate(data.updatedAt) ?? new Date(),
-    } as PatientDocument
-  },
+interface PatientDocumentRow {
+  id: string
+  patient_id: string
+  hospital_id: string
+  name: string
+  file_name: string
+  mime_type: string
+  size_bytes: number
+  storage_path: string
+  category: PatientDocumentCategory
+  uploaded_by: string | null
+  uploaded_by_name: string
+  created_at: string
+  updated_at: string
+}
+
+function mapDocument(row: PatientDocumentRow): PatientDocument {
+  return {
+    id: row.id,
+    patientId: row.patient_id,
+    hospitalId: row.hospital_id,
+    name: row.name,
+    fileName: row.file_name,
+    mimeType: row.mime_type,
+    sizeBytes: Number(row.size_bytes),
+    storagePath: row.storage_path,
+    category: row.category,
+    uploadedBy: row.uploaded_by ?? "",
+    uploadedByName: row.uploaded_by_name,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+  }
 }
 
 function sanitizeFileName(fileName: string): string {
@@ -149,42 +115,47 @@ export async function uploadPatientDocument(input: UploadPatientDocumentInput): 
     throw new Error(`File is larger than ${formatFileSize(MAX_DOCUMENT_SIZE_BYTES)}.`)
   }
 
-  const documentsRef = collection(getDb(), PATIENT_DOCUMENTS_COLLECTION).withConverter(patientDocumentConverter)
-  const docRef = doc(documentsRef)
+  const supabase = getSupabase()
+  const mimeType = input.file.type || "application/octet-stream"
   const safeName = sanitizeFileName(input.file.name)
-  const storagePath = `${PATIENT_DOCUMENTS_COLLECTION}/${input.hospitalId}/${input.patientId}/${docRef.id}/${safeName}`
 
-  await uploadBytes(ref(getStorage(), storagePath), input.file, { contentType: input.file.type || "application/octet-stream" })
+  // The document id is generated client-side so the blob key is known before
+  // the upload starts; the storage policies require exactly this 4-segment key
+  // and validate the hospital and patient segments server-side.
+  const documentId = crypto.randomUUID()
+  const storagePath = `${input.hospitalId}/${input.patientId}/${documentId}/${safeName}`
 
-  const document: PatientDocument = {
-    id: docRef.id,
-    patientId: input.patientId,
-    hospitalId: input.hospitalId,
+  const { error: uploadError } = await supabase.storage
+    .from(PATIENT_DOCUMENTS_BUCKET)
+    .upload(storagePath, input.file, { contentType: mimeType, upsert: false })
+
+  if (uploadError) throw new Error(`${uploadError.message} [upload]`)
+
+  const row = {
+    id: documentId,
+    patient_id: input.patientId,
+    hospital_id: input.hospitalId,
     name: input.name?.trim() || input.file.name,
-    fileName: input.file.name,
-    mimeType: input.file.type || "application/octet-stream",
-    sizeBytes: input.file.size,
-    storagePath,
+    file_name: input.file.name,
+    mime_type: mimeType,
+    size_bytes: input.file.size,
+    storage_path: storagePath,
     category: input.category,
-    uploadedBy: input.uploadedBy,
-    uploadedByName: input.uploadedByName,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    uploaded_by: input.uploadedBy,
+    uploaded_by_name: input.uploadedByName,
   }
 
-  try {
-    await setDoc(docRef, document)
-  } catch (error) {
+  const { data, error } = await supabase.from("patient_documents").insert(row).select().single()
+
+  if (error) {
     // Avoid leaving an orphaned blob behind when the metadata write fails.
-    try {
-      await deleteObject(ref(getStorage(), storagePath))
-    } catch (cleanupError) {
+    await supabase.storage.from(PATIENT_DOCUMENTS_BUCKET).remove([storagePath]).catch((cleanupError) => {
       console.error("Failed to clean up orphaned document upload:", cleanupError)
-    }
-    throw error
+    })
+    throw new Error(`${error.message} [${error.code ?? "insert"}]`)
   }
 
-  return document
+  return mapDocument(data as PatientDocumentRow)
 }
 
 export async function queryPatientDocuments(
@@ -193,27 +164,37 @@ export async function queryPatientDocuments(
 ): Promise<PatientDocument[]> {
   if (!hospitalId || !patientId) return []
 
-  const constraints: QueryConstraint[] = [
-    where("hospitalId", "==", hospitalId),
-    where("patientId", "==", patientId),
-    orderBy("createdAt", "desc"),
-  ]
+  const { data, error } = await getSupabase()
+    .from("patient_documents")
+    .select("id, patient_id, hospital_id, name, file_name, mime_type, size_bytes, storage_path, category, uploaded_by, uploaded_by_name, created_at, updated_at")
+    .eq("hospital_id", hospitalId)
+    .eq("patient_id", patientId)
+    .order("created_at", { ascending: false })
 
-  const documentsRef = collection(getDb(), PATIENT_DOCUMENTS_COLLECTION).withConverter(patientDocumentConverter)
-  const snapshot = await getDocs(query(documentsRef, ...constraints))
-  return snapshot.docs.map((doc) => doc.data())
+  if (error) throw new Error(`${error.message} [${error.code ?? "select"}]`)
+
+  return ((data ?? []) as PatientDocumentRow[]).map(mapDocument)
 }
 
+/** Issues a short-lived signed URL; the bucket itself is private. */
 export async function getPatientDocumentDownloadUrl(storagePath: string): Promise<string> {
-  return getDownloadURL(ref(getStorage(), storagePath))
+  const { data, error } = await getSupabase().storage.from(PATIENT_DOCUMENTS_BUCKET).createSignedUrl(storagePath, 300)
+  if (error) throw new Error(`${error.message} [${error.status ?? "sign"}]`)
+  return data.signedUrl
 }
 
 export async function deletePatientDocument(document: PatientDocument): Promise<void> {
-  try {
-    await deleteObject(ref(getStorage(), document.storagePath))
-  } catch (error) {
-    // storage/object-not-found means the blob is already gone — still drop the metadata.
-    if ((error as { code?: string })?.code !== "storage/object-not-found") throw error
+  const supabase = getSupabase()
+
+  const { error: storageError } = await supabase.storage
+    .from(PATIENT_DOCUMENTS_BUCKET)
+    .remove([document.storagePath])
+
+  // A missing blob still means the metadata row should go.
+  if (storageError && !/not found|does not exist/i.test(storageError.message)) {
+    throw new Error(`${storageError.message} [${storageError.status ?? "remove"}]`)
   }
-  await deleteDoc(doc(getDb(), PATIENT_DOCUMENTS_COLLECTION, document.id))
+
+  const { error } = await supabase.from("patient_documents").delete().eq("id", document.id)
+  if (error) throw new Error(`${error.message} [${error.code ?? "delete"}]`)
 }

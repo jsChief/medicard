@@ -11,7 +11,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
 import { cn, formatRelativeTime } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
-import { queryLocations, type Location as LocationDoc } from "@/lib/firestore"
+import { queryLocations, type Location as LocationDoc } from "@/lib/database"
+import { describeError } from "@/lib/errors"
 
 const locationTypes = {
   ward: { label: "Ward", icon: Building2, container: "bg-blue-500/10", fg: "text-blue-500" },
@@ -42,6 +43,7 @@ export function LocationMatrix() {
   const { user } = useAuth()
   const [locations, setLocations] = useState<LocationDoc[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -51,10 +53,16 @@ export function LocationMatrix() {
         return
       }
       try {
+        setLoadError(null)
         const result = await queryLocations({ hospitalId: user.hospitalId, sortBy: "name", sortOrder: "asc" })
         if (!cancelled) setLocations(result)
       } catch (error) {
-        console.error("Failed to fetch locations:", error)
+        // A failed query must not render as an empty, "healthy" ward.
+        const message = describeError(error, "load the location matrix")
+        if (!cancelled) {
+          setLoadError(message)
+          setLocations([])
+        }
       } finally {
         if (!cancelled) setIsLoading(false)
       }
@@ -75,6 +83,11 @@ export function LocationMatrix() {
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
               <span>Loading</span>
             </>
+          ) : loadError ? (
+            <>
+              <span className={cn("h-2 w-2 rounded-full", "bg-danger")} />
+              <span className="text-danger">Unavailable</span>
+            </>
           ) : locations.length > 0 ? (
             <>
               <span className={cn("h-2 w-2 rounded-full", "bg-success")} />
@@ -91,6 +104,11 @@ export function LocationMatrix() {
       <CardContent className="p-0">
         {isLoading && locations.length === 0 ? (
           <div className="p-8 text-center text-sm text-text-muted">Loading locations...</div>
+        ) : loadError ? (
+          <div className="p-8 text-center" role="alert">
+            <p className="text-sm font-medium text-text">Could not load location data</p>
+            <p className="mt-1 text-sm text-text-muted">{loadError}</p>
+          </div>
         ) : locations.length === 0 ? (
           <div className="p-8 text-center text-sm text-text-muted">
             No locations yet. Add location records to see the matrix.

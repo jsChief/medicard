@@ -27,8 +27,10 @@ import {
   updateCheckout,
   type Checkout,
   type CheckoutStatus,
-} from "@/lib/firestore"
+} from "@/lib/database"
 import { toast } from "sonner"
+import { describeError, runBatch, batchMessage } from "@/lib/errors"
+import { ErrorState } from "@/components/common/ErrorState"
 
 interface CheckoutView {
   id: string
@@ -102,6 +104,7 @@ export function CheckoutsPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const fetchCheckouts = useCallback(async () => {
     if (!user?.hospitalId) {
@@ -110,6 +113,7 @@ export function CheckoutsPage() {
     }
     try {
       setIsLoading(true)
+      setLoadError(null)
       const result = await queryCheckouts({
         hospitalId: user.hospitalId,
         sortBy: "expectedDischargeDate",
@@ -118,8 +122,9 @@ export function CheckoutsPage() {
       })
       setCheckouts(result.checkouts)
     } catch (error) {
-      console.error("Failed to fetch checkouts:", error)
-      toast.error("Failed to load checkouts")
+      // Rendered as a panel error rather than an empty checkout list.
+      setLoadError(describeError(error, "fetch checkouts"))
+      setCheckouts([])
     } finally {
       setIsLoading(false)
     }
@@ -172,13 +177,25 @@ export function CheckoutsPage() {
   const bulkUpdate = useCallback(async (status: CheckoutStatus) => {
     if (selectedItems.length === 0) return
     try {
-      await Promise.all(selectedItems.map(id => updateCheckout(id, { status } as Partial<Checkout>)))
-      toast.success(`Updated ${selectedItems.length} checkout(s)`)
-      setSelectedItems([])
+      const result = await runBatch(
+        selectedItems.map(id => () => updateCheckout(id, { status } as Partial<Checkout>)),
+        { keys: selectedItems },
+      )
+      if (result.failed === 0) {
+        setSelectedItems([])
+      } else {
+        // Keep only the failures selected so a retry does not redo the work
+        // that already succeeded.
+        const done = new Set(result.succeededIds ?? [])
+        setSelectedItems(selectedItems.filter(id => !done.has(id)))
+      }
+      toast[result.failed === 0 ? "success" : "error"](
+        batchMessage("Updated", result, { successNoun: "checkout" }),
+      )
       await fetchCheckouts()
     } catch (error) {
       console.error("Failed to update checkouts:", error)
-      toast.error("Failed to update checkouts")
+      toast.error(describeError(error, "update checkouts"))
     }
   }, [selectedItems, fetchCheckouts])
 
@@ -443,6 +460,8 @@ export function CheckoutsPage() {
             </div>
             <p className="text-lg font-medium text-text">Loading checkouts...</p>
           </div>
+        ) : loadError ? (
+          <ErrorState title="Could not load checkouts" message={loadError} onRetry={fetchCheckouts} isRetrying={isLoading} />
         ) : filteredCheckouts.length === 0 ? (
           <div className="py-16 text-center">
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">

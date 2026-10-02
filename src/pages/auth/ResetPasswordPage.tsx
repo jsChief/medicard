@@ -1,7 +1,7 @@
 import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Link, useSearchParams } from "react-router-dom"
+import { Link } from "react-router-dom"
 import { Eye, EyeOff, Lock, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, ShieldCheck } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/Button"
@@ -9,6 +9,8 @@ import { Card, CardContent, CardFooter } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
 import { AuthInput } from "@/components/auth/AuthInput"
 import { PasswordStrength } from "@/components/auth/PasswordStrength"
+import { getSupabase } from "@/lib/supabase"
+import { describeError } from "@/lib/errors"
 
 const resetPasswordSchema = z.object({
   password: z.string().min(1, "Password is required").min(8, "Password must be at least 8 characters")
@@ -38,12 +40,10 @@ function EyeToggle({ show, onToggle, disabled }: { show: boolean; onToggle: () =
 }
 
 export function ResetPasswordPage() {
-  const [searchParams] = useSearchParams()
-  const token = searchParams.get("token")
-  const isInvalidToken = !token
-  const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [passwordStrength, setPasswordStrength] = useState(0)
 
   const {
@@ -68,35 +68,27 @@ export function ResetPasswordPage() {
     return strength
   }
 
-  const onSubmit = async (/* _data: ResetPasswordFormData */) => {
-    if (!token) return
+  const onSubmit = async (data: ResetPasswordFormData) => {
     setIsLoading(true)
-    // TODO: Replace with actual API call - include token in request
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setIsLoading(false)
-    setIsSuccess(true)
-  }
-
-  if (isInvalidToken) {
-    return (
-      <Card className="overflow-hidden rounded-2xl border-border/60 shadow-xl shadow-primary/5">
-        <CardContent className="px-7 pb-8 pt-10 text-center sm:px-8">
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-danger/10 ring-8 ring-danger/5">
-            <AlertCircle className="h-10 w-10 text-danger" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-text">Invalid or expired link</h1>
-          <p className="mx-auto mt-3 max-w-sm text-text-muted">
-            This password reset link is invalid or has expired. Please request a new one.
-          </p>
-          <Link to="/forgot-password">
-            <Button className="mt-8 w-full gap-2 sm:w-auto">
-              Request new link
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
-    )
+    setError(null)
+    try {
+      // Supabase exchanges the recovery link for a session in detectSessionInUrl
+      // before this page renders, so the user is already authenticated here.
+      const { error: updateError } = await getSupabase().auth.updateUser({ password: data.password })
+      if (updateError) throw updateError
+      setIsSuccess(true)
+    } catch (updateError) {
+      const message = describeError(updateError, "update your password")
+      // The most common failure here is an expired recovery link, which is a
+      // dead end the user can only escape by requesting a new one.
+      setError(
+        /expired|invalid|token/i.test(message)
+          ? `${message} If the link has expired, request a new one from the sign-in page.`
+          : message,
+      )
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   if (isSuccess) {
@@ -165,6 +157,13 @@ export function ResetPasswordPage() {
             rightSlot={<EyeToggle show={showPassword} onToggle={() => setShowPassword(!showPassword)} disabled={isLoading} />}
             {...register("confirmPassword")}
           />
+
+          {error && (
+            <p role="alert" className="flex items-start gap-2 rounded-lg bg-danger/5 p-3 text-sm text-danger">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              {error}
+            </p>
+          )}
 
           <Button type="submit" className="w-full gap-2" size="lg" isLoading={isLoading}>
             {!isLoading && <ArrowRight className="h-4 w-4" />}

@@ -22,10 +22,39 @@ import { ArchivePage } from "./pages/archive/ArchivePage"
 import { CheckoutsPage } from "./pages/checkouts/CheckoutsPage"
 import { LocationMatrixPage } from "./pages/location-matrix/LocationMatrixPage"
 import { PricingPage } from "./pages/pricing/PricingPage"
+import { Toaster } from "./components/ui/sonner"
+import { Button } from "@/components/ui/Button"
+import { TriangleAlert } from "lucide-react"
 import React from "react"
 
+function AuthUnavailable({ message }: { message: string }) {
+  const { clearAuthError } = useAuth()
+
+  return (
+    <div className="flex min-h-screen items-center justify-center px-6">
+      <div className="w-full max-w-md rounded-2xl border border-border/60 bg-surface p-8 text-center shadow-xl shadow-primary/5">
+        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-danger/10 ring-8 ring-danger/5">
+          <TriangleAlert className="h-7 w-7 text-danger" />
+        </div>
+        <h1 className="text-xl font-bold tracking-tight text-text">Connection problem</h1>
+        <p className="mx-auto mt-3 text-sm text-text-muted">{message}</p>
+        <Button className="mt-7 w-full" onClick={() => window.location.reload()}>
+          Try again
+        </Button>
+        <button
+          type="button"
+          onClick={clearAuthError}
+          className="mt-4 text-sm font-medium text-text-muted underline-offset-4 hover:text-primary hover:underline"
+        >
+          Dismiss and continue to sign in
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: ("admin" | "doctor" | "nurse" | "receptionist")[] }) {
-  const { user, isLoading, isAuthenticated } = useAuth()
+  const { user, isLoading, isAuthenticated, authError } = useAuth()
 
   if (isLoading) {
     return (
@@ -33,6 +62,12 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent" />
       </div>
     )
+  }
+
+  // Surfaced before the redirect below, otherwise a dead backend looks exactly
+  // like a signed-out user and dumps them back on the login page.
+  if (authError) {
+    return <AuthUnavailable message={authError} />
   }
 
   if (!isAuthenticated) {
@@ -47,7 +82,7 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, authError } = useAuth()
 
   if (isLoading) {
     return (
@@ -55,6 +90,10 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent" />
       </div>
     )
+  }
+
+  if (authError) {
+    return <AuthUnavailable message={authError} />
   }
 
   if (isAuthenticated) {
@@ -69,6 +108,7 @@ function App() {
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
+          <Toaster position="top-right" richColors closeButton />
           <Routes>
           {/* Public routes */}
           <Route element={<Layout />}>
