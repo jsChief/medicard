@@ -13,9 +13,13 @@
 -- -----------------------------------------------------------------------------
 -- Enums
 --
--- Existence is checked per type rather than with a duplicate_object handler: a
--- handler rolls the whole block back, so one type left behind by an earlier
--- run would silently skip creating all the others.
+-- Two details matter here:
+--   * Labels are emitted with quote_literal(). Splicing them in raw would
+--     produce `enum (admin,doctor,...)`, which Postgres parses as a list of
+--     identifiers and rejects with 42601.
+--   * Existence is checked per type rather than with a duplicate_object
+--     handler: a handler rolls the whole block back, so one type left behind by
+--     an earlier run would silently skip creating all the others.
 -- -----------------------------------------------------------------------------
 do $$
 declare
@@ -24,24 +28,32 @@ begin
   for e in
     select *
     from (values
-      ('user_role',         'admin,doctor,nurse,receptionist'),
-      ('patient_gender',    'M,F,O'),
-      ('blood_type',        'A+,A-,B+,B-,AB+,AB-,O+,O-,Unknown'),
-      ('marital_status',    'single,married,divorced,widowed,other'),
-      ('patient_status',    'active,discharged,transferred,critical,pending'),
-      ('insurance_plan',    'HMO,PPO,EPO,POS,Medicare,Medicaid,Other'),
-      ('location_type',     'ward,icu,er,clinic,ot'),
-      ('location_status',   'normal,warning,critical,maintenance'),
-      ('equipment_status',  'operational,degraded,offline'),
-      ('checkout_status',   'pending,approved,in-progress,completed,cancelled,delayed'),
-      ('discharge_type',    'home,transfer,home-care,rehab,other'),
-      ('archive_status',    'discharged,transferred,deceased'),
-      ('document_category', 'admission,lab,imaging,notes,consent,insurance,discharge,other')
+      ('user_role',         array['admin', 'doctor', 'nurse', 'receptionist']),
+      ('patient_gender',    array['M', 'F', 'O']),
+      ('blood_type',        array['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Unknown']),
+      ('marital_status',    array['single', 'married', 'divorced', 'widowed', 'other']),
+      ('patient_status',    array['active', 'discharged', 'transferred', 'critical', 'pending']),
+      ('insurance_plan',    array['HMO', 'PPO', 'EPO', 'POS', 'Medicare', 'Medicaid', 'Other']),
+      ('location_type',     array['ward', 'icu', 'er', 'clinic', 'ot']),
+      ('location_status',   array['normal', 'warning', 'critical', 'maintenance']),
+      ('equipment_status',  array['operational', 'degraded', 'offline']),
+      ('checkout_status',   array['pending', 'approved', 'in-progress', 'completed', 'cancelled', 'delayed']),
+      ('discharge_type',    array['home', 'transfer', 'home-care', 'rehab', 'other']),
+      ('archive_status',    array['discharged', 'transferred', 'deceased']),
+      ('document_category', array['admission', 'lab', 'imaging', 'notes', 'consent', 'insurance', 'discharge', 'other'])
     ) as v(name, labels)
   loop
-    if not exists (select 1 from pg_type where typname = e.name) then
-      -- Labels are known-good literals from this file, not user input.
-      execute format('create type public.%I as enum (%s)', e.name, e.labels);
+    if not exists (
+      select 1
+      from pg_type t
+      join pg_namespace n on n.oid = t.typnamespace
+      where t.typname = e.name and n.nspname = 'public'
+    ) then
+      execute format(
+        'create type public.%I as enum (%s)',
+        e.name,
+        (select string_agg(quote_literal(label), ', ') from unnest(e.labels) as t(label))
+      );
     end if;
   end loop;
 end;
