@@ -300,11 +300,18 @@ $$;
 -- -----------------------------------------------------------------------------
 -- Grants. Supabase grants usage to the anon/authenticated roles by default on
 -- new tables, but be explicit so a manually-restricted project still works.
+--
+-- These three are SECURITY INVOKER, so RLS still decides which rows they touch;
+-- revoking from PUBLIC is about not handing anon a patient write path it can
+-- never satisfy.
 -- -----------------------------------------------------------------------------
 grant usage on schema public to anon, authenticated;
-grant execute on function public.create_patient(jsonb)  to authenticated;
-grant execute on function public.update_patient(uuid, jsonb) to authenticated;
-grant execute on function public.restore_archive(uuid) to authenticated;
+revoke execute on function public.create_patient(jsonb)   from public;
+revoke execute on function public.update_patient(uuid, jsonb) from public;
+revoke execute on function public.restore_archive(uuid)  from public;
+grant execute on function public.create_patient(jsonb)  to authenticated, service_role;
+grant execute on function public.update_patient(uuid, jsonb) to authenticated, service_role;
+grant execute on function public.restore_archive(uuid) to authenticated, service_role;
 grant execute on function public.current_hospital_id() to authenticated;
 grant execute on function public.current_user_role()   to authenticated;
 grant execute on function public.is_admin()            to authenticated;

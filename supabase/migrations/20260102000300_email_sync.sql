@@ -38,16 +38,16 @@ create trigger on_auth_user_email_changed
 revoke all on function public.sync_profile_email() from public;
 grant execute on function public.sync_profile_email() to service_role;
 
--- profiles.email is only ever written by this trigger from here on, so a
--- client-supplied email would be silently overwritten and the two would race.
--- Deny the column explicitly rather than relying on the update policy.
-drop policy if exists "profiles update own" on public.profiles;
-create policy "profiles update own"
-  on public.profiles for update
-  using (auth.uid() = id)
-  with check (auth.uid() = id);
-
-revoke update (email) on public.profiles from authenticated;
+-- profiles.email is now owned by this trigger, so the client must not be able
+-- to write it. Postgres column privileges are ADDITIVE: a table-level UPDATE
+-- grant covers every column, so `revoke update (email)` on its own would be a
+-- no-op. The table-level grant has to go, and UPDATE re-granted per column.
+--
+-- The update policy itself stays as it was: a user may still edit their own
+-- row, and RLS cannot express "but not this column".
+revoke update on public.profiles from authenticated;
+grant update (name, role, avatar) on public.profiles to authenticated;
+grant update on public.profiles to service_role;
 
 -- Backfill for any profile rows that drifted before this trigger existed.
 update public.profiles p

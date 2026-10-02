@@ -12,20 +12,40 @@
 
 -- -----------------------------------------------------------------------------
 -- Enums
+--
+-- Existence is checked per type rather than with a duplicate_object handler: a
+-- handler rolls the whole block back, so one type left behind by an earlier
+-- run would silently skip creating all the others.
 -- -----------------------------------------------------------------------------
-create type user_role         as enum ('admin', 'doctor', 'nurse', 'receptionist');
-create type patient_gender    as enum ('M', 'F', 'O');
-create type blood_type        as enum ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Unknown');
-create type marital_status    as enum ('single', 'married', 'divorced', 'widowed', 'other');
-create type patient_status    as enum ('active', 'discharged', 'transferred', 'critical', 'pending');
-create type insurance_plan    as enum ('HMO', 'PPO', 'EPO', 'POS', 'Medicare', 'Medicaid', 'Other');
-create type location_type     as enum ('ward', 'icu', 'er', 'clinic', 'ot');
-create type location_status   as enum ('normal', 'warning', 'critical', 'maintenance');
-create type equipment_status  as enum ('operational', 'degraded', 'offline');
-create type checkout_status   as enum ('pending', 'approved', 'in-progress', 'completed', 'cancelled', 'delayed');
-create type discharge_type    as enum ('home', 'transfer', 'home-care', 'rehab', 'other');
-create type archive_status    as enum ('discharged', 'transferred', 'deceased');
-create type document_category as enum ('admission', 'lab', 'imaging', 'notes', 'consent', 'insurance', 'discharge', 'other');
+do $$
+declare
+  e record;
+begin
+  for e in
+    select *
+    from (values
+      ('user_role',         'admin,doctor,nurse,receptionist'),
+      ('patient_gender',    'M,F,O'),
+      ('blood_type',        'A+,A-,B+,B-,AB+,AB-,O+,O-,Unknown'),
+      ('marital_status',    'single,married,divorced,widowed,other'),
+      ('patient_status',    'active,discharged,transferred,critical,pending'),
+      ('insurance_plan',    'HMO,PPO,EPO,POS,Medicare,Medicaid,Other'),
+      ('location_type',     'ward,icu,er,clinic,ot'),
+      ('location_status',   'normal,warning,critical,maintenance'),
+      ('equipment_status',  'operational,degraded,offline'),
+      ('checkout_status',   'pending,approved,in-progress,completed,cancelled,delayed'),
+      ('discharge_type',    'home,transfer,home-care,rehab,other'),
+      ('archive_status',    'discharged,transferred,deceased'),
+      ('document_category', 'admission,lab,imaging,notes,consent,insurance,discharge,other')
+    ) as v(name, labels)
+  loop
+    if not exists (select 1 from pg_type where typname = e.name) then
+      -- Labels are known-good literals from this file, not user input.
+      execute format('create type public.%I as enum (%s)', e.name, e.labels);
+    end if;
+  end loop;
+end;
+$$;
 
 -- -----------------------------------------------------------------------------
 -- Shared trigger: keep updated_at honest without relying on the client.
@@ -428,10 +448,10 @@ create trigger patient_documents_set_updated_at
 -- Cross-tenant referential integrity
 --
 -- RLS only validates the hospital_id stored on the row being written. A caller
--- could therefore insert an emergency contact, insurance policy, checkout,
--- archive or document row carrying their OWN hospital_id but pointing at a
--- patient_id (or checkout_id) that belongs to a different hospital, because
--- plain foreign keys do not see RLS. These guards close that gap.
+-- could therefore insert an emergency contact, insurance policy, checkout or
+-- document row carrying their OWN hospital_id but pointing at a patient_id (or
+-- checkout_id) that belongs to a different hospital, because plain foreign keys
+-- do not see RLS. These guards close that gap.
 -- =============================================================================
 create or replace function public.enforce_patient_hospital_scope()
 returns trigger
@@ -479,9 +499,10 @@ create trigger checkouts_hospital_scope
   before insert or update of patient_id, hospital_id on public.checkouts
   for each row execute function public.enforce_patient_hospital_scope();
 
-create trigger archives_hospital_scope
-  before insert or update of patient_id, hospital_id on public.archives
-  for each row execute function public.enforce_patient_hospital_scope();
+-- archives is deliberately absent from this list. It is a detached snapshot:
+-- it copies the patient's details at discharge and keeps no patient_id, so
+-- there is no cross-tenant reference to validate. Its only tenant boundary is
+-- hospital_id, which the RLS policy below already enforces on every write.
 
 create trigger patient_documents_hospital_scope
   before insert or update of patient_id, hospital_id on public.patient_documents
