@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom"
 import { Mail, X } from "lucide-react"
-import medicardLogo from "@/assets/medicard.png"
+import cardeaseLogo from "@/assets/cardease.png"
 
 export function Footer() {
   const footerLinks = {
@@ -35,7 +35,7 @@ export function Footer() {
 
   const socialLinks = [
     { icon: X, href: "https://x.com", label: "X" },
-    { icon: Mail, href: "mailto:hello@medicard.com", label: "Email" },
+    { icon: Mail, href: "mailto:hello@cardease.com", label: "Email" },
   ]
 
   return (
@@ -43,9 +43,9 @@ export function Footer() {
       <div className="container-app py-16 lg:py-24">
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4 lg:grid-cols-5">
           <div className="col-span-2 lg:col-span-1">
-            <Link to="/" className="flex items-center gap-2" aria-label="MediCard Home">
-              <img src={medicardLogo} alt="MediCard" className="h-9 w-9 object-contain" />
-              <span className="text-xl font-bold text-text">MediCard</span>
+            <Link to="/" className="flex items-center gap-2" aria-label="CardEase Home">
+              <img src={cardeaseLogo} alt="CardEase" className="h-9 w-9 object-contain" />
+              <span className="text-xl font-bold text-text">CardEase</span>
             </Link>
             <p className="mt-4 text-sm text-text-muted max-w-xs">
               Secure patient card management for modern hospitals. Streamline workflows, improve care coordination, and maintain compliance.
@@ -89,7 +89,7 @@ export function Footer() {
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 md:flex-row">
           <p className="text-sm text-text-muted">
-            © {new Date().getFullYear()} MediCard. All rights reserved.
+            © {new Date().getFullYear()} CardEase. All rights reserved.
           </p>
           <div className="flex items-center gap-6 text-sm text-text-muted">
             <Link to="/privacy" className="hover:text-text transition-colors">Privacy</Link>

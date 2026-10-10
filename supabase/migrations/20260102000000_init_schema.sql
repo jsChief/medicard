@@ -1,5 +1,5 @@
 -- =============================================================================
--- Medicard — initial schema
+-- CardEase — initial schema
 -- Replaces the Firebase/Firestore document model with a relational Postgres
 -- schema. Firestore stored `insurance` and `emergencyContacts` as nested
 -- objects/arrays inside the patient document; those are normalised into their

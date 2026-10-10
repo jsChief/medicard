@@ -1,5 +1,5 @@
 -- =============================================================================
--- Medicard — transactional write functions
+-- CardEase — transactional write functions
 --
 -- A Firestore patient document held emergencyContacts and insurance nested
 -- inside the single patient object, so one setDoc() was atomic. Postgres

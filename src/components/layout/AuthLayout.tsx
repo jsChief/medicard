@@ -1,7 +1,7 @@
 import { Outlet } from "react-router-dom"
 import { Link } from "react-router-dom"
 import { ShieldCheck, Lock, Users, Activity, ArrowRight } from "lucide-react"
-import medicardLogo from "@/assets/medicard.png"
+import cardeaseLogo from "@/assets/cardease.png"
 
 const features = [
   { icon: ShieldCheck, label: "HIPAA & GDPR compliant" },
@@ -18,13 +18,13 @@ const stats = [
 
 function BrandMark({ className }: { className?: string }) {
   return (
-    <Link to="/" className={`flex items-center gap-2.5 ${className ?? ""}`} aria-label="MediCard Home">
+    <Link to="/" className={`flex items-center gap-2.5 ${className ?? ""}`} aria-label="CardEase Home">
       <img
-        src={medicardLogo}
-        alt="MediCard"
+        src={cardeaseLogo}
+        alt="CardEase"
         className="h-9 w-9 rounded-xl bg-white object-contain p-1 shadow-lg shadow-black/10"
       />
-      <span className="text-xl font-bold tracking-tight">MediCard</span>
+      <span className="text-xl font-bold tracking-tight">CardEase</span>
     </Link>
   )
 }
@@ -58,7 +58,7 @@ export function AuthLayout() {
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-white/80">
             Join 500+ hospitals streamlining patient records, improving care coordination,
-            and staying audit-ready with MediCard.
+            and staying audit-ready with CardEase.
           </p>
 
           <ul className="mt-8 space-y-3.5">
@@ -93,7 +93,7 @@ export function AuthLayout() {
             </div>
           </div>
           <p className="mt-6 flex items-center justify-between text-white/50 text-sm">
-            <span>© {new Date().getFullYear()} MediCard. All rights reserved.</span>
+            <span>© {new Date().getFullYear()} CardEase. All rights reserved.</span>
             <Link to="/about" className="flex items-center gap-1 text-white/80 transition-colors hover:text-white">
               Learn more
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />

@@ -1,4 +1,4 @@
-# MediCard - Patient Cards Tracking App
+# CardEase - Patient Cards Tracking App
 
 A modern, secure web application for hospitals to manage patient cards, streamline workflows, and improve care coordination — all while maintaining HIPAA/GDPR compliance.
 
@@ -85,7 +85,7 @@ npx tsc --noEmit
 | `/register` | Hospital account creation |
 | `/features` | Feature overview |
 | `/pricing` | Pricing plans |
-| `/about` | About MediCard |
+| `/about` | About CardEase |
 | `/demo` | Interactive demo |
 | `/contact` | Contact sales/support |
 
@@ -101,8 +101,8 @@ npx tsc --noEmit
 Create a `.env` file in the root directory:
 
 ```env
-VITE_API_URL=https://api.medicard.com
-VITE_APP_NAME=MediCard
+VITE_API_URL=https://api.cardease.com
+VITE_APP_NAME=CardEase
 ```
 
 ## Deployment
@@ -151,6 +151,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- Documentation: [docs.medicard.com](https://docs.medicard.com)
-- Issues: [GitHub Issues](https://github.com/yourorg/medicard/issues)
-- Email: support@medicard.com
+- Documentation: [docs.cardease.com](https://docs.cardease.com)
+- Issues: [GitHub Issues](https://github.com/yourorg/cardease/issues)
+- Email: support@cardease.com

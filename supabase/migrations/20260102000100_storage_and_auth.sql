@@ -1,5 +1,5 @@
 -- =============================================================================
--- Medicard — storage bucket + auth wiring
+-- CardEase — storage bucket + auth wiring
 -- Replaces storage.rules. Patient documents live in a private bucket with the
 -- object key: {hospital_id}/{patient_id}/{document_id}/{file_name}
 --

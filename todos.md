@@ -1,4 +1,4 @@
-# MediCard - Patient Cards Tracking App
+# CardEase - Patient Cards Tracking App
 
 ## Suggested Screens
 

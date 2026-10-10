@@ -98,7 +98,7 @@ export function VerifyEmailPage() {
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-text">Email verified!</h1>
         <p className="mx-auto mt-3 max-w-sm text-text-muted">
-          Your email has been successfully verified. You are signed in and can start using MediCard.
+          Your email has been successfully verified. You are signed in and can start using CardEase.
         </p>
         <Button className="mt-8 w-full gap-2 sm:w-auto" onClick={() => navigate("/dashboard")}>
           Go to dashboard

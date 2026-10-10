@@ -64,7 +64,7 @@ export function LoginPage() {
     <Card className="overflow-hidden rounded-2xl border-border/60 shadow-xl shadow-primary/5">
       <div className="space-y-1.5 px-7 pt-7 text-center sm:px-8">
         <h1 className="text-2xl font-bold tracking-tight text-text">Welcome back</h1>
-        <p className="text-sm text-text-muted">Sign in to your MediCard account to continue</p>
+        <p className="text-sm text-text-muted">Sign in to your CardEase account to continue</p>
       </div>
 
       <CardContent className="pt-6 sm:px-8">

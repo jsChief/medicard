@@ -24,7 +24,7 @@ import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import medicardLogo from "@/assets/medicard.png";
+import cardeaseLogo from "@/assets/cardease.png";
 import {
   SearchDialog,
 } from "@/components/layout/SearchDialog";
@@ -176,15 +176,15 @@ export function DashboardLayout() {
           <Link
             to="/dashboard"
             className="flex items-center gap-3 mt-2"
-            aria-label="MediCard Dashboard"
+            aria-label="CardEase Dashboard"
           >
             <img
-              src={medicardLogo}
-              alt="MediCard"
+              src={cardeaseLogo}
+              alt="CardEase"
               className="h-8 w-8 shrink-0 rounded-lg bg-white object-contain p-0.5"
             />
             <span className="text-xl font-bold text-text group-data-[collapsible=icon]:hidden">
-              MediCard
+              CardEase
             </span>
           </Link>
         </SidebarHeader>
