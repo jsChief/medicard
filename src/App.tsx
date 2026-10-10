@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/context/ThemeContext"
 import { Layout } from "./components/layout/Layout"
 import { AuthLayout } from "./components/layout/AuthLayout"
 import { DashboardLayout } from "./components/layout/DashboardLayout"
+import { ScrollToTop } from "./components/layout/ScrollToTop"
 import { HomePage } from "./pages/HomePage"
 import { LoginPage } from "./pages/auth/LoginPage"
 import { RegisterPage } from "./pages/auth/RegisterPage"
@@ -106,6 +107,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <ThemeProvider>
         <AuthProvider>
           <Toaster position="top-right" richColors closeButton />
