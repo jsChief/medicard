@@ -87,29 +87,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       unsubscribe = onAuthStateChange((sessionUser) => {
-        // supabase-js serialises auth callbacks, so any additional request made
-        // from inside this handler has to be deferred to the next tick.
-        void (async () => {
-          if (cancelled) return
-          clearTimeout(failsafe)
-          setAuthUser(sessionUser)
+        // supabase-js serialises auth callbacks: any further auth call made from
+        // inside this handler would be queued behind the very event being
+        // processed. Defer the whole body to the next task so the profile fetch
+        // (and the getSession() it implies) cannot deadlock against the lock.
+        setTimeout(() => {
+          void (async () => {
+            if (cancelled) return
+            clearTimeout(failsafe)
+            setAuthUser(sessionUser)
 
-          try {
-            const profile = await loadProfile(sessionUser)
-            if (!cancelled) {
-              setUser(profile)
-              setAuthError(null)
+            try {
+              const profile = await loadProfile(sessionUser)
+              if (!cancelled) {
+                setUser(profile)
+                setAuthError(null)
+              }
+            } catch (error) {
+              console.error("Failed to load user profile:", error)
+              if (!cancelled) {
+                setUser(null)
+                setAuthError(describeError(error, "load profile"))
+              }
+            } finally {
+              settle()
             }
-          } catch (error) {
-            console.error("Failed to load user profile:", error)
-            if (!cancelled) {
-              setUser(null)
-              setAuthError(describeError(error, "load profile"))
-            }
-          } finally {
-            settle()
-          }
-        })()
+          })()
+        }, 0)
       })
     } catch (error) {
       // Supabase is unconfigured or unreachable: fail visibly instead of hanging.

@@ -1,0 +1,19 @@
+-- =============================================================================
+-- Restrict who can change profiles.role
+-- =============================================================================
+-- Role is the tenant boundary (is_admin(), staff view, ...). Granting UPDATE on
+-- the `role` column to `authenticated` meant any signed-in user could promote
+-- themselves to admin by calling PostgREST directly:
+--
+--     update profiles set role = 'admin' where id = auth.uid();
+--
+-- 20260102000300 handed `authenticated` UPDATE on (name, role, avatar); this
+-- migration removes `role` from that set. New databases pick up the corrected
+-- grant when 20260102000300 runs; databases where that migration already ran
+-- need this explicit revoke because column privileges are additive and a
+-- `revoke update (role)` is NOT implied by the new grant.
+--
+-- Roles still get set in handle_new_user() at signup, and admins (via a future
+-- service-role or admin RPC) are the only path to change them after that.
+-- =============================================================================
+revoke update (role) on public.profiles from authenticated;

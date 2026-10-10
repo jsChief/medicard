@@ -144,7 +144,7 @@ export function RegisterPage() {
         description: "Please check your email to verify your account.",
         variant: "success",
       })
-      navigate("/verify-email")
+      navigate("/verify-email", { state: { email: data.email } })
     } catch (error) {
       const message = describeError(error, "create your account")
       toast({

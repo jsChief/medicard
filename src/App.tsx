@@ -136,16 +136,12 @@ function App() {
                 <ForgotPasswordPage />
               </PublicRoute>
             } />
-            <Route path="/reset-password" element={
-              <PublicRoute>
-                <ResetPasswordPage />
-              </PublicRoute>
-            } />
-            <Route path="/verify-email" element={
-              <PublicRoute>
-                <VerifyEmailPage />
-              </PublicRoute>
-            } />
+            {/* Both of these must NOT be inside PublicRoute: Supabase hands the
+                confirmation/recovery link a real session, so a signed-in redirect
+                would bounce the user straight to /dashboard before they ever see
+                the page. Each page handles its own "no session" state instead. */}
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
           </Route>
 
           {/* Protected routes */}

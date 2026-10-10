@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
-import { Link } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
+import { AuthSessionMissingError } from "@supabase/supabase-js"
 import { Loader2, Mail, CheckCircle2, AlertCircle, RefreshCw, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent } from "@/components/ui/Card"
@@ -16,25 +17,48 @@ function CardFrame({ children }: { children: React.ReactNode }) {
 }
 
 export function VerifyEmailPage() {
+  const navigate = useNavigate()
+  const location = useLocation()
   const [status, setStatus] = useState<"checking" | "verified" | "pending" | "error">("checking")
   const [email, setEmail] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    // Supabase verifies the emailed link itself and redirects back here with a
-    // session, so all this page does is report the account's confirmed state.
+    let cancelled = false
+
     const checkVerification = async () => {
       try {
+        // Right after sign-up there is no session yet, and getUser() rejects
+        // with AuthSessionMissingError. That is the expected "still pending"
+        // case, not a failure: the user simply needs to click the emailed link.
         const { data, error } = await getSupabase().auth.getUser()
         if (error) throw error
+        if (cancelled) return
         setEmail(data.user.email ?? null)
         setStatus(data.user.email_confirmed_at ? "verified" : "pending")
       } catch (error) {
+        if (error instanceof AuthSessionMissingError) {
+          if (cancelled) return
+          // No session: the user just registered, or the confirmation link's
+          // session could not be established. Fall back to the address the
+          // register form handed us in router state.
+          setEmail(((location.state as { email?: string } | null)?.email) ?? null)
+          setStatus("pending")
+          return
+        }
+        if (cancelled) return
         setErrorMessage(describeError(error, "check your verification status"))
         setStatus("error")
       }
     }
+
     void checkVerification()
+    return () => {
+      cancelled = true
+    }
+    // RegisterPage may remount this page with a fresh email, but the email is
+    // only used as a fallback for resending, so a one-time read is enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const resendVerification = async () => {
@@ -74,14 +98,12 @@ export function VerifyEmailPage() {
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-text">Email verified!</h1>
         <p className="mx-auto mt-3 max-w-sm text-text-muted">
-          Your email has been successfully verified. You can now sign in to your MediCard account.
+          Your email has been successfully verified. You are signed in and can start using MediCard.
         </p>
-        <Link to="/login">
-          <Button className="mt-8 w-full gap-2 sm:w-auto">
-            Sign in
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </Link>
+        <Button className="mt-8 w-full gap-2 sm:w-auto" onClick={() => navigate("/dashboard")}>
+          Go to dashboard
+          <ArrowRight className="h-4 w-4" />
+        </Button>
       </CardFrame>
     )
   }
@@ -119,7 +141,12 @@ export function VerifyEmailPage() {
         {errorMessage ?? "This verification link is no longer valid. Please request a new one."}
       </p>
       <div className="mt-8 flex flex-col items-center gap-3">
-        <Button variant="outline" onClick={resendVerification} className="w-full gap-2 sm:w-auto">
+        <Button
+          variant="outline"
+          onClick={resendVerification}
+          className="w-full gap-2 sm:w-auto"
+          disabled={!email}
+        >
           <RefreshCw className="h-4 w-4" />
           Resend verification email
         </Button>

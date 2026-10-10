@@ -45,8 +45,13 @@ grant execute on function public.sync_profile_email() to service_role;
 --
 -- The update policy itself stays as it was: a user may still edit their own
 -- row, and RLS cannot express "but not this column".
+--
+-- `role` is deliberately NOT in the client grant. It is assigned in
+-- handle_new_user() at signup and defines the tenant boundary; a user must not
+-- be able to promote themselves to admin through PostgREST. See
+-- 20260102000400_restrict_profile_role.sql for the corresponding revoke.
 revoke update on public.profiles from authenticated;
-grant update (name, role, avatar) on public.profiles to authenticated;
+grant update (name, avatar) on public.profiles to authenticated;
 grant update on public.profiles to service_role;
 
 -- Backfill for any profile rows that drifted before this trigger existed.

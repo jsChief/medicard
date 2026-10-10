@@ -91,7 +91,7 @@ export async function registerWithEmail(input: SignUpInput): Promise<SignUpResul
         role: input.role,
         hospital_name: input.hospitalName,
       },
-      emailRedirectTo: typeof window === "undefined" ? undefined : `${window.location.origin}/login`,
+      emailRedirectTo: typeof window === "undefined" ? undefined : `${window.location.origin}/verify-email`,
     },
   })
 
@@ -121,7 +121,7 @@ export async function resendVerificationEmail(email: string): Promise<void> {
     type: "signup",
     email,
     options: {
-      emailRedirectTo: typeof window === "undefined" ? undefined : `${window.location.origin}/login`,
+      emailRedirectTo: typeof window === "undefined" ? undefined : `${window.location.origin}/verify-email`,
     },
   })
   if (error) throw new Error(error.message)
@@ -141,11 +141,17 @@ export async function getUserProfile(uid: string): Promise<User | null> {
 /**
  * Applies a profile patch.
  *
- * Name, role and avatar live in public.profiles. Email is the identity itself:
+ * Name and avatar live in public.profiles. Email is the identity itself:
  * it lives in auth.users, and changing it there mails a confirmation to the new
  * address. It is deliberately not written to profiles from here — the
  * `on_auth_user_email_changed` trigger mirrors auth.users into profiles.email,
  * so the row cannot claim an address the user has not confirmed.
+ *
+ * `role` is not writable by the client at all. Roles are assigned by the
+ * `handle_new_user()` trigger at signup and belong to the database tenant
+ * boundary, so it is missing from the authenticated UPDATE grant (see
+ * 20260102000400_restrict_profile_role.sql) and deliberately not handled here:
+ * a user must not be able to promote themselves to admin through the API.
  *
  * Returns whether an email change was requested, so the caller can tell the user
  * to check their inbox instead of claiming the address changed immediately.
@@ -156,7 +162,6 @@ export async function updateUserProfile(
 ): Promise<{ emailChangeRequested: boolean }> {
   const row: Record<string, unknown> = {}
   if (patch.name !== undefined) row.name = patch.name
-  if (patch.role !== undefined) row.role = patch.role
   if (patch.avatar !== undefined) row.avatar = patch.avatar
 
   const emailChangeRequested = patch.email !== undefined
@@ -165,7 +170,6 @@ export async function updateUserProfile(
   if (patch.name !== undefined || emailChangeRequested) {
     const metadata: Record<string, string> = {}
     if (patch.name !== undefined) metadata.name = patch.name
-    if (emailChangeRequested) metadata.email = patch.email!
 
     // email is a top-level argument, not user metadata: putting it in `data`
     // only writes it to raw_user_meta_data and leaves the login email alone.
