@@ -77,7 +77,9 @@ interface PatientWithRelations extends PatientRow {
   patient_insurance: InsuranceRow | null
 }
 
-const PATIENT_RELATIONS = "emergency_contacts(*), patient_insurance(*)"
+// `*` is required: PostgREST only returns the columns listed in `select`, so an
+// embedded-resource-only projection would omit every base patient column.
+const PATIENT_RELATIONS = "*, emergency_contacts(*), patient_insurance(*)"
 
 /* ============================================================================
  * Domain types — unchanged from the Firestore data layer so that no page
@@ -957,7 +959,8 @@ interface CheckoutRow {
   follow_up_appointments: FollowUpRow[] | null
 }
 
-const CHECKOUT_RELATIONS = "follow_up_appointments(*)"
+// `*` is required here for the same reason as PATIENT_RELATIONS.
+const CHECKOUT_RELATIONS = "*, follow_up_appointments(*)"
 
 function mapCheckout(row: CheckoutRow): Checkout {
   return {
