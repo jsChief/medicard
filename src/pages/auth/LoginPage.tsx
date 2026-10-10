@@ -126,6 +126,7 @@ export function LoginPage() {
           </Button>
         </form>
 
+        {/* OAuth sign-in hidden for now. Re-enable once Google/Microsoft OAuth is implemented.
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
             <span className="w-full border-t border-border" />
@@ -136,7 +137,7 @@ export function LoginPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Button type="button" variant="outline" onClick={() => { /* TODO: Google OAuth */ }} disabled={isLoading} className="py-2.5">
+          <Button type="button" variant="outline" onClick={() => {}} disabled={isLoading} className="py-2.5">
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path
                 fill="currentColor"
@@ -157,7 +158,7 @@ export function LoginPage() {
             </svg>
             Google
           </Button>
-          <Button type="button" variant="outline" onClick={() => { /* TODO: Microsoft OAuth */ }} disabled={isLoading} className="py-2.5">
+          <Button type="button" variant="outline" onClick={() => {}} disabled={isLoading} className="py-2.5">
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path
                 fill="currentColor"
@@ -167,6 +168,7 @@ export function LoginPage() {
             Microsoft
           </Button>
         </div>
+        */}
       </CardContent>
 
       <CardFooter className="flex-col gap-3 px-7 pb-7 text-center sm:px-8">
