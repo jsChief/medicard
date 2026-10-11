@@ -19,6 +19,7 @@ import {
   Search,
   Sun,
   Moon,
+  UserCog,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
@@ -53,15 +54,19 @@ import {
 } from "@/components/ui/sidebar";
 import {CustomTrigger} from "@/components/ui/SidebarTrigger";
 
-const navigation = [
+// Settings is appended separately so an admin-only "Team" entry can slot in
+// just before it without reordering the module-level list.
+const baseNavigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Patients", href: "/patients", icon: Users },
   { name: "Patient Cards", href: "/patient-cards", icon: FileText },
   { name: "Archive", href: "/archive", icon: Archive },
   { name: "Active Checkouts", href: "/checkouts", icon: Clock },
   { name: "Location Matrix", href: "/location-matrix", icon: MapPin },
-  { name: "Settings", href: "/settings", icon: Settings },
 ];
+
+const settingsNavigation = { name: "Settings", href: "/settings", icon: Settings };
+const teamNavigation = { name: "Team", href: "/settings/team", icon: UserCog };
 
 // function MobileMenuButton() {
 //   const { toggleSidebar } = useSidebar();
@@ -81,6 +86,14 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
+
+  // Only admins can manage the team, so the entry (and its page) is hidden for
+  // everyone else. The server enforces this too: invite/role/remove RPCs all
+  // require is_admin().
+  const navigation =
+    user?.role === "admin"
+      ? [...baseNavigation, teamNavigation, settingsNavigation]
+      : [...baseNavigation, settingsNavigation];
 
   const [hospitalName, setHospitalName] = useState<string>("");
 

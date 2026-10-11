@@ -2,7 +2,7 @@ import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Link, useNavigate } from "react-router-dom"
-import { Eye, EyeOff, Mail, Lock, Users, ChevronDown, Building2, ArrowRight } from "lucide-react"
+import { Eye, EyeOff, Mail, Lock, Building2, ArrowRight, Info, UserPlus } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardFooter } from "@/components/ui/Card"
@@ -12,9 +12,14 @@ import { toast } from "@/components/ui/Toast"
 import { useAuth } from "@/context/AuthContext"
 import { cn } from "@/lib/utils"
 import { describeError } from "@/lib/errors"
+import { hasPendingInvite } from "@/lib/database"
 
 const registerSchema = z
   .object({
+    // "create" provisions a new hospital; "join" expects an invitation to an
+    // existing one. Tracked as a form value so the schema can require the
+    // hospital name only when creating.
+    mode: z.enum(["create", "join"]),
     firstName: z
       .string()
       .min(1, "First name is required")
@@ -27,21 +32,7 @@ const registerSchema = z
       .string()
       .min(1, "Email is required")
       .email("Invalid email address"),
-    hospitalName: z
-      .string()
-      .min(1, "Hospital name is required")
-      .min(3, "Hospital name must be at least 3 characters"),
-    role: z.enum(
-      [
-        "admin",
-        "doctor",
-        "nurse",
-        "receptionist",
-      ],
-      {
-        required_error: "Please select your role",
-      },
-    ),
+    hospitalName: z.string(),
     password: z
       .string()
       .min(1, "Password is required")
@@ -64,6 +55,15 @@ const registerSchema = z
       message: "You must accept the terms and conditions",
     }),
   })
+  .superRefine((data, ctx) => {
+    if (data.mode === "create" && data.hospitalName.trim().length < 3) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["hospitalName"],
+        message: "Hospital name must be at least 3 characters",
+      })
+    }
+  })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
     path: ["confirmPassword"],
@@ -71,12 +71,10 @@ const registerSchema = z
 
 type RegisterFormData = z.infer<typeof registerSchema>
 
-const roles = [
-  { value: "admin", label: "Administrator" },
-  { value: "doctor", label: "Doctor" },
-  { value: "nurse", label: "Nurse" },
-  { value: "receptionist", label: "Receptionist" },
-]
+const MODES = [
+  { value: "create", label: "New organization", icon: Building2 },
+  { value: "join", label: "Join a team", icon: UserPlus },
+] as const
 
 function EyeToggle({ show, onToggle, disabled }: { show: boolean; onToggle: () => void; disabled?: boolean }) {
   return (
@@ -102,22 +100,28 @@ export function RegisterPage() {
     register,
     handleSubmit,
     control,
+    setValue,
     formState: { errors },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
+      mode: "create",
       firstName: "",
       lastName: "",
       email: "",
       hospitalName: "",
-      role: "doctor",
       password: "",
       confirmPassword: "",
       terms: false,
     },
   })
 
+  const mode = useWatch({ control, name: "mode" }) ?? "create"
   const password = useWatch({ control, name: "password" })
+
+  const selectMode = (next: RegisterFormData["mode"]) => {
+    setValue("mode", next, { shouldValidate: false })
+  }
 
   const calculateStrength = (pwd: string) => {
     let strength = 0
@@ -132,12 +136,28 @@ export function RegisterPage() {
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true)
     try {
+      if (data.mode === "join") {
+        // Checked before signUp because GoTrue masks trigger failures as a
+        // generic "Database error saving new user"; this way the user gets a
+        // useful message instead.
+        const invited = await hasPendingInvite(data.email)
+        if (!invited) {
+          toast({
+            title: "No invitation found",
+            description:
+              'Ask your hospital administrator to invite this email address, or choose "New organization" to set up your own.',
+            variant: "error",
+          })
+          return
+        }
+      }
+
       await registerUser({
         email: data.email,
         password: data.password,
         name: `${data.firstName} ${data.lastName}`,
-        hospitalName: data.hospitalName,
-        role: data.role,
+        intent: data.mode,
+        hospitalName: data.mode === "create" ? data.hospitalName : "",
       })
       toast({
         title: "Account created!",
@@ -161,11 +181,39 @@ export function RegisterPage() {
     <Card className="overflow-hidden rounded-2xl border-border/60 shadow-xl shadow-primary/5">
       <div className="space-y-1.5 px-7 pt-7 text-center sm:px-8">
         <h1 className="text-2xl font-bold tracking-tight text-text">Create your account</h1>
-        <p className="text-sm text-text-muted">Start managing patient cards securely in minutes</p>
+        <p className="text-sm text-text-muted">
+          {mode === "join"
+            ? "Join your hospital's workspace on CardEase"
+            : "Start managing patient cards securely in minutes"}
+        </p>
       </div>
 
       <CardContent className="pt-6 sm:px-8">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          {/* Create-vs-join selector */}
+          <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-bg p-1">
+            {MODES.map((option) => {
+              const Icon = option.icon
+              const active = mode === option.value
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => selectMode(option.value)}
+                  disabled={isLoading}
+                  aria-pressed={active}
+                  className={cn(
+                    "flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed",
+                    active ? "bg-primary text-white" : "text-text-muted hover:text-text",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <AuthInput
               id="firstName"
@@ -187,18 +235,27 @@ export function RegisterPage() {
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <AuthInput
-              id="email"
-              label="Work email"
-              type="email"
-              placeholder="you@hospital.com"
-              autoComplete="email"
-              icon={Mail}
-              error={errors.email?.message}
-              disabled={isLoading}
-              {...register("email")}
-            />
+          <AuthInput
+            id="email"
+            label={mode === "join" ? "Invited email" : "Work email"}
+            type="email"
+            placeholder="you@hospital.com"
+            autoComplete="email"
+            icon={Mail}
+            error={errors.email?.message}
+            disabled={isLoading}
+            {...register("email")}
+          />
+
+          {mode === "join" ? (
+            <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-xs text-text-muted">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+              <span>
+                Use the exact email your administrator invited. We will add your account to their
+                hospital with the role they chose.
+              </span>
+            </div>
+          ) : (
             <AuthInput
               id="hospitalName"
               label="Hospital / Organization name"
@@ -209,46 +266,7 @@ export function RegisterPage() {
               disabled={isLoading}
               {...register("hospitalName")}
             />
-          </div>
-
-          <div>
-            <label htmlFor="role" className="mb-1.5 block text-sm font-medium text-text">
-              Your role
-            </label>
-            <div className="relative">
-              <Users
-                className={cn(
-                  "pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2",
-                  errors.role ? "text-danger" : "text-text-muted",
-                )}
-                aria-hidden="true"
-              />
-              <select
-                id="role"
-                className={cn(
-                  "w-full appearance-none rounded-lg border border-border bg-surface py-2.5 pl-10 pr-11 text-sm text-text transition-colors",
-                  "focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20",
-                  "disabled:cursor-not-allowed disabled:bg-bg",
-                  errors.role && "border-danger focus:border-danger focus:ring-danger/20",
-                )}
-                disabled={isLoading}
-                aria-invalid={errors.role ? "true" : "false"}
-                {...register("role")}
-              >
-                {roles.map((role) => (
-                  <option key={role.value} value={role.value}>
-                    {role.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" aria-hidden="true" />
-            </div>
-            {errors.role && (
-              <p id="role-error" className="mt-1.5 text-sm text-danger" role="alert">
-                {errors.role.message}
-              </p>
-            )}
-          </div>
+          )}
 
           <AuthInput
             id="password"
@@ -309,7 +327,7 @@ export function RegisterPage() {
 
           <Button type="submit" className="w-full gap-2" size="lg" isLoading={isLoading}>
             {!isLoading && <ArrowRight className="h-4 w-4" />}
-            Create account
+            {mode === "join" ? "Join team" : "Create account"}
           </Button>
         </form>
 

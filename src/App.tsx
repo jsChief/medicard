@@ -17,6 +17,7 @@ import { AddPatientPage } from "./pages/patients/AddPatientPage"
 import { PatientDetailPage } from "./pages/patients/PatientDetailPage"
 import { EditPatientPage } from "./pages/patients/EditPatientPage"
 import { SettingsPage } from "./pages/settings/SettingsPage"
+import { TeamPage } from "./pages/settings/TeamPage"
 import { ProfilePage } from "./pages/profile/ProfilePage"
 import { PatientCardsPage } from "./pages/patient-cards/PatientCardsPage"
 import { ArchivePage } from "./pages/archive/ArchivePage"
@@ -162,6 +163,16 @@ function App() {
             <Route path="/checkouts" element={<CheckoutsPage />} />
             <Route path="/location-matrix" element={<LocationMatrixPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            {/* Admin-only: the RLS policies and set_staff_role()/remove_staff()
+                enforce this server-side as well. */}
+            <Route
+              path="/settings/team"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <TeamPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/notifications" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Notifications - Coming Soon</h1></div>} />
           </Route>

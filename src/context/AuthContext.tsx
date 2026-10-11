@@ -13,6 +13,7 @@ import {
   isEmailVerified,
   onAuthStateChange,
   type User,
+  type SignUpIntent,
 } from "@/lib/auth"
 import { describeError } from "@/lib/errors"
 
@@ -39,8 +40,8 @@ interface RegisterData {
   email: string
   password: string
   name: string
+  intent: SignUpIntent
   hospitalName: string
-  role: User["role"]
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -155,12 +156,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(async (data: RegisterData) => {
     setIsLoading(true)
     try {
-      // The database trigger provisions the hospital and profile rows.
+      // The database trigger provisions or joins the hospital and profile rows.
       await registerWithEmail({
         email: data.email,
         password: data.password,
         name: data.name,
-        role: data.role,
+        intent: data.intent,
         hospitalName: data.hospitalName,
       })
       // Do not auto-navigate here; page components should direct users to the

@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from "react"
-import { Sun, Moon, Bell, Shield, Database } from "lucide-react"
+import { Link } from "react-router-dom"
+import { Sun, Moon, Bell, Shield, Database, Users } from "lucide-react"
 import { useTheme } from "@/context/ThemeContext"
+import { useAuth } from "@/context/AuthContext"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Separator } from "@/components/ui/Separator"
@@ -80,6 +82,7 @@ function SettingsRow({
 
 export function SettingsPage() {
   const { theme, setTheme } = useTheme()
+  const { user } = useAuth()
   const [emailNotifs, setEmailNotifs] = useState(true)
   const [pushNotifs, setPushNotifs] = useState(true)
   const [weeklyDigest, setWeeklyDigest] = useState(false)
@@ -92,6 +95,26 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6">
+
+      {/* Team — admin only; the page and the invite/role RPCs are admin-gated. */}
+      {user?.role === "admin" && (
+        <Card className="p-0">
+          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Users className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="font-medium text-text">Team</p>
+                <p className="text-sm text-text-muted">Invite colleagues and manage who can access this hospital</p>
+              </div>
+            </div>
+            <Link to="/settings/team" className="shrink-0">
+              <Button variant="outline" size="sm">Manage team</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Appearance */}
       <Card className="p-0">
