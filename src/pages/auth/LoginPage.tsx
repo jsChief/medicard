@@ -9,6 +9,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/Card"
 import { AuthInput } from "@/components/auth/AuthInput"
 import { toast } from "@/components/ui/Toast"
 import { useAuth } from "@/context/AuthContext"
+import { describeError } from "@/lib/errors"
 
 const loginSchema = z.object({
   email: z.string().min(1, "Email is required").email("Invalid email address"),
@@ -48,7 +49,7 @@ export function LoginPage() {
       })
       navigate("/dashboard")
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to sign in. Please try again."
+      const message = describeError(error, "sign in")
       toast({
         title: "Sign in failed",
         description: message,
@@ -63,7 +64,7 @@ export function LoginPage() {
     <Card className="overflow-hidden rounded-2xl border-border/60 shadow-xl shadow-primary/5">
       <div className="space-y-1.5 px-7 pt-7 text-center sm:px-8">
         <h1 className="text-2xl font-bold tracking-tight text-text">Welcome back</h1>
-        <p className="text-sm text-text-muted">Sign in to your MediCard account to continue</p>
+        <p className="text-sm text-text-muted">Sign in to your CardEase account to continue</p>
       </div>
 
       <CardContent className="pt-6 sm:px-8">
@@ -125,6 +126,7 @@ export function LoginPage() {
           </Button>
         </form>
 
+        {/* OAuth sign-in hidden for now. Re-enable once Google/Microsoft OAuth is implemented.
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
             <span className="w-full border-t border-border" />
@@ -135,7 +137,7 @@ export function LoginPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Button type="button" variant="outline" onClick={() => { /* TODO: Google OAuth */ }} disabled={isLoading} className="py-2.5">
+          <Button type="button" variant="outline" onClick={() => {}} disabled={isLoading} className="py-2.5">
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path
                 fill="currentColor"
@@ -156,7 +158,7 @@ export function LoginPage() {
             </svg>
             Google
           </Button>
-          <Button type="button" variant="outline" onClick={() => { /* TODO: Microsoft OAuth */ }} disabled={isLoading} className="py-2.5">
+          <Button type="button" variant="outline" onClick={() => {}} disabled={isLoading} className="py-2.5">
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path
                 fill="currentColor"
@@ -166,6 +168,7 @@ export function LoginPage() {
             Microsoft
           </Button>
         </div>
+        */}
       </CardContent>
 
       <CardFooter className="flex-col gap-3 px-7 pb-7 text-center sm:px-8">

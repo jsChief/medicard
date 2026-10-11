@@ -26,8 +26,10 @@ import {
   archivePatientAsDischarged,
   type ArchivedPatient,
   type ArchiveStatus,
-} from "@/lib/firestore"
+} from "@/lib/database"
 import { toast } from "sonner"
+import { describeError, runBatch, batchMessage } from "@/lib/errors"
+import { ErrorState } from "@/components/common/ErrorState"
 
 interface ArchivedPatientView {
   id: string
@@ -87,6 +89,7 @@ export function ArchivePage() {
   const [sortBy, setSortBy] = useState("archivedAt")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [selectedItems, setSelectedItems] = useState<string[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const fetchArchives = useCallback(async () => {
     if (!user?.hospitalId) {
@@ -95,6 +98,7 @@ export function ArchivePage() {
     }
     try {
       setIsLoading(true)
+      setLoadError(null)
       const result = await queryArchives({
         hospitalId: user.hospitalId,
         sortBy: "archivedAt",
@@ -103,8 +107,9 @@ export function ArchivePage() {
       })
       setArchiveRecords(result.archives)
     } catch (error) {
-      console.error("Failed to fetch archives:", error)
-      toast.error("Failed to load archive")
+      // Rendered as a panel error rather than an empty archive.
+      setLoadError(describeError(error, "fetch archives"))
+      setArchiveRecords([])
     } finally {
       setIsLoading(false)
     }
@@ -161,13 +166,23 @@ export function ArchivePage() {
     if (selectedItems.length === 0) return
     const records = archiveRecords.filter(a => selectedItems.includes(a.id))
     try {
-      await Promise.all(records.map(restoreArchive))
-      toast.success(`Restored ${records.length} record(s)`)
-      setSelectedItems([])
+      const result = await runBatch(
+        records.map((record) => () => restoreArchive(record)),
+        { keys: records.map((record) => record.id) },
+      )
+      if (result.failed === 0) {
+        setSelectedItems([])
+      } else {
+        // Keep only the failures selected so a retry does not redo the work
+        // that already succeeded.
+        const done = new Set(result.succeededIds ?? [])
+        setSelectedItems(records.filter((record) => !done.has(record.id)).map((record) => record.id))
+      }
+      toast[result.failed === 0 ? "success" : "error"](batchMessage("Restored", result))
       await fetchArchives()
     } catch (error) {
       console.error("Failed to restore records:", error)
-      toast.error("Failed to restore records")
+      toast.error(describeError(error, "restore records"))
     }
   }, [selectedItems, archiveRecords, fetchArchives])
 
@@ -180,13 +195,13 @@ export function ArchivePage() {
       await fetchArchives()
     } catch (error) {
       console.error("Failed to delete records:", error)
-      toast.error("Failed to delete records")
+      toast.error(describeError(error, "delete records"))
     }
   }, [selectedItems, fetchArchives])
 
   const archiveCurrent = useCallback(async () => {
     if (!user?.hospitalId) {
-      toast.error("Hospital context unavailable")
+      toast.error("Your account is not linked to a hospital. Please sign in again.")
       return
     }
     try {
@@ -201,12 +216,21 @@ export function ArchivePage() {
         toast.info("No discharged or transferred patients to archive")
         return
       }
-      await Promise.all(toArchive.map(archivePatientAsDischarged))
-      toast.success(`Archived ${toArchive.length} patient(s)`)
+      const archived = await runBatch(
+        toArchive.map((patient) => () => archivePatientAsDischarged(patient)),
+        { keys: toArchive.map((patient) => patient.id) },
+      )
+      if (archived.failed === 0) {
+        toast.success(batchMessage("Archived", archived, { successNoun: "patient" }))
+      } else {
+        // The refresh still runs so the archived rows that did succeed appear,
+        // but the error toast makes the partial state explicit.
+        toast.error(batchMessage("Archived", archived, { successNoun: "patient" }))
+      }
       await fetchArchives()
     } catch (error) {
       console.error("Failed to archive current patients:", error)
-      toast.error("Failed to archive patients")
+      toast.error(describeError(error, "archive patients"))
     }
   }, [user?.hospitalId, fetchArchives])
 
@@ -348,7 +372,7 @@ export function ArchivePage() {
                             await fetchArchives()
                           } catch (error) {
                             console.error("Failed to restore record:", error)
-                            toast.error("Failed to restore record")
+                            toast.error(describeError(error, "restore record"))
                           }
                         }}><RotateCcw className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Delete record" onClick={async () => {
@@ -358,7 +382,7 @@ export function ArchivePage() {
                             await fetchArchives()
                           } catch (error) {
                             console.error("Failed to delete record:", error)
-                            toast.error("Failed to delete record")
+                            toast.error(describeError(error, "delete record"))
                           }
                         }}><Trash2 className="h-4 w-4" /></Button>
                       </div>
@@ -377,6 +401,8 @@ export function ArchivePage() {
             </div>
             <p className="text-lg font-medium text-text">Loading archive...</p>
           </div>
+        ) : loadError ? (
+          <ErrorState title="Could not load the archive" message={loadError} onRetry={fetchArchives} isRetrying={isLoading} />
         ) : filteredPatients.length === 0 && (
           <div className="py-16 text-center">
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">

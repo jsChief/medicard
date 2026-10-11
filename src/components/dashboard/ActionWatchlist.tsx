@@ -1,11 +1,12 @@
-import { AlertCircle, Clock, ArrowRight, ExternalLink, User, Building2 } from "lucide-react"
+import { AlertCircle, AlertTriangle, Clock, ArrowRight, ExternalLink, User, Building2 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { cn, formatDate } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
-import { queryCheckouts, type Checkout } from "@/lib/firestore"
+import { queryCheckouts, type Checkout } from "@/lib/database"
+import { describeError } from "@/lib/errors"
 
 interface OverdueCard {
   id: string
@@ -86,6 +87,7 @@ export function ActionWatchlist() {
   const { user } = useAuth()
   const [checkouts, setCheckouts] = useState<Checkout[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -95,6 +97,7 @@ export function ActionWatchlist() {
         return
       }
       try {
+        setLoadError(null)
         const checkoutResult = await queryCheckouts({
           hospitalId: user.hospitalId,
           sortBy: "expectedDischargeDate",
@@ -105,7 +108,13 @@ export function ActionWatchlist() {
           setCheckouts(checkoutResult.checkouts)
         }
       } catch (error) {
-        console.error("Failed to fetch watchlist data:", error)
+        // "No overdue items" is a clinical claim, so it must never be shown
+        // just because the query failed.
+        const message = describeError(error, "load the action watchlist")
+        if (!cancelled) {
+          setLoadError(message)
+          setCheckouts([])
+        }
       } finally {
         if (!cancelled) setIsLoading(false)
       }
@@ -128,6 +137,14 @@ export function ActionWatchlist() {
       <CardContent className="p-0">
         {isLoading && overdueCards.length === 0 ? (
           <div className="p-8 text-center text-sm text-text-muted">Loading watchlist...</div>
+        ) : loadError ? (
+          <div className="p-8 text-center" role="alert">
+            <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-danger/10">
+              <AlertTriangle className="h-5 w-5 text-danger" />
+            </div>
+            <p className="text-sm font-medium text-text">Could not load overdue cards</p>
+            <p className="mt-1 text-sm text-text-muted">{loadError}</p>
+          </div>
         ) : overdueCards.length === 0 ? (
           <div className="p-8 text-center text-sm text-text-muted">
             No overdue items. All checkouts are on track.

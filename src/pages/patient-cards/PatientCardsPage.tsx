@@ -21,10 +21,11 @@ import { Badge } from "@/components/ui/Badge"
 import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
-import { queryPatients, bulkCreatePatients, type Patient } from "@/lib/firestore"
-import { patientsToCsv, parsePatientImportCsv } from "@/lib/patientCsv"
+import { queryPatients, bulkCreatePatients, getExistingMrns, type Patient, type PageCursor } from "@/lib/database"
+import { patientsToCsv, parsePatientImportCsv, importIssuesToCsv, type ImportIssue } from "@/lib/patientCsv"
 import { toast } from "sonner"
-import type { DocumentSnapshot } from "firebase/firestore"
+import { describeError } from "@/lib/errors"
+import { ErrorState } from "@/components/common/ErrorState"
 
 interface PatientCard {
   id: string
@@ -73,6 +74,23 @@ function formatDate(date: string) {
   return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }
 
+function downloadCsvFile(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+function downloadImportReport(issues: ImportIssue[]) {
+  const stamp = new Date().toISOString().slice(0, 10)
+  downloadCsvFile(`patient-import-issues-${stamp}.csv`, importIssuesToCsv(issues))
+}
+
 export function PatientCardsPage() {
   const { user } = useAuth()
   const [isLoading, setIsLoading] = useState(true)
@@ -82,6 +100,8 @@ export function PatientCardsPage() {
   const [departmentFilter, setDepartmentFilter] = useState("All")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [selectedCards, setSelectedCards] = useState<string[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -92,6 +112,7 @@ export function PatientCardsPage() {
       }
       try {
         setIsLoading(true)
+        setLoadError(null)
         const result = await queryPatients({
           hospitalId: user.hospitalId,
           sortBy: "lastName",
@@ -100,31 +121,21 @@ export function PatientCardsPage() {
         })
         if (!cancelled) setPatients(result.patients)
       } catch (error) {
-        console.error("Failed to fetch patient cards:", error)
-        toast.error("Failed to load patient cards")
+        // Rendered as a panel error rather than an empty card grid.
+        const message = describeError(error, "fetch patient cards")
+        if (!cancelled) {
+          setLoadError(message)
+          setPatients([])
+        }
       } finally {
         if (!cancelled) setIsLoading(false)
       }
     }
     fetchCards()
     return () => { cancelled = true }
-  }, [user?.hospitalId])
+  }, [user?.hospitalId, reloadKey])
 
-  const refreshCards = async () => {
-    if (!user?.hospitalId) return
-    try {
-      const result = await queryPatients({
-        hospitalId: user.hospitalId,
-        sortBy: "lastName",
-        sortOrder: "asc",
-        pageSize: 100,
-      })
-      setPatients(result.patients)
-    } catch (error) {
-      console.error("Failed to refresh patient cards:", error)
-      toast.error("Failed to refresh patient cards")
-    }
-  }
+  const refreshCards = () => setReloadKey((n) => n + 1)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isExporting, setIsExporting] = useState(false)
@@ -135,7 +146,7 @@ export function PatientCardsPage() {
     setIsExporting(true)
     try {
       const all: Patient[] = []
-      let lastDoc: DocumentSnapshot | null = null
+      let lastDoc: PageCursor | null = null
       let hasMore = true
       while (hasMore) {
         const result = await queryPatients({
@@ -150,19 +161,11 @@ export function PatientCardsPage() {
         hasMore = result.patients.length > 0
       }
       const csv = patientsToCsv(all)
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `patients-export-${new Date().toISOString().slice(0, 10)}.csv`
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(url)
+      downloadCsvFile(`patients-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
       toast.success(`Exported ${all.length} patient(s)`)
     } catch (error) {
       console.error("Failed to export patients:", error)
-      toast.error("Failed to export patients")
+      toast.error(describeError(error, "export patients"))
     } finally {
       setIsExporting(false)
     }
@@ -175,21 +178,60 @@ export function PatientCardsPage() {
     setIsImporting(true)
     try {
       const text = await file.text()
-      const { patients: records, issues } = parsePatientImportCsv(text, {
+      const { patients: records, issues, rowNumbers } = parsePatientImportCsv(text, {
         hospitalId: user.hospitalId,
         createdBy: user.id,
         attendingPhysician: user.name,
       })
-      if (records.length === 0) {
-        toast.error("No valid patient rows found in the file")
+
+      const existingMrns = await getExistingMrns(user.hospitalId)
+      const toCreate: typeof records = []
+      const duplicateIssues: ImportIssue[] = []
+      records.forEach((record, i) => {
+        if (existingMrns.has(record.mrn.trim().toLowerCase())) {
+          duplicateIssues.push({
+            row: rowNumbers[i],
+            message: `MRN already exists: "${record.mrn}"`,
+            mrn: record.mrn,
+            firstName: record.firstName,
+            lastName: record.lastName,
+          })
+        } else {
+          toCreate.push(record)
+        }
+      })
+
+      const allIssues = [...issues, ...duplicateIssues].sort((a, b) => a.row - b.row)
+      const reportAction = allIssues.length
+        ? { label: "Download report", onClick: () => downloadImportReport(allIssues) }
+        : undefined
+
+      if (toCreate.length === 0) {
+        toast.error(
+          `No new patients to import — ${allIssues.length} row(s) skipped`,
+          reportAction ? { action: reportAction } : undefined
+        )
         return
       }
-      await bulkCreatePatients(records)
-      toast.success(`Imported ${records.length} patient(s)${issues.length > 0 ? `, ${issues.length} row(s) skipped` : ""}`)
+
+      await bulkCreatePatients(toCreate, (written, total) => {
+        if (written === total) return
+        toast.loading(`Importing patients… ${written}/${total}`, { id: "import-progress" })
+      })
+      toast.dismiss("import-progress")
+
+      const skipped = allIssues.length
+      toast.success(
+        skipped
+          ? `Imported ${toCreate.length} patient(s), skipped ${skipped} row(s)`
+          : `Imported ${toCreate.length} patient(s)`,
+        reportAction ? { action: reportAction } : undefined
+      )
       await refreshCards()
     } catch (error) {
+      toast.dismiss("import-progress")
       console.error("Failed to import patients:", error)
-      toast.error("Failed to import patients")
+      toast.error(describeError(error, "import patients"))
     } finally {
       setIsImporting(false)
     }
@@ -324,6 +366,8 @@ export function PatientCardsPage() {
           </div>
           <p className="text-lg font-medium text-text">Loading patient cards...</p>
         </div>
+      ) : loadError ? (
+        <ErrorState title="Could not load patient cards" message={loadError} onRetry={refreshCards} isRetrying={isLoading} />
       ) : filteredCards.length === 0 ? (
         <div className="text-center py-16">
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-bg">

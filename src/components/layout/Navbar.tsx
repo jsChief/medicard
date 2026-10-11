@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/Button"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/context/ThemeContext"
-import medicardLogo from "@/assets/medicard.png"
+import cardeaseLogo from "@/assets/cardease.png"
 
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -36,9 +36,9 @@ export function Navbar() {
     <header className="sticky top-0 left-0 z-50 w-full border-b border-border bg-surface/95 backdrop-blur supports-backdrop-filter:bg-surface/60">
       <nav className="container-app" aria-label="Main navigation">
         <div className="flex h-16 items-center justify-between ml-2">
-          <Link to="/" className="flex items-center gap-2" aria-label="MediCard Home">
-            <img src={medicardLogo} alt="MediCard" className="h-9 w-9 object-contain" />
-            <span className="text-xl font-bold text-text">MediCard</span>
+          <Link to="/" className="flex items-center gap-2" aria-label="CardEase Home">
+            <img src={cardeaseLogo} alt="CardEase" className="h-9 w-9 object-contain" />
+            <span className="text-xl font-bold text-text">CardEase</span>
           </Link>
 
           <div className="hidden md:flex md:items-center md:gap-8">

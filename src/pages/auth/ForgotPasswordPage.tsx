@@ -9,6 +9,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/Card"
 import { AuthInput } from "@/components/auth/AuthInput"
 import { toast } from "@/components/ui/Toast"
 import { useAuth } from "@/context/AuthContext"
+import { describeError } from "@/lib/errors"
 
 const forgotPasswordSchema = z.object({
   email: z.string().min(1, "Email is required").email("Invalid email address"),
@@ -43,7 +44,7 @@ export function ForgotPasswordPage() {
         variant: "success",
       })
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to send reset link. Please try again."
+      const message = describeError(error, "send reset link")
       toast({
         title: "Failed to send reset link",
         description: message,
@@ -65,7 +66,7 @@ export function ForgotPasswordPage() {
         variant: "success",
       })
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to resend reset link. Please try again."
+      const message = describeError(error, "resend reset link")
       toast({
         title: "Failed to resend",
         description: message,

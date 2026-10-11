@@ -94,7 +94,7 @@ const steps = [
 
 const testimonials = [
   {
-    quote: "MediCard transformed our patient intake process. What used to take 20 minutes now takes 2. Our nurses have more time for actual patient care.",
+    quote: "CardEase transformed our patient intake process. What used to take 20 minutes now takes 2. Our nurses have more time for actual patient care.",
     author: "Dr. Sarah Mitchell",
     role: "Chief Medical Officer",
     hospital: "Meridian General Hospital",
@@ -387,7 +387,7 @@ export function HomePage() {
                 Ready to transform patient card management?
               </h2>
               <p className="mt-4 text-lg text-white/90">
-                Join 500+ hospitals already using MediCard. Start your free 14-day trial today.
+                Join 500+ hospitals already using CardEase. Start your free 14-day trial today.
               </p>
               <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
                 <Link to="/register">

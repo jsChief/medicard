@@ -6,6 +6,7 @@ import {
   Clock,
   FileText,
   ChevronDown,
+  RefreshCw,
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { LocationMatrix } from "@/components/dashboard/LocationMatrix";
@@ -21,7 +22,8 @@ import {
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
-import { getDashboardCounts, getSystemStatusTotals, type DashboardCounts, type DashboardRange } from "@/lib/firestore";
+import { getDashboardCounts, getSystemStatusTotals, type DashboardCounts, type DashboardRange } from "@/lib/database";
+import { describeError } from "@/lib/errors";
 
 const timeRanges: { value: DashboardRange; label: string }[] = [
   { value: "today", label: "Today" },
@@ -39,6 +41,9 @@ export function DashboardPage() {
   const [systemRecords, setSystemRecords] = useState(0);
   const [databaseOk, setDatabaseOk] = useState(true);
   const [isLoadingStatus, setIsLoadingStatus] = useState(true);
+  const [countsError, setCountsError] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [countsReload, setCountsReload] = useState(0);
   const selectedRange =
     timeRanges.find((range) => range.value === timeRange)?.label ?? "This Month";
 
@@ -51,17 +56,24 @@ export function DashboardPage() {
       }
       try {
         setIsLoadingCounts(true);
+        setCountsError(null);
         const result = await getDashboardCounts(user.hospitalId, timeRange);
         if (!cancelled) setCounts(result);
       } catch (error) {
+        // Without this the metric grid renders empty, which reads as "no
+        // activity" rather than "the query failed".
         console.error("Failed to fetch dashboard counts:", error);
+        if (!cancelled) {
+          setCounts(null);
+          setCountsError(describeError(error, "load dashboard counts"));
+        }
       } finally {
         if (!cancelled) setIsLoadingCounts(false);
       }
     };
     fetchCounts();
     return () => { cancelled = true; };
-  }, [user?.hospitalId, timeRange]);
+  }, [user?.hospitalId, timeRange, countsReload]);
 
   const metrics = counts
     ? [
@@ -134,14 +146,20 @@ export function DashboardPage() {
       }
       try {
         setIsLoadingStatus(true);
+        setStatusError(null);
         const totals = await getSystemStatusTotals(user.hospitalId);
         if (!cancelled) {
           setSystemRecords(totals.records);
           setDatabaseOk(totals.databaseOk);
         }
       } catch (error) {
+        // Reported per-item below so the status panel never shows a green
+        // "0 records" row that is really a failed query.
         console.error("Failed to fetch system status:", error);
-        if (!cancelled) setDatabaseOk(false);
+        if (!cancelled) {
+          setDatabaseOk(false);
+          setStatusError(describeError(error, "load system status"));
+        }
       } finally {
         if (!cancelled) setIsLoadingStatus(false);
       }
@@ -159,9 +177,13 @@ export function DashboardPage() {
     },
     {
       label: "Storage",
-      status: isLoadingStatus ? "Loading…" : `${systemRecords.toLocaleString()} records`,
-      dot: "bg-success",
-      text: "text-success",
+      status: isLoadingStatus
+        ? "Loading…"
+        : statusError
+          ? "Unavailable"
+          : `${systemRecords.toLocaleString()} records`,
+      dot: isLoadingStatus ? "bg-border" : statusError ? "bg-danger" : "bg-success",
+      text: isLoadingStatus ? "text-text-muted" : statusError ? "text-danger" : "text-success",
     },
   ];
 
@@ -199,8 +221,28 @@ export function DashboardPage() {
       </div>
 
       {/* Metric cards */}
+      {countsError && (
+        <Card className="border-danger/30 bg-danger/5 p-0">
+          <CardContent className="flex flex-col items-start gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="font-medium text-text">Could not load dashboard metrics</p>
+              <p className="mt-1 text-sm text-text-muted">{countsError}</p>
+            </div>
+            <Button
+              variant="outline"
+              isLoading={isLoadingCounts}
+              onClick={() => setCountsReload((n) => n + 1)}
+              className="shrink-0 gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Try again
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {isLoadingCounts && metrics.length === 0
+        {countsError ? null : isLoadingCounts && metrics.length === 0
           ? Array.from({ length: 4 }).map((_, i) => (
               <Card key={i} className="overflow-hidden p-0">
                 <CardContent className="flex items-start justify-between gap-3 p-6">

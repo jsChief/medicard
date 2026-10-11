@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { Search, Filter, ChevronDown, ChevronUp, MoreHorizontal, Eye, Edit, Plus, RefreshCw } from "lucide-react"
+import { Search, Filter, ChevronDown, ChevronUp, MoreHorizontal, Eye, Edit, Plus, RefreshCw, AlertCircle } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { Select } from "@/components/ui/Select"
 import { useAuth } from "@/context/AuthContext"
-import { queryPatients, type Patient, type PatientQueryOptions } from "@/lib/firestore"
+import { queryPatients, type Patient, type PatientQueryOptions } from "@/lib/database"
 import { toast } from "sonner"
+import { describeError } from "@/lib/errors"
 
 const departments = ["All", "Cardiology", "Orthopedics", "ICU", "Emergency", "Neurology", "Oncology", "Pediatrics"]
 const statuses = ["All", "active", "discharged", "transferred", "critical", "pending"]
@@ -41,6 +42,7 @@ export function PatientsListPage() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [lastDoc, setLastDoc] = useState<any>(null)
   const [hasMore, setHasMore] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const fetchPatients = async (reset = false) => {
     if (!user?.hospitalId) {
@@ -49,6 +51,7 @@ export function PatientsListPage() {
     }
     try {
       setIsLoading(true)
+      setLoadError(null)
       const options: PatientQueryOptions = {
         hospitalId: user.hospitalId,
         department: departmentFilter !== "All" ? departmentFilter : undefined,
@@ -66,8 +69,14 @@ export function PatientsListPage() {
       setLastDoc(result.lastDoc)
       setHasMore(result.patients.length > 10)
     } catch (error) {
-      console.error("Failed to fetch patients:", error)
-      toast.error("Failed to load patients")
+      const message = describeError(error, "fetch patients")
+      if (reset) {
+        // A failed first page must render an error, not a misleading "no patients".
+        setLoadError(message)
+        setPatients([])
+      } else {
+        toast.error(message)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -96,8 +105,7 @@ export function PatientsListPage() {
       setLastDoc(result.lastDoc)
       setHasMore(result.patients.length > 10)
     } catch (error) {
-      console.error("Failed to load more patients:", error)
-      toast.error("Failed to load more patients")
+      toast.error(describeError(error, "load more patients"))
     } finally {
       setIsLoading(false)
     }
@@ -278,6 +286,25 @@ export function PatientsListPage() {
                       <div className="flex flex-col items-center gap-2 text-text-muted">
                         <RefreshCw className="h-12 w-12 text-text-muted/30 animate-spin" />
                         <p className="text-lg">Loading patients...</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : loadError ? (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-12 text-center">
+                      <div className="mx-auto flex max-w-md flex-col items-center gap-3 text-text-muted">
+                        <AlertCircle className="h-12 w-12 text-danger/60" />
+                        <p className="text-lg text-text">Could not load patients</p>
+                        <p className="text-sm">{loadError}</p>
+                        <Button
+                          variant="outline"
+                          onClick={() => fetchPatients(true)}
+                          isLoading={isLoading}
+                          className="mt-1 gap-2"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          Try again
+                        </Button>
                       </div>
                     </td>
                   </tr>

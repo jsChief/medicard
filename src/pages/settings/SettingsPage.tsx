@@ -102,7 +102,7 @@ export function SettingsPage() {
             </span>
             <div>
               <p className="font-medium text-text">Appearance</p>
-              <p className="text-sm text-text-muted">Customize how MediCard looks on your device</p>
+              <p className="text-sm text-text-muted">Customize how CardEase looks on your device</p>
             </div>
           </div>
           <div className="flex shrink-0 items-center rounded-lg border border-border bg-surface p-1 w-fit">
