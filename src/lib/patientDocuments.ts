@@ -120,8 +120,9 @@ export async function uploadPatientDocument(input: UploadPatientDocumentInput): 
   const safeName = sanitizeFileName(input.file.name)
 
   // The document id is generated client-side so the blob key is known before
-  // the upload starts; the storage policies require exactly this 4-segment key
-  // and validate the hospital and patient segments server-side.
+  // the upload starts. The key has four segments but only three folder
+  // segments: storage.foldername() drops the file name, so the policies check
+  // the hospital (segment 1) and patient (segment 2) against the caller.
   const documentId = crypto.randomUUID()
   const storagePath = `${input.hospitalId}/${input.patientId}/${documentId}/${safeName}`
 
