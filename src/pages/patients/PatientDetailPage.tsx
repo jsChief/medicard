@@ -8,7 +8,6 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar"
-import { Separator } from "@/components/ui/Separator"
 import { Select } from "@/components/ui/Select"
 import { EmptyState } from "@/components/ui/EmptyState"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
@@ -196,14 +195,14 @@ function InfoRow({ label, value, icon }: { label: string; value: string; icon?: 
   )
 }
 
-function StatCard({ label, value, icon, color }: { label: string; value: string | number; icon: React.ReactNode; color: string }) {
+function StatPill({ label, value, icon, color }: { label: string; value: string | number; icon: React.ReactNode; color: string }) {
   return (
-    <div className="text-center">
-      <div className={cn("mx-auto mb-2 inline-flex h-10 w-10 items-center justify-center rounded-full", color)}>
+    <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1.5 pr-3">
+      <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full", color)}>
         {icon}
-      </div>
-      <p className="text-2xl font-bold text-text">{value}</p>
-      <p className="text-xs text-text-muted">{label}</p>
+      </span>
+      <span className="text-sm font-semibold text-text">{value}</span>
+      <span className="text-xs text-text-muted">{label}</span>
     </div>
   )
 }
@@ -562,14 +561,11 @@ export function PatientDetailPage() {
                 </div>
 
                 {/* Quick Stats */}
-                <div className="grid grid-cols-2 gap-4 border-t border-border/50 pt-6 sm:grid-cols-4 lg:ml-auto lg:flex lg:items-center lg:justify-start lg:gap-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
-                  <StatCard label="Conditions" value={patient.conditions.length} icon={<Heart className="h-5 w-5" />} color="bg-red-100 text-red-600" />
-                  <Separator orientation="vertical" className="hidden h-12 lg:block" />
-                  <StatCard label="Medications" value={patient.medications.length} icon={<Pill className="h-5 w-5" />} color="bg-blue-100 text-blue-600" />
-                  <Separator orientation="vertical" className="hidden h-12 lg:block" />
-                  <StatCard label="Allergies" value={patient.allergies.length} icon={<AlertTriangle className="h-5 w-5" />} color="bg-amber-100 text-amber-600" />
-                  <Separator orientation="vertical" className="hidden h-12 lg:block" />
-                  <StatCard label="Documents" value={documents.length} icon={<FileText className="h-5 w-5" />} color="bg-purple-100 text-purple-600" />
+                <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-6 lg:ml-auto lg:justify-end lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+                  <StatPill label="Conditions" value={patient.conditions.length} icon={<Heart className="h-3.5 w-3.5" />} color="bg-red-100 text-red-600" />
+                  <StatPill label="Medications" value={patient.medications.length} icon={<Pill className="h-3.5 w-3.5" />} color="bg-blue-100 text-blue-600" />
+                  <StatPill label="Allergies" value={patient.allergies.length} icon={<AlertTriangle className="h-3.5 w-3.5" />} color="bg-amber-100 text-amber-600" />
+                  <StatPill label="Documents" value={documents.length} icon={<FileText className="h-3.5 w-3.5" />} color="bg-purple-100 text-purple-600" />
                 </div>
               </div>
 
