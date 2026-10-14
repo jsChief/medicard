@@ -211,7 +211,7 @@ export function DashboardLayout() {
             <img
               src={cardeaseLogo}
               alt="CardEase"
-              className="h-9 w-9 shrink-0 rounded-lg bg-white/75 object-contain p-0.5"
+              className="size-12 shrink-0 rounded-lg object-contain p-0.5"
             />
             <span className="text-xl font-bold text-text group-data-[collapsible=icon]:hidden">
               CardEase

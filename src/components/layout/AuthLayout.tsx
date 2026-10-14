@@ -19,11 +19,11 @@ const features = [
 
 function BrandMark({ className }: { className?: string }) {
   return (
-    <Link to="/" className={`flex items-center gap-2.5 ${className ?? ""}`} aria-label="CardEase Home">
+    <Link to="/" className={`flex items-center gap-2 ${className ?? ""}`} aria-label="CardEase Home">
       <img
         src={cardeaseLogo}
         alt="CardEase"
-        className="h-10 w-10 rounded-xl bg-white/75 object-contain p-1 shadow-lg shadow-black/10"
+        className="size-14 rounded-xl object-contain p-1 shadow-black/10"
       />
       <span className="text-xl font-bold tracking-tight">CardEase</span>
     </Link>
