@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react"
-import { ArrowLeft, Loader2, Mail, Trash2, UserPlus } from "lucide-react"
+import { ArrowLeft, Loader2, Mail, Megaphone, Trash2, UserPlus } from "lucide-react"
 import { Link } from "react-router-dom"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/Badge"
@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/Card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog"
 import { Input } from "@/components/ui/Input"
 import { Select } from "@/components/ui/Select"
+import { AnnouncementForm } from "@/components/notifications/AnnouncementForm"
 import { useAuth } from "@/context/AuthContext"
 import { useNotifications } from "@/context/NotificationContext"
 import { describeError } from "@/lib/errors"
@@ -339,6 +340,24 @@ export function TeamPage() {
             })}
           </ul>
         )}
+      </Card>
+
+      {/* Announcements — admins broadcast a message to the whole team. */}
+      <Card className="p-0">
+        <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success">
+            <Megaphone className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="text-sm font-medium text-text">Send an announcement</p>
+            <p className="text-xs text-text-muted">
+              Every other member of this hospital sees it in their notifications
+            </p>
+          </div>
+        </div>
+        <CardContent className="p-4">
+          <AnnouncementForm />
+        </CardContent>
       </Card>
 
       <Dialog open={!!memberToRemove} onOpenChange={(open) => !open && setMemberToRemove(null)}>
