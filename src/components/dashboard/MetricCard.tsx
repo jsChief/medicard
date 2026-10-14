@@ -33,7 +33,7 @@ export function MetricCard({
 
   return (
     <Card
-      className={cn("overflow-hidden p-0 transition-shadow", href ? "cursor-pointer hover:shadow-md" : "hover:shadow-sm")}
+      className={cn("overflow-hidden p-0 transition-shadow", href ? "cursor-pointer hover:shadow-sm" : "hover:shadow-xs")}
       onClick={() => href && navigate(href)}
     >
       <CardContent className="flex items-start justify-between gap-3 p-6">

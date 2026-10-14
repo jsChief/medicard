@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { AuthProvider, useAuth } from "@/context/AuthContext"
-import { ThemeProvider } from "@/context/ThemeContext"
+import { NotificationProvider } from "@/context/NotificationContext"
 import { Layout } from "./components/layout/Layout"
 import { AuthLayout } from "./components/layout/AuthLayout"
 import { DashboardLayout } from "./components/layout/DashboardLayout"
@@ -17,8 +17,10 @@ import { AddPatientPage } from "./pages/patients/AddPatientPage"
 import { PatientDetailPage } from "./pages/patients/PatientDetailPage"
 import { EditPatientPage } from "./pages/patients/EditPatientPage"
 import { SettingsPage } from "./pages/settings/SettingsPage"
+import { TeamPage } from "./pages/settings/TeamPage"
+import { OrganizationPage } from "./pages/settings/OrganizationPage"
 import { ProfilePage } from "./pages/profile/ProfilePage"
-import { PatientCardsPage } from "./pages/patient-cards/PatientCardsPage"
+import { NotificationsPage } from "./pages/notifications/NotificationsPage"
 import { ArchivePage } from "./pages/archive/ArchivePage"
 import { CheckoutsPage } from "./pages/checkouts/CheckoutsPage"
 import { LocationMatrixPage } from "./pages/location-matrix/LocationMatrixPage"
@@ -108,8 +110,7 @@ function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
-      <ThemeProvider>
-        <AuthProvider>
+      <AuthProvider>
           <Toaster position="top-right" richColors closeButton />
           <Routes>
           {/* Public routes */}
@@ -149,7 +150,9 @@ function App() {
           {/* Protected routes */}
           <Route element={
             <ProtectedRoute>
-              <DashboardLayout />
+              <NotificationProvider>
+                <DashboardLayout />
+              </NotificationProvider>
             </ProtectedRoute>
           }>
             <Route path="/dashboard" element={<DashboardPage />} />
@@ -157,17 +160,33 @@ function App() {
             <Route path="/patients/new" element={<AddPatientPage />} />
             <Route path="/patients/:id" element={<PatientDetailPage />} />
             <Route path="/patients/:id/edit" element={<EditPatientPage />} />
-            <Route path="/patient-cards" element={<PatientCardsPage />} />
             <Route path="/archive" element={<ArchivePage />} />
             <Route path="/checkouts" element={<CheckoutsPage />} />
             <Route path="/location-matrix" element={<LocationMatrixPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            {/* Admin-only: the RLS policies and set_staff_role()/remove_staff()
+                enforce this server-side as well. */}
+            <Route
+              path="/settings/team"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <TeamPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings/organization"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <OrganizationPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/notifications" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Notifications - Coming Soon</h1></div>} />
+            <Route path="/notifications" element={<NotificationsPage />} />
           </Route>
         </Routes>
       </AuthProvider>
-      </ThemeProvider>
     </BrowserRouter>
   )
 }

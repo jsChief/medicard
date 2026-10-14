@@ -11,6 +11,7 @@ import { Select } from "@/components/ui/Select"
 import { cn } from "@/lib/utils"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/context/AuthContext"
+import { useNotifications } from "@/context/NotificationContext"
 import { createPatient, type Patient } from "@/lib/database"
 import { toast } from "sonner"
 import { describeError } from "@/lib/errors"
@@ -163,6 +164,7 @@ function ListEditor({ items, placeholder, addLabel, onAdd, onUpdate, onRemove }:
 export function AddPatientPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { notify } = useNotifications()
   const [currentStep, setCurrentStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -335,8 +337,14 @@ export function AddPatientPage() {
         hospitalId: user.hospitalId,
       }
 
-      await createPatient(patientData)
+      const newPatientId = await createPatient(patientData)
       toast.success("Patient created successfully")
+      await notify({
+        type: "patient",
+        title: "New patient added",
+        description: `${patientData.firstName} ${patientData.lastName} (${patientData.mrn}) was added to ${patientData.department}`,
+        link: `/patients/${newPatientId}`,
+      })
       navigate("/patients")
     } catch (error) {
       console.error("Failed to create patient:", error)

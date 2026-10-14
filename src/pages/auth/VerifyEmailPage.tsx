@@ -123,10 +123,19 @@ export function VerifyEmailPage() {
         <p className="mt-4 text-sm text-text-muted">
           Didn't receive the email? Check your spam folder or request a new link.
         </p>
-        <Button variant="outline" onClick={resendVerification} className="mt-8 w-full gap-2 sm:w-auto">
-          <RefreshCw className="h-4 w-4" />
-          Resend verification email
-        </Button>
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <Button variant="outline" onClick={resendVerification} className="w-full gap-2 sm:w-auto">
+            <RefreshCw className="h-4 w-4" />
+            Resend verification email
+          </Button>
+          <p className="text-sm text-text-muted">
+            Already confirmed your email? Sign in with your credentials.
+          </p>
+          <Button onClick={() => navigate("/login")} className="w-full gap-2 sm:w-auto">
+            Go to login
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
       </CardFrame>
     )
   }

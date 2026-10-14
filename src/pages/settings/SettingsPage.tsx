@@ -1,10 +1,15 @@
 import { useState, type ReactNode } from "react"
-import { Sun, Moon, Bell, Shield, Database } from "lucide-react"
-import { useTheme } from "@/context/ThemeContext"
+import { Link } from "react-router-dom"
+import { Sun, Moon, Bell, Shield, Database, Users, Building2 } from "lucide-react"
+import { useTheme } from "next-themes"
+import { useAuth } from "@/context/AuthContext"
+import { useNotifications } from "@/context/NotificationContext"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Separator } from "@/components/ui/Separator"
 import { cn } from "@/lib/utils"
+import { describeError } from "@/lib/errors"
+import type { NotificationPreferences } from "@/lib/notifications"
 import { toast } from "sonner"
 
 function Switch({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }) {
@@ -79,10 +84,9 @@ function SettingsRow({
 }
 
 export function SettingsPage() {
-  const { theme, setTheme } = useTheme()
-  const [emailNotifs, setEmailNotifs] = useState(true)
-  const [pushNotifs, setPushNotifs] = useState(true)
-  const [weeklyDigest, setWeeklyDigest] = useState(false)
+  const { resolvedTheme, setTheme } = useTheme()
+  const { user } = useAuth()
+  const { preferences, updatePreferences } = useNotifications()
   const [twoFactor, setTwoFactor] = useState(false)
 
   const handleThemeChange = (newTheme: "light" | "dark") => {
@@ -90,8 +94,56 @@ export function SettingsPage() {
     toast.success(`Switched to ${newTheme} mode`)
   }
 
+  const savePreference = async (patch: Partial<NotificationPreferences>) => {
+    try {
+      await updatePreferences(patch)
+    } catch (error) {
+      toast.error(describeError(error, "save your notification settings"))
+    }
+  }
+
   return (
     <div className="space-y-6">
+
+      {/* Team — admin only; the page and the invite/role RPCs are admin-gated. */}
+      {user?.role === "admin" && (
+        <Card className="p-0">
+          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Users className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="font-medium text-text">Team</p>
+                <p className="text-sm text-text-muted">Invite colleagues and manage who can access this hospital</p>
+              </div>
+            </div>
+            <Link to="/settings/team" className="shrink-0">
+              <Button variant="outline" size="sm">Manage team</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Organization — admin only; edits are owner-scoped by the hospitals RLS policy. */}
+      {user?.role === "admin" && (
+        <Card className="p-0">
+          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Building2 className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="font-medium text-text">Organization</p>
+                <p className="text-sm text-text-muted">View and update your hospital's name and contact details</p>
+              </div>
+            </div>
+            <Link to="/settings/organization" className="shrink-0">
+              <Button variant="outline" size="sm">Manage organization</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Appearance */}
       <Card className="p-0">
@@ -110,7 +162,7 @@ export function SettingsPage() {
               variant="ghost"
               size="sm"
               onClick={() => handleThemeChange("light")}
-              className={cn("h-8 gap-1.5 px-3", theme === "light" && "bg-primary text-white hover:bg-primary-hover")}
+              className={cn("h-8 gap-1.5 px-3", resolvedTheme === "light" && "bg-primary text-white hover:bg-primary-hover")}
             >
               <Sun className="h-4 w-4" />
               Light
@@ -119,7 +171,7 @@ export function SettingsPage() {
               variant="ghost"
               size="sm"
               onClick={() => handleThemeChange("dark")}
-              className={cn("h-8 gap-1.5 px-3", theme === "dark" && "bg-primary text-white hover:bg-primary-hover")}
+              className={cn("h-8 gap-1.5 px-3", resolvedTheme === "dark" && "bg-primary text-white hover:bg-primary-hover")}
             >
               <Moon className="h-4 w-4" />
               Dark
@@ -128,23 +180,39 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Notifications */}
+      {/* Notifications — in-app category preferences, persisted per user. */}
       <SettingsCard
         icon={Bell}
         iconClass="bg-blue-500/10 text-blue-500"
         title="Notifications"
-        description="Configure how you receive notifications"
+        description="Choose which in-app notifications you receive"
       >
-        <SettingsRow title="Email Notifications" description="Receive email updates about patient activities">
-          <Switch checked={emailNotifs} onChange={setEmailNotifs} />
+        <SettingsRow title="Patient updates" description="New patients, discharges and archived records">
+          <Switch
+            checked={preferences.patientEvents}
+            onChange={(value) => void savePreference({ patientEvents: value })}
+          />
         </SettingsRow>
         <Separator />
-        <SettingsRow title="Push Notifications" description="Receive browser notifications for urgent alerts">
-          <Switch checked={pushNotifs} onChange={setPushNotifs} />
+        <SettingsRow title="Team updates" description="Invitations, role changes and removed members">
+          <Switch
+            checked={preferences.teamEvents}
+            onChange={(value) => void savePreference({ teamEvents: value })}
+          />
         </SettingsRow>
         <Separator />
-        <SettingsRow title="Weekly Digest" description="Receive a weekly summary of patient statistics">
-          <Switch checked={weeklyDigest} onChange={setWeeklyDigest} />
+        <SettingsRow title="Checkout & archive activity" description="Checkout status changes and archive actions">
+          <Switch
+            checked={preferences.checkoutEvents}
+            onChange={(value) => void savePreference({ checkoutEvents: value })}
+          />
+        </SettingsRow>
+        <Separator />
+        <SettingsRow title="Announcements" description="Messages broadcast by your administrators">
+          <Switch
+            checked={preferences.announcements}
+            onChange={(value) => void savePreference({ announcements: value })}
+          />
         </SettingsRow>
       </SettingsCard>
 

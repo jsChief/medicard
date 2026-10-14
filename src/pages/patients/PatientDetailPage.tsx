@@ -8,9 +8,9 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar"
-import { Separator } from "@/components/ui/Separator"
 import { Select } from "@/components/ui/Select"
 import { EmptyState } from "@/components/ui/EmptyState"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { cn, formatDate } from "@/lib/utils"
 import { getPatient, type Patient as FirestorePatient } from "@/lib/database"
 import { useAuth } from "@/context/AuthContext"
@@ -195,14 +195,15 @@ function InfoRow({ label, value, icon }: { label: string; value: string; icon?: 
   )
 }
 
-function StatCard({ label, value, icon, color }: { label: string; value: string | number; icon: React.ReactNode; color: string }) {
+function StatPill({ label, plural, value, icon, color }: { label: string; plural?: string; value: string | number; icon: React.ReactNode; color: string }) {
+  const text = value === 1 ? label : (plural ?? `${label}s`)
   return (
-    <div className="text-center">
-      <div className={cn("mx-auto mb-2 inline-flex h-10 w-10 items-center justify-center rounded-full", color)}>
+    <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1.5 pr-3">
+      <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full", color)}>
         {icon}
-      </div>
-      <p className="text-2xl font-bold text-text">{value}</p>
-      <p className="text-xs text-text-muted">{label}</p>
+      </span>
+      <span className="text-sm font-semibold text-text">{value}</span>
+      <span className="text-xs text-text-muted">{text}</span>
     </div>
   )
 }
@@ -528,11 +529,11 @@ export function PatientDetailPage() {
           <Card className="overflow-hidden border-border/50 bg-linear-to-r from-primary/5 to-primary/10 p-0">
             <CardContent className="p-0">
               <div className="flex flex-col gap-6 border-b border-border/50 p-6 lg:flex-row lg:items-center lg:justify-between lg:p-8">
-                <div className="flex min-w-0 items-center gap-6">
+                <div className="flex min-w-0 items-center gap-4 sm:gap-6">
                   <div className="relative shrink-0">
-                    <Avatar className="h-24 w-24 ring-4 ring-surface shadow-lg sm:h-28 sm:w-28">
+                    <Avatar className="h-20 w-20 ring-4 ring-surface shadow-lg sm:h-28 sm:w-28">
                       <AvatarImage src="" alt={patient.name} />
-                      <AvatarFallback className="bg-primary text-3xl font-bold text-white">
+                      <AvatarFallback className="bg-primary text-2xl font-bold text-white sm:text-3xl">
                         {initials}
                       </AvatarFallback>
                     </Avatar>
@@ -561,14 +562,11 @@ export function PatientDetailPage() {
                 </div>
 
                 {/* Quick Stats */}
-                <div className="flex items-center justify-between gap-4 border-t border-border/50 pt-6 lg:ml-auto lg:justify-start lg:gap-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
-                  <StatCard label="Conditions" value={patient.conditions.length} icon={<Heart className="h-5 w-5" />} color="bg-red-100 text-red-600" />
-                  <Separator orientation="vertical" className="hidden h-12 lg:block" />
-                  <StatCard label="Medications" value={patient.medications.length} icon={<Pill className="h-5 w-5" />} color="bg-blue-100 text-blue-600" />
-                  <Separator orientation="vertical" className="hidden h-12 lg:block" />
-                  <StatCard label="Allergies" value={patient.allergies.length} icon={<AlertTriangle className="h-5 w-5" />} color="bg-amber-100 text-amber-600" />
-                  <Separator orientation="vertical" className="hidden h-12 lg:block" />
-                  <StatCard label="Documents" value={documents.length} icon={<FileText className="h-5 w-5" />} color="bg-purple-100 text-purple-600" />
+                <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-6 lg:ml-auto lg:justify-end lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+                  <StatPill label="Condition" plural="Conditions" value={patient.conditions.length} icon={<Heart className="h-3.5 w-3.5" />} color="bg-red-100 text-red-600" />
+                  <StatPill label="Medication" plural="Medications" value={patient.medications.length} icon={<Pill className="h-3.5 w-3.5" />} color="bg-blue-100 text-blue-600" />
+                  <StatPill label="Allergy" plural="Allergies" value={patient.allergies.length} icon={<AlertTriangle className="h-3.5 w-3.5" />} color="bg-amber-100 text-amber-600" />
+                  <StatPill label="Document" plural="Documents" value={documents.length} icon={<FileText className="h-3.5 w-3.5" />} color="bg-purple-100 text-purple-600" />
                 </div>
               </div>
 
@@ -811,7 +809,7 @@ export function PatientDetailPage() {
                 )}
               >
                 <CardContent className="p-5">
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                     <div className="flex min-w-0 flex-1 items-center gap-4">
                       <Avatar className="h-14 w-14 shrink-0">
                         <AvatarFallback className="bg-primary/10 text-xl font-bold text-primary">
@@ -826,15 +824,15 @@ export function PatientDetailPage() {
                         <p className="text-sm text-text-muted">{contact.relationship}</p>
                       </div>
                     </div>
-                    <div className="shrink-0 text-right">
-                      <a href={`tel:${contact.phone}`} className="flex items-center gap-1.5 text-sm text-primary hover:underline">
-                        <Phone className="h-4 w-4" />
+                    <div className="min-w-0 sm:shrink-0 sm:text-right">
+                      <a href={`tel:${contact.phone}`} className="flex items-center gap-1.5 text-sm text-primary hover:underline sm:justify-end">
+                        <Phone className="h-4 w-4 shrink-0" />
                         {contact.phone}
                       </a>
                       {contact.email && (
-                        <a href={`mailto:${contact.email}`} className="mt-1 flex items-center gap-1.5 text-sm text-primary hover:underline">
-                          <Mail className="h-4 w-4" />
-                          {contact.email}
+                        <a href={`mailto:${contact.email}`} className="mt-1 flex items-center gap-1.5 text-sm text-primary hover:underline sm:justify-end">
+                          <Mail className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{contact.email}</span>
                         </a>
                       )}
                     </div>
@@ -973,37 +971,52 @@ export function PatientDetailPage() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8"
-                            aria-label="View document"
-                            disabled={isBusy}
-                            onClick={() => handleOpenDocument(doc)}
-                          >
-                            {isOpening ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8"
-                            aria-label="Download document"
-                            disabled={isBusy}
-                            onClick={() => handleDownloadDocument(doc)}
-                          >
-                            {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 text-danger hover:bg-danger/10"
-                            aria-label="Delete document"
-                            disabled={isBusy}
-                            onClick={() => handleDeleteDocument(doc)}
-                          >
-                            {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                          </Button>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-10 w-10"
+                                aria-label="View document"
+                                disabled={isBusy}
+                                onClick={() => handleOpenDocument(doc)}
+                              >
+                                {isOpening ? <Loader2 className="h-5 w-5 animate-spin" /> : <ExternalLink className="h-5 w-5" />}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>View</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-10 w-10"
+                                aria-label="Download document"
+                                disabled={isBusy}
+                                onClick={() => handleDownloadDocument(doc)}
+                              >
+                                {isDownloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Download</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-10 w-10 text-danger hover:bg-danger/10"
+                                aria-label="Delete document"
+                                disabled={isBusy}
+                                onClick={() => handleDeleteDocument(doc)}
+                              >
+                                {isDeleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete</TooltipContent>
+                          </Tooltip>
                         </div>
                       </div>
                     )

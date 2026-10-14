@@ -289,7 +289,7 @@ export function PricingPage() {
       {/* CTA */}
       <section className="bg-bg pb-20 lg:pb-28">
         <div className="container-app">
-          <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-primary via-primary to-secondary px-6 py-16 sm:px-12 sm:py-20">
+          <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-[#115e59] via-[#0f766e] to-secondary px-6 py-16 sm:px-12 sm:py-20">
             <div className="pointer-events-none absolute inset-0">
               <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
               <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-white/10 blur-2xl" />

@@ -17,6 +17,7 @@ import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { SortableTh } from "@/components/ui/SortableTh"
 import { cn, formatDate } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
+import { useNotifications } from "@/context/NotificationContext"
 import {
   queryArchives,
   bulkDeleteArchives,
@@ -79,6 +80,7 @@ function getStatusConfig(status: ArchiveStatus) {
 
 export function ArchivePage() {
   const { user } = useAuth()
+  const { notify } = useNotifications()
   const [isLoading, setIsLoading] = useState(true)
   const [archiveRecords, setArchiveRecords] = useState<ArchivedPatient[]>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -179,6 +181,14 @@ export function ArchivePage() {
         setSelectedItems(records.filter((record) => !done.has(record.id)).map((record) => record.id))
       }
       toast[result.failed === 0 ? "success" : "error"](batchMessage("Restored", result))
+      if (result.succeeded > 0) {
+        await notify({
+          type: "patient",
+          title: "Archive records restored",
+          description: `${result.succeeded} patient${result.succeeded === 1 ? "" : "s"} restored from the archive`,
+          link: "/archive",
+        })
+      }
       await fetchArchives()
     } catch (error) {
       console.error("Failed to restore records:", error)
@@ -226,6 +236,14 @@ export function ArchivePage() {
         // The refresh still runs so the archived rows that did succeed appear,
         // but the error toast makes the partial state explicit.
         toast.error(batchMessage("Archived", archived, { successNoun: "patient" }))
+      }
+      if (archived.succeeded > 0) {
+        await notify({
+          type: "patient",
+          title: "Patients archived",
+          description: `${archived.succeeded} discharged patient${archived.succeeded === 1 ? "" : "s"} moved to the archive`,
+          link: "/archive",
+        })
       }
       await fetchArchives()
     } catch (error) {

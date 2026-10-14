@@ -22,6 +22,7 @@ import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { SortableTh } from "@/components/ui/SortableTh"
 import { cn, formatDate } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
+import { useNotifications } from "@/context/NotificationContext"
 import {
   queryCheckouts,
   updateCheckout,
@@ -95,6 +96,7 @@ function getStatusConfig(status: CheckoutView["status"]) {
 
 export function CheckoutsPage() {
   const { user } = useAuth()
+  const { notify } = useNotifications()
   const [isLoading, setIsLoading] = useState(true)
   const [checkouts, setCheckouts] = useState<Checkout[]>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -192,6 +194,14 @@ export function CheckoutsPage() {
       toast[result.failed === 0 ? "success" : "error"](
         batchMessage("Updated", result, { successNoun: "checkout" }),
       )
+      if (result.succeeded > 0) {
+        await notify({
+          type: "checkout",
+          title: "Checkout status updated",
+          description: `${result.succeeded} checkout${result.succeeded === 1 ? "" : "s"} moved to ${status.replace("-", " ")}`,
+          link: "/checkouts",
+        })
+      }
       await fetchCheckouts()
     } catch (error) {
       console.error("Failed to update checkouts:", error)

@@ -31,11 +31,24 @@ interface ProfileRow {
   updated_at: string
 }
 
+/**
+ * How the new account relates to a hospital.
+ *
+ *   "create" — self-service: provision a new hospital and make this user its
+ *              admin/owner.
+ *   "join"   — the user expects a pending invitation. There is no way to name
+ *              the hospital from the client (that would let anyone join any
+ *              tenant), so the signup trigger resolves the invite by email. If
+ *              none exists the trigger aborts the signup.
+ */
+export type SignUpIntent = "create" | "join"
+
 export interface SignUpInput {
   email: string
   password: string
   name: string
-  role: AppRole
+  intent: SignUpIntent
+  /** Only meaningful when intent is "create". */
   hospitalName: string
 }
 
@@ -84,11 +97,16 @@ export async function registerWithEmail(input: SignUpInput): Promise<SignUpResul
     email: input.email,
     password: input.password,
     options: {
-      // Consumed by the public.handle_new_user() trigger, which provisions the
-      // hospital row and the profile row for the new auth user.
+      // Consumed by the public.handle_new_user() trigger
+      // (20260102000600_hospital_invites.sql), which either attaches this user
+      // to the hospital that invited their email or provisions a new one.
+      //
+      // `role` is deliberately absent: the trigger takes the role from the
+      // invite row for invited users and forces 'admin' for creators, so a
+      // client could never choose it anyway.
       data: {
         name: input.name,
-        role: input.role,
+        intent: input.intent,
         hospital_name: input.hospitalName,
       },
       emailRedirectTo: typeof window === "undefined" ? undefined : `${window.location.origin}/verify-email`,

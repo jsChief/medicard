@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import {
   Users,
   Archive,
+  Upload,
   Clock,
-  FileText,
   ChevronDown,
   RefreshCw,
 } from "lucide-react";
@@ -122,11 +122,11 @@ export function DashboardPage() {
       href: "/patients/new",
     },
     {
-      label: "Create Patient Card",
-      description: "Start a new admission/discharge",
-      icon: FileText,
+      label: "Import Patients",
+      description: "Bulk-add patients from a CSV file",
+      icon: Upload,
       iconBg: "bg-success/10 text-success",
-      href: "/patient-cards/new",
+      href: "/patients",
     },
     {
       label: "Manage Archive",

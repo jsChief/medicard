@@ -8,7 +8,6 @@ import {
 import {
   LayoutDashboard,
   Users,
-  FileText,
   Archive,
   Clock,
   MapPin,
@@ -19,19 +18,18 @@ import {
   Search,
   Sun,
   Moon,
+  UserCog,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/Button";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import cardeaseLogo from "@/assets/cardease.png";
 import {
   SearchDialog,
 } from "@/components/layout/SearchDialog";
-import {
-  NotificationsDialog,
-  type AppNotification,
-} from "@/components/layout/NotificationsDialog";
+import { NotificationsMenu } from "@/components/layout/NotificationsMenu";
 import { useAuth } from "@/context/AuthContext";
 import { getHospital } from "@/lib/database";
 import { describeError } from "@/lib/errors";
@@ -53,15 +51,18 @@ import {
 } from "@/components/ui/sidebar";
 import {CustomTrigger} from "@/components/ui/SidebarTrigger";
 
-const navigation = [
+// Settings is appended separately so an admin-only "Team" entry can slot in
+// just before it without reordering the module-level list.
+const baseNavigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Patients", href: "/patients", icon: Users },
-  { name: "Patient Cards", href: "/patient-cards", icon: FileText },
   { name: "Archive", href: "/archive", icon: Archive },
   { name: "Active Checkouts", href: "/checkouts", icon: Clock },
   { name: "Location Matrix", href: "/location-matrix", icon: MapPin },
-  { name: "Settings", href: "/settings", icon: Settings },
 ];
+
+const settingsNavigation = { name: "Settings", href: "/settings", icon: Settings };
+const teamNavigation = { name: "Team", href: "/settings/team", icon: UserCog };
 
 // function MobileMenuButton() {
 //   const { toggleSidebar } = useSidebar();
@@ -80,61 +81,60 @@ export function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
+
+  // Only admins can manage the team, so the entry (and its page) is hidden for
+  // everyone else. The server enforces this too: invite/role/remove RPCs all
+  // require is_admin().
+  const navigation =
+    user?.role === "admin"
+      ? [...baseNavigation, teamNavigation, settingsNavigation]
+      : [...baseNavigation, settingsNavigation];
+
+  // Notifications is reached from the bell rather than the sidebar, but it still
+  // needs a page title and should be searchable, so it joins a wider list.
+  const notificationsNavigation = { name: "Notifications", href: "/notifications", icon: Bell };
+  const titleNavigation = [...navigation, notificationsNavigation];
+
+  // Highlight only the most specific match. "/settings/team" is both its own
+  // entry and a child of "/settings", so a plain prefix test lights up both.
+  const activeHref = navigation.reduce<string | null>((best, item) => {
+    const matches =
+      location.pathname === item.href ||
+      location.pathname.startsWith(item.href + "/");
+    if (!matches) return best;
+    return !best || item.href.length > best.length ? item.href : best;
+  }, null);
 
   const [hospitalName, setHospitalName] = useState<string>("");
 
   useEffect(() => {
     let cancelled = false;
-    if (user?.hospitalId) {
-      getHospital(user.hospitalId)
-        .then((hospital) => {
-          if (!cancelled) setHospitalName(hospital?.name || "");
-        })
-        .catch((error) => {
-          // Cosmetic only: the shell still works without the name, so this must
-          // not escalate to a toast on every layout mount.
-          console.error("Failed to load hospital name:", error);
-        });
-    }
+    const loadHospitalName = () => {
+      if (user?.hospitalId) {
+        getHospital(user.hospitalId)
+          .then((hospital) => {
+            if (!cancelled) setHospitalName(hospital?.name || "");
+          })
+          .catch((error) => {
+            // Cosmetic only: the shell still works without the name, so this must
+            // not escalate to a toast on every layout mount.
+            console.error("Failed to load hospital name:", error);
+          });
+      }
+    };
+
+    loadHospitalName();
+    // Fired by the Organization settings page after the hospital is renamed, so
+    // the sidebar reflects the new name without a reload.
+    window.addEventListener("cardease:hospital-updated", loadHospitalName);
     return () => {
       cancelled = true;
+      window.removeEventListener("cardease:hospital-updated", loadHospitalName);
     };
   }, [user?.hospitalId]);
 
   const [searchOpen, setSearchOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState<AppNotification[]>([
-    {
-      id: "1",
-      title: "Bed availability alert",
-      description: "ICU Unit 1 has only 1 bed remaining and is at critical occupancy.",
-      time: "2 minutes ago",
-      type: "alert",
-    },
-    {
-      id: "2",
-      title: "New patient admitted",
-      description: "Adaeze Nnamdi was admitted to General Ward A (Bed 12).",
-      time: "1 hour ago",
-      type: "patient",
-    },
-    {
-      id: "4",
-      title: "OR schedule updated",
-      description: "Operating Theater 3 maintenance pushed OT-112 to 16:00.",
-      time: "3 hours ago",
-      type: "schedule",
-    },
-    {
-      id: "5",
-      title: "Security system check",
-      description: "Routine security scan completed. No issues detected.",
-      time: "Yesterday",
-      type: "system",
-      read: true,
-    },
-  ]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -146,18 +146,6 @@ export function DashboardLayout() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const markNotificationRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
-    );
-  };
-
-  const markAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
 
   const handleLogout = async () => {
     // logout() navigates to /login itself, including when the network call fails.
@@ -181,7 +169,7 @@ export function DashboardLayout() {
             <img
               src={cardeaseLogo}
               alt="CardEase"
-              className="h-8 w-8 shrink-0 rounded-lg bg-white object-contain p-0.5"
+              className="size-12 shrink-0 rounded-lg object-contain p-0.5"
             />
             <span className="text-xl font-bold text-text group-data-[collapsible=icon]:hidden">
               CardEase
@@ -194,9 +182,7 @@ export function DashboardLayout() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {navigation.map((item) => {
-                  const isActive =
-                    location.pathname === item.href ||
-                    location.pathname.startsWith(item.href + "/");
+                  const isActive = item.href === activeHref;
                   return (
                     <SidebarMenuItem
                       key={item.name}
@@ -305,7 +291,7 @@ export function DashboardLayout() {
               <CustomTrigger />
               
               <h1 className="text-xl font-semibold text-text">
-                {navigation.find(
+                {titleNavigation.find(
                   (n) =>
                     location.pathname === n.href ||
                     location.pathname.startsWith(n.href + "/"),
@@ -313,20 +299,7 @@ export function DashboardLayout() {
               </h1>
             </div>
             <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="relative"
-                onClick={() => setNotifOpen(true)}
-                aria-label="Open notifications"
-              >
-                <Bell className="h-5 w-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-[10px] font-medium text-white">
-                    {unreadCount}
-                  </span>
-                )}
-              </Button>
+              <NotificationsMenu />
 
               <div className="hidden sm:flex h-8 w-px bg-border" />
               <Button
@@ -341,7 +314,7 @@ export function DashboardLayout() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
                 aria-label="Toggle theme"
               >
                 <Sun className="h-5 w-5 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
@@ -353,21 +326,16 @@ export function DashboardLayout() {
 
         {/* Page content */}
         <div className="min-w-0 overflow-x-clip p-3 lg:p-4">
-          <Outlet />
+          <TooltipProvider>
+            <Outlet />
+          </TooltipProvider>
         </div>
       </SidebarInset>
 
       <SearchDialog
         open={searchOpen}
         onOpenChange={setSearchOpen}
-        links={navigation}
-      />
-      <NotificationsDialog
-        open={notifOpen}
-        onOpenChange={setNotifOpen}
-        notifications={notifications}
-        onMarkRead={markNotificationRead}
-        onMarkAll={markAllNotificationsRead}
+        links={titleNavigation}
       />
     </SidebarProvider>
   );

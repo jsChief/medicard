@@ -750,6 +750,158 @@ export async function deleteStaffMember(id: string): Promise<void> {
 }
 
 /* ============================================================================
+ * Team — the people who can sign in to this hospital.
+ *
+ * Unlike public.staff (unused HR-style records), a "member" is a public.profiles
+ * row: the same auth user that owns the session. Membership is therefore shared
+ * tenancy — everyone with a profiles.hospital_id sees the same patients.
+ * ========================================================================== */
+
+export type TeamRole = "admin" | "doctor" | "nurse" | "receptionist"
+
+export interface HospitalMember {
+  id: string
+  email: string
+  name: string
+  role: TeamRole
+  avatar?: string
+  createdAt: Date
+}
+
+export interface HospitalInvite {
+  id: string
+  email: string
+  role: TeamRole
+  expiresAt: Date
+  acceptedAt?: Date
+  createdAt: Date
+}
+
+interface HospitalMemberRow {
+  id: string
+  email: string
+  name: string
+  role: TeamRole
+  avatar: string | null
+  created_at: string
+}
+
+interface HospitalInviteRow {
+  id: string
+  email: string
+  role: TeamRole
+  expires_at: string
+  accepted_at: string | null
+  created_at: string
+}
+
+function mapHospitalInvite(row: HospitalInviteRow): HospitalInvite {
+  return {
+    id: row.id,
+    email: row.email,
+    role: row.role,
+    expiresAt: toDate(row.expires_at),
+    acceptedAt: row.accepted_at ? toDate(row.accepted_at) : undefined,
+    createdAt: toDate(row.created_at),
+  }
+}
+
+/**
+ * Members of the caller's hospital. RLS already scopes public.profiles to
+ * "own row OR same hospital", so no explicit hospital filter is needed — and
+ * adding one would require threading hospital_id through every caller.
+ */
+export async function getHospitalMembers(): Promise<HospitalMember[]> {
+  const { data, error } = await getSupabase()
+    .from("profiles")
+    .select("id, email, name, role, avatar, created_at")
+    .order("created_at", { ascending: true })
+
+  if (error) throw new Error(`${error.message} [${error.code ?? "select"}]`)
+  return ((data ?? []) as HospitalMemberRow[]).map((row) => ({
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    role: row.role,
+    avatar: row.avatar ?? undefined,
+    createdAt: toDate(row.created_at),
+  }))
+}
+
+/** Pending (not yet accepted, not expired) invites for the caller's hospital. */
+export async function getHospitalInvites(): Promise<HospitalInvite[]> {
+  const { data, error } = await getSupabase()
+    .from("hospital_invites")
+    .select("id, email, role, expires_at, accepted_at, created_at")
+    .is("accepted_at", null)
+    .order("created_at", { ascending: false })
+
+  if (error) throw new Error(`${error.message} [${error.code ?? "select"}]`)
+  return ((data ?? []) as HospitalInviteRow[]).map(mapHospitalInvite)
+}
+
+/**
+ * Invites (or re-invites) an email into the caller's hospital.
+ *
+ * Upsert on (hospital_id, lower(email)) so re-inviting resets expiry and clears
+ * a previous acceptance rather than erroring on the unique index.
+ */
+export async function createHospitalInvite(params: {
+  hospitalId: string
+  email: string
+  role: TeamRole
+  invitedBy: string
+}): Promise<void> {
+  const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+
+  const { error } = await getSupabase()
+    .from("hospital_invites")
+    .upsert(
+      {
+        hospital_id: params.hospitalId,
+        email: params.email.trim().toLowerCase(),
+        role: params.role,
+        invited_by: params.invitedBy,
+        accepted_at: null,
+        expires_at: expiresAt,
+      },
+      { onConflict: "hospital_id,email" },
+    )
+
+  if (error) throw new Error(`${error.message} [${error.code ?? "upsert"}]`)
+}
+
+export async function cancelHospitalInvite(id: string): Promise<void> {
+  const { error } = await getSupabase().from("hospital_invites").delete().eq("id", id)
+  if (error) throw new Error(`${error.message} [${error.code ?? "delete"}]`)
+}
+
+/** Admin-only. Server-enforced; the UI gating is just a convenience. */
+export async function setStaffRole(userId: string, role: TeamRole): Promise<void> {
+  const { error } = await getSupabase().rpc("set_staff_role", { p_user_id: userId, p_role: role })
+  if (error) throw new Error(`${error.message} [${error.code ?? "rpc"}]`)
+}
+
+/** Admin-only. Deletes the profile row, revoking the person's access. */
+export async function removeStaff(userId: string): Promise<void> {
+  const { error } = await getSupabase().rpc("remove_staff", { p_user_id: userId })
+  if (error) throw new Error(`${error.message} [${error.code ?? "rpc"}]`)
+}
+
+/**
+ * Pre-flight check for the "join a team" registration path, callable while
+ * signed out. See has_pending_invite() in 20260102000600_hospital_invites.sql
+ * for why this exists instead of relying on the signup error.
+ */
+export async function hasPendingInvite(email: string): Promise<boolean> {
+  const { data, error } = await getSupabase().rpc("has_pending_invite", {
+    p_email: email.trim().toLowerCase(),
+  })
+  if (error) throw new Error(`${error.message} [${error.code ?? "rpc"}]`)
+  return Boolean(data)
+}
+
+/* ============================================================================
  * Locations
  * ========================================================================== */
 

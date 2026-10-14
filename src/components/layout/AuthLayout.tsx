@@ -10,19 +10,20 @@ const features = [
   { icon: Activity, label: "Real-time collaboration" },
 ]
 
-const stats = [
-  { value: "500+", label: "Hospitals" },
-  { value: "120k+", label: "Patient cards" },
-  { value: "99.9%", label: "Uptime SLA" },
-]
+// Hidden with the testimonial card — we don't have verified figures yet.
+// const stats = [
+//   { value: "500+", label: "Hospitals" },
+//   { value: "120k+", label: "Patient cards" },
+//   { value: "99.9%", label: "Uptime SLA" },
+// ]
 
 function BrandMark({ className }: { className?: string }) {
   return (
-    <Link to="/" className={`flex items-center gap-2.5 ${className ?? ""}`} aria-label="CardEase Home">
+    <Link to="/" className={`flex items-center gap-2 ${className ?? ""}`} aria-label="CardEase Home">
       <img
         src={cardeaseLogo}
         alt="CardEase"
-        className="h-9 w-9 rounded-xl bg-white object-contain p-1 shadow-lg shadow-black/10"
+        className="size-14 rounded-xl object-contain p-1 shadow-black/10"
       />
       <span className="text-xl font-bold tracking-tight">CardEase</span>
     </Link>
@@ -36,10 +37,10 @@ export function AuthLayout() {
       <aside className="relative hidden overflow-hidden bg-secondary lg:flex lg:w-[46%] lg:flex-col lg:justify-between lg:p-12 xl:w-[44%]">
         {/* Decorative layer */}
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-linear-to-br from-secondary via-[#0d7d88] to-primary" />
+          <div className="absolute inset-0 bg-linear-to-br from-secondary via-[#0d7d88] to-[#115e59]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.14)_1px,transparent_0)] bg-size-[26px_26px]" />
           <div className="absolute -left-28 -top-28 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
-          <div className="absolute -bottom-24 -right-16 h-96 w-96 rounded-full bg-primary/50 blur-3xl" />
+          <div className="absolute -bottom-24 -right-16 h-96 w-96 rounded-full bg-[#0f766e]/40 blur-3xl" />
           <div className="absolute right-24 top-1/3 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
         </div>
 
@@ -74,6 +75,8 @@ export function AuthLayout() {
         </div>
 
         <div className="relative z-10">
+          {/* Testimonial and stats are hidden for now — we don't have verified
+              figures yet.
           <div className="rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-md">
             <div className="flex items-center gap-4">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-primary">
@@ -92,6 +95,7 @@ export function AuthLayout() {
               ))}
             </div>
           </div>
+          */}
           <p className="mt-6 flex items-center justify-between text-white/50 text-sm">
             <span>© {new Date().getFullYear()} CardEase. All rights reserved.</span>
             <Link to="/about" className="flex items-center gap-1 text-white/80 transition-colors hover:text-white">

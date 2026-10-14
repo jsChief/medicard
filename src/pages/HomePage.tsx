@@ -174,11 +174,6 @@ export function HomePage() {
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to="/demo">
-                <Button variant="outline" size="lg" className="w-full sm:w-auto">
-                  Watch Demo
-                </Button>
-              </Link>
             </div>
 
             <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-text-muted">
@@ -374,7 +369,7 @@ export function HomePage() {
       {/* CTA Section */}
       <section className="relative overflow-hidden bg-bg pb-20 lg:pb-28">
         <div className="container-app">
-          <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-primary via-primary to-secondary px-6 py-16 sm:px-12 sm:py-20">
+          <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-[#115e59] via-[#0f766e] to-secondary px-6 py-16 sm:px-12 sm:py-20">
             {/* Decorative layer */}
             <div className="pointer-events-none absolute inset-0">
               <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
