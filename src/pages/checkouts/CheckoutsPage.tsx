@@ -13,6 +13,7 @@ import {
   Calendar,
   User,
   Loader2,
+  Plus,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
@@ -32,6 +33,7 @@ import {
 import { toast } from "sonner"
 import { describeError, runBatch, batchMessage } from "@/lib/errors"
 import { ErrorState } from "@/components/common/ErrorState"
+import { NewCheckoutDialog } from "@/components/checkouts/NewCheckoutDialog"
 
 interface CheckoutView {
   id: string
@@ -106,6 +108,7 @@ export function CheckoutsPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
+  const [isNewCheckoutOpen, setIsNewCheckoutOpen] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const fetchCheckouts = useCallback(async () => {
@@ -250,8 +253,8 @@ export function CheckoutsPage() {
             <Download className="h-4 w-4" />
             Export
           </Button>
-          <Button className="gap-2">
-            <ArrowRight className="h-4 w-4" />
+          <Button className="gap-2" onClick={() => setIsNewCheckoutOpen(true)}>
+            <Plus className="h-4 w-4" />
             New Checkout
           </Button>
         </div>
@@ -482,6 +485,15 @@ export function CheckoutsPage() {
           </div>
         ) : null}
       </Card>
+
+      <NewCheckoutDialog
+        open={isNewCheckoutOpen}
+        onOpenChange={setIsNewCheckoutOpen}
+        onCreated={async (checkoutId) => {
+          await fetchCheckouts()
+          setExpandedRow(checkoutId)
+        }}
+      />
     </div>
   )
 }
