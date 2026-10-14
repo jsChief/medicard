@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { AuthProvider, useAuth } from "@/context/AuthContext"
+import { NotificationProvider } from "@/context/NotificationContext"
 import { Layout } from "./components/layout/Layout"
 import { AuthLayout } from "./components/layout/AuthLayout"
 import { DashboardLayout } from "./components/layout/DashboardLayout"
@@ -19,6 +20,7 @@ import { SettingsPage } from "./pages/settings/SettingsPage"
 import { TeamPage } from "./pages/settings/TeamPage"
 import { OrganizationPage } from "./pages/settings/OrganizationPage"
 import { ProfilePage } from "./pages/profile/ProfilePage"
+import { NotificationsPage } from "./pages/notifications/NotificationsPage"
 import { ArchivePage } from "./pages/archive/ArchivePage"
 import { CheckoutsPage } from "./pages/checkouts/CheckoutsPage"
 import { LocationMatrixPage } from "./pages/location-matrix/LocationMatrixPage"
@@ -148,7 +150,9 @@ function App() {
           {/* Protected routes */}
           <Route element={
             <ProtectedRoute>
-              <DashboardLayout />
+              <NotificationProvider>
+                <DashboardLayout />
+              </NotificationProvider>
             </ProtectedRoute>
           }>
             <Route path="/dashboard" element={<DashboardPage />} />
@@ -179,7 +183,7 @@ function App() {
               }
             />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/notifications" element={<div className="container-app py-12 text-center"><h1 className="text-3xl font-bold">Notifications - Coming Soon</h1></div>} />
+            <Route path="/notifications" element={<NotificationsPage />} />
           </Route>
         </Routes>
       </AuthProvider>

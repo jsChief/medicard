@@ -3,10 +3,13 @@ import { Link } from "react-router-dom"
 import { Sun, Moon, Bell, Shield, Database, Users, Building2 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/context/AuthContext"
+import { useNotifications } from "@/context/NotificationContext"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Separator } from "@/components/ui/Separator"
 import { cn } from "@/lib/utils"
+import { describeError } from "@/lib/errors"
+import type { NotificationPreferences } from "@/lib/notifications"
 import { toast } from "sonner"
 
 function Switch({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }) {
@@ -83,14 +86,20 @@ function SettingsRow({
 export function SettingsPage() {
   const { resolvedTheme, setTheme } = useTheme()
   const { user } = useAuth()
-  const [emailNotifs, setEmailNotifs] = useState(true)
-  const [pushNotifs, setPushNotifs] = useState(true)
-  const [weeklyDigest, setWeeklyDigest] = useState(false)
+  const { preferences, updatePreferences } = useNotifications()
   const [twoFactor, setTwoFactor] = useState(false)
 
   const handleThemeChange = (newTheme: "light" | "dark") => {
     setTheme(newTheme)
     toast.success(`Switched to ${newTheme} mode`)
+  }
+
+  const savePreference = async (patch: Partial<NotificationPreferences>) => {
+    try {
+      await updatePreferences(patch)
+    } catch (error) {
+      toast.error(describeError(error, "save your notification settings"))
+    }
   }
 
   return (
@@ -171,23 +180,39 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Notifications */}
+      {/* Notifications — in-app category preferences, persisted per user. */}
       <SettingsCard
         icon={Bell}
         iconClass="bg-blue-500/10 text-blue-500"
         title="Notifications"
-        description="Configure how you receive notifications"
+        description="Choose which in-app notifications you receive"
       >
-        <SettingsRow title="Email Notifications" description="Receive email updates about patient activities">
-          <Switch checked={emailNotifs} onChange={setEmailNotifs} />
+        <SettingsRow title="Patient updates" description="New patients, discharges and archived records">
+          <Switch
+            checked={preferences.patientEvents}
+            onChange={(value) => void savePreference({ patientEvents: value })}
+          />
         </SettingsRow>
         <Separator />
-        <SettingsRow title="Push Notifications" description="Receive browser notifications for urgent alerts">
-          <Switch checked={pushNotifs} onChange={setPushNotifs} />
+        <SettingsRow title="Team updates" description="Invitations, role changes and removed members">
+          <Switch
+            checked={preferences.teamEvents}
+            onChange={(value) => void savePreference({ teamEvents: value })}
+          />
         </SettingsRow>
         <Separator />
-        <SettingsRow title="Weekly Digest" description="Receive a weekly summary of patient statistics">
-          <Switch checked={weeklyDigest} onChange={setWeeklyDigest} />
+        <SettingsRow title="Checkout & archive activity" description="Checkout status changes and archive actions">
+          <Switch
+            checked={preferences.checkoutEvents}
+            onChange={(value) => void savePreference({ checkoutEvents: value })}
+          />
+        </SettingsRow>
+        <Separator />
+        <SettingsRow title="Announcements" description="Messages broadcast by your administrators">
+          <Switch
+            checked={preferences.announcements}
+            onChange={(value) => void savePreference({ announcements: value })}
+          />
         </SettingsRow>
       </SettingsCard>
 

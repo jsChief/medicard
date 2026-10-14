@@ -29,10 +29,7 @@ import cardeaseLogo from "@/assets/cardease.png";
 import {
   SearchDialog,
 } from "@/components/layout/SearchDialog";
-import {
-  NotificationsDialog,
-  type AppNotification,
-} from "@/components/layout/NotificationsDialog";
+import { NotificationsMenu } from "@/components/layout/NotificationsMenu";
 import { useAuth } from "@/context/AuthContext";
 import { getHospital } from "@/lib/database";
 import { describeError } from "@/lib/errors";
@@ -94,6 +91,11 @@ export function DashboardLayout() {
       ? [...baseNavigation, teamNavigation, settingsNavigation]
       : [...baseNavigation, settingsNavigation];
 
+  // Notifications is reached from the bell rather than the sidebar, but it still
+  // needs a page title and should be searchable, so it joins a wider list.
+  const notificationsNavigation = { name: "Notifications", href: "/notifications", icon: Bell };
+  const titleNavigation = [...navigation, notificationsNavigation];
+
   // Highlight only the most specific match. "/settings/team" is both its own
   // entry and a child of "/settings", so a plain prefix test lights up both.
   const activeHref = navigation.reduce<string | null>((best, item) => {
@@ -133,38 +135,6 @@ export function DashboardLayout() {
   }, [user?.hospitalId]);
 
   const [searchOpen, setSearchOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState<AppNotification[]>([
-    {
-      id: "1",
-      title: "Bed availability alert",
-      description: "ICU Unit 1 has only 1 bed remaining and is at critical occupancy.",
-      time: "2 minutes ago",
-      type: "alert",
-    },
-    {
-      id: "2",
-      title: "New patient admitted",
-      description: "Adaeze Nnamdi was admitted to General Ward A (Bed 12).",
-      time: "1 hour ago",
-      type: "patient",
-    },
-    {
-      id: "4",
-      title: "OR schedule updated",
-      description: "Operating Theater 3 maintenance pushed OT-112 to 16:00.",
-      time: "3 hours ago",
-      type: "schedule",
-    },
-    {
-      id: "5",
-      title: "Security system check",
-      description: "Routine security scan completed. No issues detected.",
-      time: "Yesterday",
-      type: "system",
-      read: true,
-    },
-  ]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -176,18 +146,6 @@ export function DashboardLayout() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const markNotificationRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
-    );
-  };
-
-  const markAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
 
   const handleLogout = async () => {
     // logout() navigates to /login itself, including when the network call fails.
@@ -333,7 +291,7 @@ export function DashboardLayout() {
               <CustomTrigger />
               
               <h1 className="text-xl font-semibold text-text">
-                {navigation.find(
+                {titleNavigation.find(
                   (n) =>
                     location.pathname === n.href ||
                     location.pathname.startsWith(n.href + "/"),
@@ -341,20 +299,7 @@ export function DashboardLayout() {
               </h1>
             </div>
             <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="relative"
-                onClick={() => setNotifOpen(true)}
-                aria-label="Open notifications"
-              >
-                <Bell className="h-5 w-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-[10px] font-medium text-white">
-                    {unreadCount}
-                  </span>
-                )}
-              </Button>
+              <NotificationsMenu />
 
               <div className="hidden sm:flex h-8 w-px bg-border" />
               <Button
@@ -390,14 +335,7 @@ export function DashboardLayout() {
       <SearchDialog
         open={searchOpen}
         onOpenChange={setSearchOpen}
-        links={navigation}
-      />
-      <NotificationsDialog
-        open={notifOpen}
-        onOpenChange={setNotifOpen}
-        notifications={notifications}
-        onMarkRead={markNotificationRead}
-        onMarkAll={markAllNotificationsRead}
+        links={titleNavigation}
       />
     </SidebarProvider>
   );
