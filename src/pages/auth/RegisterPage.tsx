@@ -56,11 +56,22 @@ const registerSchema = z
     }),
   })
   .superRefine((data, ctx) => {
-    if (data.mode === "create" && data.hospitalName.trim().length < 3) {
+    if (data.mode !== "create") return
+    const hospitalName = data.hospitalName.trim()
+    if (hospitalName.length < 3) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["hospitalName"],
         message: "Hospital name must be at least 3 characters",
+      })
+    } else if (hospitalName.includes("@")) {
+      // Guard against browser/password-manager autofill dropping the login
+      // email into this field, which would otherwise name the whole tenant
+      // after an email address.
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["hospitalName"],
+        message: "Enter your hospital's name, not an email address",
       })
     }
   })

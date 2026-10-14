@@ -99,19 +99,27 @@ export function DashboardLayout() {
 
   useEffect(() => {
     let cancelled = false;
-    if (user?.hospitalId) {
-      getHospital(user.hospitalId)
-        .then((hospital) => {
-          if (!cancelled) setHospitalName(hospital?.name || "");
-        })
-        .catch((error) => {
-          // Cosmetic only: the shell still works without the name, so this must
-          // not escalate to a toast on every layout mount.
-          console.error("Failed to load hospital name:", error);
-        });
-    }
+    const loadHospitalName = () => {
+      if (user?.hospitalId) {
+        getHospital(user.hospitalId)
+          .then((hospital) => {
+            if (!cancelled) setHospitalName(hospital?.name || "");
+          })
+          .catch((error) => {
+            // Cosmetic only: the shell still works without the name, so this must
+            // not escalate to a toast on every layout mount.
+            console.error("Failed to load hospital name:", error);
+          });
+      }
+    };
+
+    loadHospitalName();
+    // Fired by the Organization settings page after the hospital is renamed, so
+    // the sidebar reflects the new name without a reload.
+    window.addEventListener("cardease:hospital-updated", loadHospitalName);
     return () => {
       cancelled = true;
+      window.removeEventListener("cardease:hospital-updated", loadHospitalName);
     };
   }, [user?.hospitalId]);
 

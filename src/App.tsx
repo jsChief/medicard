@@ -18,6 +18,7 @@ import { PatientDetailPage } from "./pages/patients/PatientDetailPage"
 import { EditPatientPage } from "./pages/patients/EditPatientPage"
 import { SettingsPage } from "./pages/settings/SettingsPage"
 import { TeamPage } from "./pages/settings/TeamPage"
+import { OrganizationPage } from "./pages/settings/OrganizationPage"
 import { ProfilePage } from "./pages/profile/ProfilePage"
 import { PatientCardsPage } from "./pages/patient-cards/PatientCardsPage"
 import { ArchivePage } from "./pages/archive/ArchivePage"
@@ -170,6 +171,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
                   <TeamPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings/organization"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <OrganizationPage />
                 </ProtectedRoute>
               }
             />
