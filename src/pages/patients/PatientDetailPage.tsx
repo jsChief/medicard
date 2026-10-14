@@ -529,11 +529,11 @@ export function PatientDetailPage() {
           <Card className="overflow-hidden border-border/50 bg-linear-to-r from-primary/5 to-primary/10 p-0">
             <CardContent className="p-0">
               <div className="flex flex-col gap-6 border-b border-border/50 p-6 lg:flex-row lg:items-center lg:justify-between lg:p-8">
-                <div className="flex min-w-0 items-center gap-6">
+                <div className="flex min-w-0 items-center gap-4 sm:gap-6">
                   <div className="relative shrink-0">
-                    <Avatar className="h-24 w-24 ring-4 ring-surface shadow-lg sm:h-28 sm:w-28">
+                    <Avatar className="h-20 w-20 ring-4 ring-surface shadow-lg sm:h-28 sm:w-28">
                       <AvatarImage src="" alt={patient.name} />
-                      <AvatarFallback className="bg-primary text-3xl font-bold text-white">
+                      <AvatarFallback className="bg-primary text-2xl font-bold text-white sm:text-3xl">
                         {initials}
                       </AvatarFallback>
                     </Avatar>
@@ -562,7 +562,7 @@ export function PatientDetailPage() {
                 </div>
 
                 {/* Quick Stats */}
-                <div className="flex items-center justify-between gap-4 border-t border-border/50 pt-6 lg:ml-auto lg:justify-start lg:gap-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+                <div className="grid grid-cols-2 gap-4 border-t border-border/50 pt-6 sm:grid-cols-4 lg:ml-auto lg:flex lg:items-center lg:justify-start lg:gap-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
                   <StatCard label="Conditions" value={patient.conditions.length} icon={<Heart className="h-5 w-5" />} color="bg-red-100 text-red-600" />
                   <Separator orientation="vertical" className="hidden h-12 lg:block" />
                   <StatCard label="Medications" value={patient.medications.length} icon={<Pill className="h-5 w-5" />} color="bg-blue-100 text-blue-600" />
@@ -812,7 +812,7 @@ export function PatientDetailPage() {
                 )}
               >
                 <CardContent className="p-5">
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                     <div className="flex min-w-0 flex-1 items-center gap-4">
                       <Avatar className="h-14 w-14 shrink-0">
                         <AvatarFallback className="bg-primary/10 text-xl font-bold text-primary">
@@ -827,15 +827,15 @@ export function PatientDetailPage() {
                         <p className="text-sm text-text-muted">{contact.relationship}</p>
                       </div>
                     </div>
-                    <div className="shrink-0 text-right">
-                      <a href={`tel:${contact.phone}`} className="flex items-center gap-1.5 text-sm text-primary hover:underline">
-                        <Phone className="h-4 w-4" />
+                    <div className="min-w-0 sm:shrink-0 sm:text-right">
+                      <a href={`tel:${contact.phone}`} className="flex items-center gap-1.5 text-sm text-primary hover:underline sm:justify-end">
+                        <Phone className="h-4 w-4 shrink-0" />
                         {contact.phone}
                       </a>
                       {contact.email && (
-                        <a href={`mailto:${contact.email}`} className="mt-1 flex items-center gap-1.5 text-sm text-primary hover:underline">
-                          <Mail className="h-4 w-4" />
-                          {contact.email}
+                        <a href={`mailto:${contact.email}`} className="mt-1 flex items-center gap-1.5 text-sm text-primary hover:underline sm:justify-end">
+                          <Mail className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{contact.email}</span>
                         </a>
                       )}
                     </div>
