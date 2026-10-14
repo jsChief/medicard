@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/Badge"
 import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { SortableTh } from "@/components/ui/SortableTh"
 import { cn, formatDate } from "@/lib/utils"
+import { buildCsv, downloadCsv } from "@/lib/csv"
 import { useAuth } from "@/context/AuthContext"
 import { useNotifications } from "@/context/NotificationContext"
 import {
@@ -121,10 +122,6 @@ const CHECKOUT_CSV_COLUMNS = [
   "Follow-up Appointments",
 ] as const
 
-function csvCell(value: string): string {
-  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
-}
-
 function checkoutToCsvRow(checkout: CheckoutView): Record<string, string> {
   const followUps = checkout.followUpAppointments
     .map(appt => [appt.specialty, appt.provider, appt.date ? formatDate(appt.date) : ""].filter(Boolean).join(" · "))
@@ -147,18 +144,6 @@ function checkoutToCsvRow(checkout: CheckoutView): Record<string, string> {
     Medications: checkout.medications.join("; "),
     "Follow-up Appointments": followUps,
   }
-}
-
-function downloadCsvFile(filename: string, csv: string) {
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement("a")
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
 }
 
 export function CheckoutsPage() {
@@ -228,15 +213,8 @@ export function CheckoutsPage() {
       toast.info("No checkouts to export")
       return
     }
-    const header = CHECKOUT_CSV_COLUMNS.map(column => csvCell(column)).join(",")
-    const rows = filteredCheckouts.map(checkout => {
-      const row = checkoutToCsvRow(checkout)
-      return CHECKOUT_CSV_COLUMNS.map(column => csvCell(row[column] ?? "")).join(",")
-    })
-    downloadCsvFile(
-      `checkouts-export-${new Date().toISOString().slice(0, 10)}.csv`,
-      [header, ...rows].join("\n"),
-    )
+    const csv = buildCsv(CHECKOUT_CSV_COLUMNS, filteredCheckouts.map(checkoutToCsvRow))
+    downloadCsv(`checkouts-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
     toast.success(`Exported ${filteredCheckouts.length} checkout(s)`)
   }
 
