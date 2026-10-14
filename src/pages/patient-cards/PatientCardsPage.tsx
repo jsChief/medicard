@@ -324,21 +324,26 @@ export function PatientCardsPage() {
       <Card className="p-0">
         <CardContent className="p-4">
           <div className="grid items-end gap-3 lg:grid-cols-[minmax(0,1fr)_200px_220px]">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted pointer-events-none" />
-              <Input
-                placeholder="Search by name or MRN..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+            <div className="flex flex-col">
+              <span className="mb-1.5 text-sm font-medium text-text">Search</span>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted pointer-events-none" />
+                <Input
+                  placeholder="Search by name or MRN..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
             <FilterDropdown
+              label="Status"
               value={statusFilter}
               onChange={setStatusFilter}
               options={statuses.map(s => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))}
             />
             <FilterDropdown
+              label="Department"
               value={departmentFilter}
               onChange={setDepartmentFilter}
               options={departments.map(d => ({ value: d, label: d }))}
