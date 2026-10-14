@@ -24,6 +24,7 @@ import {
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/Button";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import cardeaseLogo from "@/assets/cardease.png";
 import {
@@ -382,7 +383,9 @@ export function DashboardLayout() {
 
         {/* Page content */}
         <div className="min-w-0 overflow-x-clip p-3 lg:p-4">
-          <Outlet />
+          <TooltipProvider>
+            <Outlet />
+          </TooltipProvider>
         </div>
       </SidebarInset>
 

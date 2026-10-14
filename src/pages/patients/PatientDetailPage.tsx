@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar"
 import { Separator } from "@/components/ui/Separator"
 import { Select } from "@/components/ui/Select"
 import { EmptyState } from "@/components/ui/EmptyState"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { cn, formatDate } from "@/lib/utils"
 import { getPatient, type Patient as FirestorePatient } from "@/lib/database"
 import { useAuth } from "@/context/AuthContext"
@@ -973,37 +974,52 @@ export function PatientDetailPage() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8"
-                            aria-label="View document"
-                            disabled={isBusy}
-                            onClick={() => handleOpenDocument(doc)}
-                          >
-                            {isOpening ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8"
-                            aria-label="Download document"
-                            disabled={isBusy}
-                            onClick={() => handleDownloadDocument(doc)}
-                          >
-                            {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 text-danger hover:bg-danger/10"
-                            aria-label="Delete document"
-                            disabled={isBusy}
-                            onClick={() => handleDeleteDocument(doc)}
-                          >
-                            {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                          </Button>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-10 w-10"
+                                aria-label="View document"
+                                disabled={isBusy}
+                                onClick={() => handleOpenDocument(doc)}
+                              >
+                                {isOpening ? <Loader2 className="h-5 w-5 animate-spin" /> : <ExternalLink className="h-5 w-5" />}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>View</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-10 w-10"
+                                aria-label="Download document"
+                                disabled={isBusy}
+                                onClick={() => handleDownloadDocument(doc)}
+                              >
+                                {isDownloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Download</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-10 w-10 text-danger hover:bg-danger/10"
+                                aria-label="Delete document"
+                                disabled={isBusy}
+                                onClick={() => handleDeleteDocument(doc)}
+                              >
+                                {isDeleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete</TooltipContent>
+                          </Tooltip>
                         </div>
                       </div>
                     )
