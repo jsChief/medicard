@@ -23,7 +23,7 @@ function BrandMark({ className }: { className?: string }) {
       <img
         src={cardeaseLogo}
         alt="CardEase"
-        className="h-9 w-9 rounded-xl bg-white object-contain p-1 shadow-lg shadow-black/10"
+        className="h-10 w-10 rounded-xl bg-white/75 object-contain p-1 shadow-lg shadow-black/10"
       />
       <span className="text-xl font-bold tracking-tight">CardEase</span>
     </Link>

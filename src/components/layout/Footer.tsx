@@ -44,7 +44,7 @@ export function Footer() {
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4 lg:grid-cols-5">
           <div className="col-span-2 lg:col-span-1">
             <Link to="/" className="flex items-center gap-2" aria-label="CardEase Home">
-              <img src={cardeaseLogo} alt="CardEase" className="h-9 w-9 object-contain" />
+              <img src={cardeaseLogo} alt="CardEase" className="h-10 w-10 object-contain" />
               <span className="text-xl font-bold text-text">CardEase</span>
             </Link>
             <p className="mt-4 text-sm text-text-muted max-w-xs">

@@ -39,7 +39,7 @@ export function Navbar() {
       <nav className="container-app" aria-label="Main navigation">
         <div className="flex h-16 items-center justify-between ml-2">
           <Link to="/" className="flex items-center gap-2" aria-label="CardEase Home">
-            <img src={cardeaseLogo} alt="CardEase" className="h-9 w-9 object-contain" />
+            <img src={cardeaseLogo} alt="CardEase" className="h-10 w-10 object-contain" />
             <span className="text-xl font-bold text-text">CardEase</span>
           </Link>
 
