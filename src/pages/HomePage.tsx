@@ -174,11 +174,6 @@ export function HomePage() {
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to="/demo">
-                <Button variant="outline" size="lg" className="w-full sm:w-auto">
-                  Watch Demo
-                </Button>
-              </Link>
             </div>
 
             <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-text-muted">
