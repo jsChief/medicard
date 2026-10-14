@@ -96,6 +96,71 @@ function getStatusConfig(status: CheckoutView["status"]) {
   }
 }
 
+const DISCHARGE_TYPE_LABELS: Record<CheckoutView["dischargeType"], string> = {
+  home: "Home",
+  transfer: "Transfer to another facility",
+  "home-care": "Home care",
+  rehab: "Rehabilitation",
+  other: "Other",
+}
+
+const CHECKOUT_CSV_COLUMNS = [
+  "MRN",
+  "Patient",
+  "Department",
+  "Room",
+  "Bed",
+  "Attending Physician",
+  "Admission Date",
+  "Expected Discharge",
+  "Actual Discharge",
+  "Status",
+  "Discharge Type",
+  "Pending Tasks",
+  "Medications",
+  "Follow-up Appointments",
+] as const
+
+function csvCell(value: string): string {
+  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+}
+
+function checkoutToCsvRow(checkout: CheckoutView): Record<string, string> {
+  const followUps = checkout.followUpAppointments
+    .map(appt => [appt.specialty, appt.provider, appt.date ? formatDate(appt.date) : ""].filter(Boolean).join(" · "))
+    .filter(Boolean)
+    .join("; ")
+
+  return {
+    MRN: checkout.mrn,
+    Patient: checkout.patientName,
+    Department: checkout.department,
+    Room: checkout.room,
+    Bed: checkout.bed,
+    "Attending Physician": checkout.attendingPhysician,
+    "Admission Date": checkout.admissionDate ? formatDate(checkout.admissionDate) : "",
+    "Expected Discharge": checkout.expectedDischargeDate ? formatDate(checkout.expectedDischargeDate) : "",
+    "Actual Discharge": checkout.actualDischargeDate ? formatDate(checkout.actualDischargeDate) : "",
+    Status: getStatusConfig(checkout.status).label,
+    "Discharge Type": DISCHARGE_TYPE_LABELS[checkout.dischargeType] ?? checkout.dischargeType,
+    "Pending Tasks": checkout.pendingTasks.join("; "),
+    Medications: checkout.medications.join("; "),
+    "Follow-up Appointments": followUps,
+  }
+}
+
+function downloadCsvFile(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 export function CheckoutsPage() {
   const { user } = useAuth()
   const { notify } = useNotifications()
@@ -157,6 +222,23 @@ export function CheckoutsPage() {
       const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0
       return sortOrder === "asc" ? cmp : -cmp
     })
+
+  const handleExport = () => {
+    if (filteredCheckouts.length === 0) {
+      toast.info("No checkouts to export")
+      return
+    }
+    const header = CHECKOUT_CSV_COLUMNS.map(column => csvCell(column)).join(",")
+    const rows = filteredCheckouts.map(checkout => {
+      const row = checkoutToCsvRow(checkout)
+      return CHECKOUT_CSV_COLUMNS.map(column => csvCell(row[column] ?? "")).join(",")
+    })
+    downloadCsvFile(
+      `checkouts-export-${new Date().toISOString().slice(0, 10)}.csv`,
+      [header, ...rows].join("\n"),
+    )
+    toast.success(`Exported ${filteredCheckouts.length} checkout(s)`)
+  }
 
   const handleSort = (field: string) => {
     if (sortBy === field) setSortOrder(sortOrder === "asc" ? "desc" : "asc")
@@ -242,7 +324,13 @@ export function CheckoutsPage() {
           <p className="text-text-muted">Manage patient discharge workflows</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" className="gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={handleExport}
+            aria-label="Export checkouts"
+            title="Export the checkouts shown to CSV"
+          >
             <Download className="h-4 w-4" />
             Export
           </Button>
