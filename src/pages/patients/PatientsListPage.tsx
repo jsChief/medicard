@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react"
-import { Search, Filter, ChevronDown, ChevronUp, ChevronRight, MoreHorizontal, Edit, Plus, RefreshCw, AlertCircle } from "lucide-react"
+import { useState, useEffect, useMemo, useRef, type ChangeEvent } from "react"
+import { Search, Filter, ChevronDown, ChevronUp, ChevronRight, MoreHorizontal, Edit, Plus, RefreshCw, AlertCircle, Download, Upload } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { Select } from "@/components/ui/Select"
 import { useAuth } from "@/context/AuthContext"
-import { queryPatients, type Patient, type PatientQueryOptions } from "@/lib/database"
+import { queryPatients, bulkCreatePatients, getExistingMrns, type Patient, type PatientQueryOptions, type PageCursor } from "@/lib/database"
+import { patientsToCsv, parsePatientImportCsv, importIssuesToCsv, type ImportIssue } from "@/lib/patientCsv"
 import { toast } from "sonner"
 import { describeError } from "@/lib/errors"
 
@@ -34,6 +35,22 @@ function getAge(dob: Date | string | undefined) {
   return new Date().getFullYear() - new Date(dob).getFullYear()
 }
 
+function downloadCsvFile(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+function downloadImportReport(issues: ImportIssue[]) {
+  downloadCsvFile(`patient-import-issues-${new Date().toISOString().slice(0, 10)}.csv`, importIssuesToCsv(issues))
+}
+
 export function PatientsListPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -48,6 +65,9 @@ export function PatientsListPage() {
   const [lastDoc, setLastDoc] = useState<any>(null)
   const [hasMore, setHasMore] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isExporting, setIsExporting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
 
   const fetchPatients = async (reset = false) => {
     if (!user?.hospitalId) {
@@ -147,6 +167,99 @@ export function PatientsListPage() {
     }
   }
 
+  const handleExport = async () => {
+    if (!user?.hospitalId) return
+    setIsExporting(true)
+    try {
+      const all: Patient[] = []
+      let lastDoc: PageCursor | null = null
+      do {
+        const result = await queryPatients({
+          hospitalId: user.hospitalId,
+          sortBy: "lastName",
+          sortOrder: "asc",
+          pageSize: 1000,
+          startAfterDoc: lastDoc ?? undefined,
+        })
+        all.push(...result.patients)
+        lastDoc = result.lastDoc
+      } while (lastDoc)
+      downloadCsvFile(`patients-export-${new Date().toISOString().slice(0, 10)}.csv`, patientsToCsv(all))
+      toast.success(`Exported ${all.length} patient(s)`)
+    } catch (error) {
+      console.error("Failed to export patients:", error)
+      toast.error(describeError(error, "export patients"))
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file || !user?.hospitalId) return
+    setIsImporting(true)
+    try {
+      const text = await file.text()
+      const { patients: records, issues, rowNumbers } = parsePatientImportCsv(text, {
+        hospitalId: user.hospitalId,
+        createdBy: user.id,
+        attendingPhysician: user.name,
+      })
+
+      const existingMrns = await getExistingMrns(user.hospitalId)
+      const toCreate: typeof records = []
+      const duplicateIssues: ImportIssue[] = []
+      records.forEach((record, i) => {
+        if (existingMrns.has(record.mrn.trim().toLowerCase())) {
+          duplicateIssues.push({
+            row: rowNumbers[i],
+            message: `MRN already exists: "${record.mrn}"`,
+            mrn: record.mrn,
+            firstName: record.firstName,
+            lastName: record.lastName,
+          })
+        } else {
+          toCreate.push(record)
+        }
+      })
+
+      const allIssues = [...issues, ...duplicateIssues].sort((a, b) => a.row - b.row)
+      const reportAction = allIssues.length
+        ? { label: "Download report", onClick: () => downloadImportReport(allIssues) }
+        : undefined
+
+      if (toCreate.length === 0) {
+        toast.error(
+          `No new patients to import — ${allIssues.length} row(s) skipped`,
+          reportAction ? { action: reportAction } : undefined
+        )
+        return
+      }
+
+      await bulkCreatePatients(toCreate, (written, total) => {
+        if (written === total) return
+        toast.loading(`Importing patients… ${written}/${total}`, { id: "import-progress" })
+      })
+      toast.dismiss("import-progress")
+
+      const skipped = allIssues.length
+      toast.success(
+        skipped
+          ? `Imported ${toCreate.length} patient(s), skipped ${skipped} row(s)`
+          : `Imported ${toCreate.length} patient(s)`,
+        reportAction ? { action: reportAction } : undefined
+      )
+      await fetchPatients(true)
+    } catch (error) {
+      toast.dismiss("import-progress")
+      console.error("Failed to import patients:", error)
+      toast.error(describeError(error, "import patients"))
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   const SortIcon = sortOrder === "asc" ? ChevronUp : ChevronDown
   const patientHref = (id: string) => `/patients/${id}`
 
@@ -165,6 +278,21 @@ export function PatientsListPage() {
             <Filter className="h-4 w-4" />
             <span className="hidden sm:inline">Filters</span>
           </Button>
+          <Button variant="outline" onClick={handleExport} isLoading={isExporting} className="gap-2" aria-label="Export patients" title="Export all patients to CSV">
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">Export</span>
+          </Button>
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()} isLoading={isImporting} className="gap-2" aria-label="Import patients" title="Import patients from CSV">
+            <Upload className="h-4 w-4" />
+            <span className="hidden sm:inline">Import</span>
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleImportFile}
+          />
           <Button onClick={() => navigate("/patients/new")} className="gap-2">
             <Plus className="h-4 w-4" />
             Add Patient

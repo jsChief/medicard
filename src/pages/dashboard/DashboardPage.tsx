@@ -4,7 +4,6 @@ import {
   Users,
   Archive,
   Clock,
-  FileText,
   ChevronDown,
   RefreshCw,
 } from "lucide-react";
@@ -120,13 +119,6 @@ export function DashboardPage() {
       icon: Users,
       iconBg: "bg-primary/10 text-primary",
       href: "/patients/new",
-    },
-    {
-      label: "Create Patient Card",
-      description: "Start a new admission/discharge",
-      icon: FileText,
-      iconBg: "bg-success/10 text-success",
-      href: "/patient-cards/new",
     },
     {
       label: "Manage Archive",

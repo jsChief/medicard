@@ -8,7 +8,6 @@ import {
 import {
   LayoutDashboard,
   Users,
-  FileText,
   Archive,
   Clock,
   MapPin,
@@ -60,7 +59,6 @@ import {CustomTrigger} from "@/components/ui/SidebarTrigger";
 const baseNavigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Patients", href: "/patients", icon: Users },
-  { name: "Patient Cards", href: "/patient-cards", icon: FileText },
   { name: "Archive", href: "/archive", icon: Archive },
   { name: "Active Checkouts", href: "/checkouts", icon: Clock },
   { name: "Location Matrix", href: "/location-matrix", icon: MapPin },

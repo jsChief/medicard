@@ -19,7 +19,6 @@ import { SettingsPage } from "./pages/settings/SettingsPage"
 import { TeamPage } from "./pages/settings/TeamPage"
 import { OrganizationPage } from "./pages/settings/OrganizationPage"
 import { ProfilePage } from "./pages/profile/ProfilePage"
-import { PatientCardsPage } from "./pages/patient-cards/PatientCardsPage"
 import { ArchivePage } from "./pages/archive/ArchivePage"
 import { CheckoutsPage } from "./pages/checkouts/CheckoutsPage"
 import { LocationMatrixPage } from "./pages/location-matrix/LocationMatrixPage"
@@ -157,7 +156,6 @@ function App() {
             <Route path="/patients/new" element={<AddPatientPage />} />
             <Route path="/patients/:id" element={<PatientDetailPage />} />
             <Route path="/patients/:id/edit" element={<EditPatientPage />} />
-            <Route path="/patient-cards" element={<PatientCardsPage />} />
             <Route path="/archive" element={<ArchivePage />} />
             <Route path="/checkouts" element={<CheckoutsPage />} />
             <Route path="/location-matrix" element={<LocationMatrixPage />} />
