@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { Search, Filter, ChevronDown, ChevronUp, MoreHorizontal, Eye, Edit, Plus, RefreshCw, AlertCircle } from "lucide-react"
+import { Search, Filter, ChevronDown, ChevronUp, ChevronRight, MoreHorizontal, Edit, Plus, RefreshCw, AlertCircle } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
@@ -27,6 +27,11 @@ function getStatusConfig(status: Patient["status"]) {
 function formatDate(date: Date | string | undefined) {
   if (!date) return ""
   return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+}
+
+function getAge(dob: Date | string | undefined) {
+  if (!dob) return 0
+  return new Date().getFullYear() - new Date(dob).getFullYear()
 }
 
 export function PatientsListPage() {
@@ -143,25 +148,25 @@ export function PatientsListPage() {
   }
 
   const SortIcon = sortOrder === "asc" ? ChevronUp : ChevronDown
+  const patientHref = (id: string) => `/patients/${id}`
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-text-muted">Manage and search patient records</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => fetchPatients(true)} isLoading={isLoading && patients.length > 0} className="gap-2 sm:w-auto">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" onClick={() => fetchPatients(true)} isLoading={isLoading && patients.length > 0} className="gap-2">
             {/*<RefreshCw className={`h-4 w-4 ${isLoading && patients.length > 0 ? "animate-spin" : ""}`} /> */}
             Refresh
           </Button>
-          <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="gap-2 sm:w-auto">
+          <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="gap-2">
             <Filter className="h-4 w-4" />
             <span className="hidden sm:inline">Filters</span>
           </Button>
-          <Button onClick={() => navigate("/patients/new")}>
-
-            <Plus className="h-4 w-4 mr-2" />
+          <Button onClick={() => navigate("/patients/new")} className="gap-2">
+            <Plus className="h-4 w-4" />
             Add Patient
           </Button>
         </div>
@@ -202,180 +207,215 @@ export function PatientsListPage() {
           <CardDescription>Showing {filteredPatients.length} patients</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full" role="table">
-              <thead>
-                <tr className="border-b border-border bg-bg/50">
-                  <th className="px-4 py-3 text-left">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
-                      onClick={() => handleSort("firstName")}
-                    >
-                      Patient <SortIcon className="h-4 w-4 ml-1 inline" />
-                    </Button>
-                  </th>
-                  <th className="px-4 py-3 text-left">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
-                      onClick={() => handleSort("mrn")}
-                    >
-                      MRN <SortIcon className="h-4 w-4 ml-1 inline" />
-                    </Button>
-                  </th>
-                  <th className="px-4 py-3 text-left hidden md:table-cell">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
-                      onClick={() => handleSort("dob")}
-                    >
-                      DOB / Age <SortIcon className="h-4 w-4 ml-1 inline" />
-                    </Button>
-                  </th>
-                  <th className="px-4 py-3 text-left hidden lg:table-cell">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
-                      onClick={() => handleSort("department")}
-                    >
-                      Department <SortIcon className="h-4 w-4 ml-1 inline" />
-                    </Button>
-                  </th>
-                  <th className="px-4 py-3 text-left hidden lg:table-cell">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
-                      onClick={() => handleSort("attendingPhysician")}
-                    >
-                      Attending Physician <SortIcon className="h-4 w-4 ml-1 inline" />
-                    </Button>
-                  </th>
-                  <th className="px-4 py-3 text-left">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
-                      onClick={() => handleSort("status")}
-                    >
-                      Status <SortIcon className="h-4 w-4 ml-1 inline" />
-                    </Button>
-                  </th>
-                  <th className="px-4 py-3 text-left hidden md:table-cell">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
-                      onClick={() => handleSort("admissionDate")}
-                    >
-                      Admitted <SortIcon className="h-4 w-4 ml-1 inline" />
-                    </Button>
-                  </th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {(isLoading && patients.length === 0) ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center">
-                      <div className="flex flex-col items-center gap-2 text-text-muted">
-                        <RefreshCw className="h-12 w-12 text-text-muted/30 animate-spin" />
-                        <p className="text-lg">Loading patients...</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : loadError ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center">
-                      <div className="mx-auto flex max-w-md flex-col items-center gap-3 text-text-muted">
-                        <AlertCircle className="h-12 w-12 text-danger/60" />
-                        <p className="text-lg text-text">Could not load patients</p>
-                        <p className="text-sm">{loadError}</p>
+          {(isLoading && patients.length === 0) ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-12 text-center text-text-muted">
+              <RefreshCw className="h-12 w-12 animate-spin text-text-muted/30" />
+              <p className="text-lg">Loading patients...</p>
+            </div>
+          ) : loadError ? (
+            <div className="mx-auto flex max-w-md flex-col items-center gap-3 px-4 py-12 text-center text-text-muted">
+              <AlertCircle className="h-12 w-12 text-danger/60" />
+              <p className="text-lg text-text">Could not load patients</p>
+              <p className="text-sm">{loadError}</p>
+              <Button
+                variant="outline"
+                onClick={() => fetchPatients(true)}
+                isLoading={isLoading}
+                className="mt-1 gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Try again
+              </Button>
+            </div>
+          ) : filteredPatients.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-12 text-center text-text-muted">
+              <Search className="h-12 w-12 text-text-muted/30" />
+              <p className="text-lg">No patients found</p>
+              <p className="text-sm">Try adjusting your search or filters</p>
+            </div>
+          ) : (
+            <>
+              {/* Desktop: table with clickable rows */}
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full" role="table">
+                  <thead>
+                    <tr className="border-b border-border bg-bg/50">
+                      <th className="px-4 py-3 text-left">
                         <Button
-                          variant="outline"
-                          onClick={() => fetchPatients(true)}
-                          isLoading={isLoading}
-                          className="mt-1 gap-2"
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
+                          onClick={() => handleSort("firstName")}
                         >
-                          <RefreshCw className="h-4 w-4" />
-                          Try again
+                          Patient <SortIcon className="ml-1 inline h-4 w-4" />
                         </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : filteredPatients.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center">
-                      <div className="flex flex-col items-center gap-2 text-text-muted">
-                        <Search className="h-12 w-12 text-text-muted/30" />
-                        <p className="text-lg">No patients found</p>
-                        <p className="text-sm">Try adjusting your search or filters</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredPatients.map((patient) => {
-                    const statusConfig = getStatusConfig(patient.status)
-                    const fullName = `${patient.firstName} ${patient.lastName}`
-                    const age = patient.dob ? new Date().getFullYear() - new Date(patient.dob).getFullYear() : 0
-                    return (
-                      <tr key={patient.id} className="hover:bg-bg/50 transition-colors">
-                        <td className="px-4 py-4">
-                          <div>
-                            <p className="font-medium text-text">{fullName}</p>
-                            <p className="text-xs text-text-muted">{patient.email || "No email"}</p>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <span className="font-mono text-sm text-text">{patient.mrn}</span>
-                        </td>
-                        <td className="px-4 py-4 hidden md:table-cell">
-                          <div className="text-sm text-text">
-                            {formatDate(patient.dob)} <span className="text-text-muted">({age})</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 hidden lg:table-cell">
-                          <span className="text-sm text-text">{patient.department}</span>
-                        </td>
-                        <td className="px-4 py-4 hidden lg:table-cell">
-                          <span className="text-sm text-text">{patient.attendingPhysician}</span>
-                        </td>
-                        <td className="px-4 py-4">
-                          <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
-                        </td>
-                        <td className="px-4 py-4 hidden md:table-cell">
-                          <span className="text-sm text-text">{formatDate(patient.admissionDate)}</span>
-                        </td>
-                        <td className="px-4 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Link to={`/patients/${patient.id}`}>
-                              <Button variant="ghost" className="size-8 p-0" aria-label="View patient">
-                                <Eye className="h-4 w-4" />
+                      </th>
+                      <th className="px-4 py-3 text-left">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
+                          onClick={() => handleSort("mrn")}
+                        >
+                          MRN <SortIcon className="ml-1 inline h-4 w-4" />
+                        </Button>
+                      </th>
+                      <th className="hidden px-4 py-3 text-left md:table-cell">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
+                          onClick={() => handleSort("dob")}
+                        >
+                          DOB / Age <SortIcon className="ml-1 inline h-4 w-4" />
+                        </Button>
+                      </th>
+                      <th className="hidden px-4 py-3 text-left lg:table-cell">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
+                          onClick={() => handleSort("department")}
+                        >
+                          Department <SortIcon className="ml-1 inline h-4 w-4" />
+                        </Button>
+                      </th>
+                      <th className="hidden px-4 py-3 text-left lg:table-cell">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
+                          onClick={() => handleSort("attendingPhysician")}
+                        >
+                          Attending Physician <SortIcon className="ml-1 inline h-4 w-4" />
+                        </Button>
+                      </th>
+                      <th className="px-4 py-3 text-left">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
+                          onClick={() => handleSort("status")}
+                        >
+                          Status <SortIcon className="ml-1 inline h-4 w-4" />
+                        </Button>
+                      </th>
+                      <th className="hidden px-4 py-3 text-left md:table-cell">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
+                          onClick={() => handleSort("admissionDate")}
+                        >
+                          Admitted <SortIcon className="ml-1 inline h-4 w-4" />
+                        </Button>
+                      </th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {filteredPatients.map((patient) => {
+                      const statusConfig = getStatusConfig(patient.status)
+                      const fullName = `${patient.firstName} ${patient.lastName}`
+                      const age = getAge(patient.dob)
+                      return (
+                        <tr
+                          key={patient.id}
+                          onClick={() => navigate(patientHref(patient.id))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              navigate(patientHref(patient.id))
+                            }
+                          }}
+                          tabIndex={0}
+                          className="cursor-pointer transition-colors hover:bg-bg/50 focus:bg-bg/50 focus:outline-none"
+                        >
+                          <td className="px-4 py-4">
+                            <div>
+                              {/* The row itself is clickable; this link keeps a keyboard-accessible target. */}
+                              <Link
+                                to={patientHref(patient.id)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="font-medium text-text hover:text-primary focus:outline-none"
+                              >
+                                {fullName}
+                              </Link>
+                              <p className="text-xs text-text-muted">{patient.email || "No email"}</p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className="font-mono text-sm text-text">{patient.mrn}</span>
+                          </td>
+                          <td className="hidden px-4 py-4 md:table-cell">
+                            <div className="text-sm text-text">
+                              {formatDate(patient.dob)} <span className="text-text-muted">({age})</span>
+                            </div>
+                          </td>
+                          <td className="hidden px-4 py-4 lg:table-cell">
+                            <span className="text-sm text-text">{patient.department}</span>
+                          </td>
+                          <td className="hidden px-4 py-4 lg:table-cell">
+                            <span className="text-sm text-text">{patient.attendingPhysician}</span>
+                          </td>
+                          <td className="px-4 py-4">
+                            <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
+                          </td>
+                          <td className="hidden px-4 py-4 md:table-cell">
+                            <span className="text-sm text-text">{formatDate(patient.admissionDate)}</span>
+                          </td>
+                          <td className="px-4 py-4 text-right">
+                            {/* stopPropagation so the actions don't trigger the row's navigation */}
+                            <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" className="size-8 p-0" aria-label="Edit patient">
+                                <Edit className="h-4 w-4" />
                               </Button>
-                            </Link>
-                            <Button variant="ghost" className="size-8 p-0" aria-label="Edit patient">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" className="size-8 p-0" aria-label="More actions">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-          
+                              <Button variant="ghost" className="size-8 p-0" aria-label="More actions">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile: tappable cards, no horizontal scrolling */}
+              <div className="divide-y divide-border md:hidden">
+                {filteredPatients.map((patient) => {
+                  const statusConfig = getStatusConfig(patient.status)
+                  const fullName = `${patient.firstName} ${patient.lastName}`
+                  const age = getAge(patient.dob)
+                  return (
+                    <Link
+                      key={patient.id}
+                      to={patientHref(patient.id)}
+                      className="flex items-center justify-between gap-3 px-4 py-4 transition-colors hover:bg-bg/50 active:bg-bg"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate font-medium text-text">{fullName}</p>
+                          <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
+                        </div>
+                        <p className="mt-1 truncate text-xs text-text-muted">
+                          {patient.mrn} &middot; {formatDate(patient.dob)} ({age})
+                        </p>
+                        {patient.department && (
+                          <p className="mt-0.5 truncate text-xs text-text-muted">{patient.department}</p>
+                        )}
+                      </div>
+                      <ChevronRight className="h-5 w-5 shrink-0 text-text-muted" />
+                    </Link>
+                  )
+                })}
+              </div>
+            </>
+          )}
+
           {hasMore && !isLoading && (
-            <CardFooter className="flex justify-center py-3 border-t border-border">
+            <CardFooter className="flex justify-center border-t border-border py-3">
               <Button variant="outline" onClick={loadMore} isLoading={isLoading} className="gap-2">
                 Load More
                 <ChevronDown className="h-4 w-4" />
