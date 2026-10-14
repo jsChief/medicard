@@ -103,7 +103,6 @@ export function CheckoutsPage() {
   const [checkouts, setCheckouts] = useState<Checkout[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("All")
-  const [departmentFilter, setDepartmentFilter] = useState("All")
   const [sortBy, setSortBy] = useState("expectedDischargeDate")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const [selectedItems, setSelectedItems] = useState<string[]>([])
@@ -141,20 +140,14 @@ export function CheckoutsPage() {
 
   const viewCheckouts = useMemo(() => checkouts.map(toView), [checkouts])
 
-  const departments = useMemo(() => {
-    const depts = Array.from(new Set(viewCheckouts.map(c => c.department).filter(Boolean)))
-    return ["All", ...depts.sort()]
-  }, [viewCheckouts])
   const statuses = ["All", "pending", "approved", "in-progress", "completed", "cancelled", "delayed"]
   const statusOptions = statuses.map(s => ({ value: s, label: s === "All" ? "All" : s.charAt(0).toUpperCase() + s.slice(1).replace("-", " ") }))
-  const departmentOptions = departments.map(d => ({ value: d, label: d }))
 
   const filteredCheckouts = viewCheckouts
     .filter(c => {
       const matchesSearch = c.patientName.toLowerCase().includes(searchQuery.toLowerCase()) || c.mrn.toLowerCase().includes(searchQuery.toLowerCase())
       const matchesStatus = statusFilter === "All" || c.status === statusFilter
-      const matchesDept = departmentFilter === "All" || c.department === departmentFilter
-      return matchesSearch && matchesStatus && matchesDept
+      return matchesSearch && matchesStatus
     })
     .sort((a, b) => {
       const aVal = a[sortBy as keyof CheckoutView]
@@ -280,18 +273,20 @@ export function CheckoutsPage() {
       {/* Filters */}
       <Card className="p-0">
         <CardContent className="p-4">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_190px]">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-              <Input
-                placeholder="Search by name or MRN..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px]">
+            <div className="flex w-full flex-col">
+              <span className="mb-1.5 text-sm font-medium text-text">Search</span>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+                <Input
+                  placeholder="Search by name or MRN..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-            <FilterDropdown value={statusFilter} onChange={setStatusFilter} options={statusOptions} />
-            <FilterDropdown value={departmentFilter} onChange={setDepartmentFilter} options={departmentOptions} />
+            <FilterDropdown label="Status" value={statusFilter} onChange={setStatusFilter} options={statusOptions} />
           </div>
         </CardContent>
       </Card>
