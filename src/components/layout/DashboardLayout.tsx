@@ -95,6 +95,16 @@ export function DashboardLayout() {
       ? [...baseNavigation, teamNavigation, settingsNavigation]
       : [...baseNavigation, settingsNavigation];
 
+  // Highlight only the most specific match. "/settings/team" is both its own
+  // entry and a child of "/settings", so a plain prefix test lights up both.
+  const activeHref = navigation.reduce<string | null>((best, item) => {
+    const matches =
+      location.pathname === item.href ||
+      location.pathname.startsWith(item.href + "/");
+    if (!matches) return best;
+    return !best || item.href.length > best.length ? item.href : best;
+  }, null);
+
   const [hospitalName, setHospitalName] = useState<string>("");
 
   useEffect(() => {
@@ -215,9 +225,7 @@ export function DashboardLayout() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {navigation.map((item) => {
-                  const isActive =
-                    location.pathname === item.href ||
-                    location.pathname.startsWith(item.href + "/");
+                  const isActive = item.href === activeHref;
                   return (
                     <SidebarMenuItem
                       key={item.name}
