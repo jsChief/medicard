@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, type ChangeEvent } from "react"
 import {
   Search,
-  Plus,
+  // Plus, // hidden with the "New Card" button — cards are generated from patients
   Download,
   Upload,
   Grid,
@@ -310,10 +310,13 @@ export function PatientCardsPage() {
             className="hidden"
             onChange={handleImportFile}
           />
+          {/* Cards are generated from the patients you add, so manual creation
+              is hidden for now.
           <Button className="gap-2">
             <Plus className="h-4 w-4" />
             New Card
           </Button>
+          */}
         </div>
       </div>
 
