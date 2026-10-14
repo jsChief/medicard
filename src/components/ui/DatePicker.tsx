@@ -122,7 +122,7 @@ export function DatePicker({
             className={cn("cursor-pointer", className)}
             {...props}
           >
-            <Calendar className="h-4 w-4 text-text-muted" slot="prefix" />
+            <Calendar className="h-4 w-4 text-text-muted" />
           </Input>
         </PopoverPrimitive.Trigger>
         <PopoverPrimitive.Content
@@ -391,7 +391,7 @@ export function DateRangePicker({
             helperText={helperText}
             className={cn("cursor-pointer", className)}
           >
-            <Calendar className="h-4 w-4 text-text-muted" slot="prefix" />
+            <Calendar className="h-4 w-4 text-text-muted" />
           </Input>
         </PopoverPrimitive.Trigger>
         <PopoverPrimitive.Content

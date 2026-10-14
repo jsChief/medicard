@@ -342,7 +342,7 @@ export function PatientsListPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="max-w-xs"
               >
-                <Search className="h-4 w-4 text-text-muted" slot="prefix" />
+                <Search className="h-4 w-4 text-text-muted" />
               </Input>
               <Select
                 label="Department"
