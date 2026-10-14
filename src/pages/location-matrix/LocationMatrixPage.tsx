@@ -525,7 +525,7 @@ export function LocationMatrixPage() {
               <Card
                 key={location.id}
                 className={cn(
-                  "cursor-pointer overflow-hidden transition-all hover:shadow-md",
+                  "cursor-pointer overflow-hidden transition-all hover:shadow-sm",
                   isSelected && "ring-2 ring-primary border-primary"
                 )}
                 onClick={() => toggleSelect(location.id)}

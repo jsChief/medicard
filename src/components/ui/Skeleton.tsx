@@ -62,7 +62,7 @@ export function SkeletonText({ lines = 3, className, ...props }: { lines?: numbe
 
 export function SkeletonCard({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("space-y-4 p-4 rounded-xl border bg-card shadow-sm", className)} {...props}>
+    <div className={cn("space-y-4 p-4 rounded-xl border bg-card shadow-xs", className)} {...props}>
       <div className="flex items-center gap-4">
         <Skeleton variant="circular" width={48} height={48} />
         <div className="flex-1 space-y-2">
