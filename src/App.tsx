@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { AuthProvider, useAuth } from "@/context/AuthContext"
-import { ThemeProvider } from "@/context/ThemeContext"
 import { Layout } from "./components/layout/Layout"
 import { AuthLayout } from "./components/layout/AuthLayout"
 import { DashboardLayout } from "./components/layout/DashboardLayout"
@@ -110,8 +109,7 @@ function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
-      <ThemeProvider>
-        <AuthProvider>
+      <AuthProvider>
           <Toaster position="top-right" richColors closeButton />
           <Routes>
           {/* Public routes */}
@@ -187,7 +185,6 @@ function App() {
           </Route>
         </Routes>
       </AuthProvider>
-      </ThemeProvider>
     </BrowserRouter>
   )
 }

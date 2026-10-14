@@ -85,7 +85,7 @@ export function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
 
   // Only admins can manage the team, so the entry (and its page) is hidden for
   // everyone else. The server enforces this too: invite/role/remove RPCs all
@@ -370,7 +370,7 @@ export function DashboardLayout() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
                 aria-label="Toggle theme"
               >
                 <Sun className="h-5 w-5 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />

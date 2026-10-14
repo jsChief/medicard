@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { Sun, Moon, Bell, Shield, Database, Users, Building2 } from "lucide-react"
-import { useTheme } from "@/context/ThemeContext"
+import { useTheme } from "next-themes"
 import { useAuth } from "@/context/AuthContext"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent } from "@/components/ui/Card"
@@ -81,7 +81,7 @@ function SettingsRow({
 }
 
 export function SettingsPage() {
-  const { theme, setTheme } = useTheme()
+  const { resolvedTheme, setTheme } = useTheme()
   const { user } = useAuth()
   const [emailNotifs, setEmailNotifs] = useState(true)
   const [pushNotifs, setPushNotifs] = useState(true)
@@ -153,7 +153,7 @@ export function SettingsPage() {
               variant="ghost"
               size="sm"
               onClick={() => handleThemeChange("light")}
-              className={cn("h-8 gap-1.5 px-3", theme === "light" && "bg-primary text-white hover:bg-primary-hover")}
+              className={cn("h-8 gap-1.5 px-3", resolvedTheme === "light" && "bg-primary text-white hover:bg-primary-hover")}
             >
               <Sun className="h-4 w-4" />
               Light
@@ -162,7 +162,7 @@ export function SettingsPage() {
               variant="ghost"
               size="sm"
               onClick={() => handleThemeChange("dark")}
-              className={cn("h-8 gap-1.5 px-3", theme === "dark" && "bg-primary text-white hover:bg-primary-hover")}
+              className={cn("h-8 gap-1.5 px-3", resolvedTheme === "dark" && "bg-primary text-white hover:bg-primary-hover")}
             >
               <Moon className="h-4 w-4" />
               Dark

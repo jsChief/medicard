@@ -3,12 +3,14 @@ import { Menu, X, Sun, Moon } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/Button"
 import { cn } from "@/lib/utils"
-import { useTheme } from "@/context/ThemeContext"
+import { useTheme } from "next-themes"
 import cardeaseLogo from "@/assets/cardease.png"
 
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const { theme, toggleTheme } = useTheme()
+  const { resolvedTheme, setTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
+  const toggleTheme = () => setTheme(isDark ? "light" : "dark")
   const { pathname } = useLocation()
 
   const navLinks = [
@@ -55,8 +57,8 @@ export function Navbar() {
           </div>
 
           <div className="hidden md:flex md:items-center md:gap-3 md:mr-2">
-            <Button variant="ghost" size="sm" onClick={toggleTheme} aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}>
-              {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            <Button variant="ghost" size="sm" onClick={toggleTheme} aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}>
+              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
             <Link to="/login">
               <Button variant="ghost" size="sm">Sign In</Button>
@@ -96,9 +98,9 @@ export function Navbar() {
               </Link>
             ))}
             <div className="pt-4 flex flex-col gap-2">
-              <Button variant="ghost" size="sm" onClick={toggleTheme} className="w-full justify-start" aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}>
-                {theme === "light" ? <Moon className="h-5 w-5 mr-2" /> : <Sun className="h-5 w-5 mr-2" />}
-                {theme === "light" ? "Dark Mode" : "Light Mode"}
+              <Button variant="ghost" size="sm" onClick={toggleTheme} className="w-full justify-start" aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}>
+                {isDark ? <Sun className="h-5 w-5 mr-2" /> : <Moon className="h-5 w-5 mr-2" />}
+                {isDark ? "Light Mode" : "Dark Mode"}
               </Button>
               <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
                 <Button variant="outline" className="w-full">Sign In</Button>
