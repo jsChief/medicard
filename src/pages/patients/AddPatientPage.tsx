@@ -34,7 +34,7 @@ const personalInfoSchema = z.object({
   address: z.string().min(1, "Address is required"),
   city: z.string().min(1, "City is required"),
   state: z.string().min(1, "State/Province is required"),
-  postalCode: z.string().min(1, "Postal code is required"),
+  postalCode: z.string().default(""),
   country: z.string().default("Philippines"),
   mrn: z.string().optional(),
   bloodType: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Unknown"], { required_error: "Please select blood type" }),
@@ -391,7 +391,7 @@ export function AddPatientPage() {
             <div className="grid gap-4 sm:grid-cols-3">
               <Input label="City *" placeholder="Manila" {...register("city")} error={errors.city?.message} />
               <Input label="State/Province *" placeholder="Metro Manila" {...register("state")} error={errors.state?.message} />
-              <Input label="Postal Code *" placeholder="1000" {...register("postalCode")} error={errors.postalCode?.message} />
+              <Input label="Postal Code" placeholder="1000" {...register("postalCode")} error={errors.postalCode?.message} />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Country" {...register("country")} />
