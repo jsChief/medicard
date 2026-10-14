@@ -1,6 +1,6 @@
 import { useRef, useState, type ComponentType } from "react"
 import { useNavigate } from "react-router-dom"
-import { Search, FileText, Settings, MapPin, ArrowRight, Command } from "lucide-react"
+import { Search, Settings, MapPin, ArrowRight, Command } from "lucide-react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/Dialog"
 import { Input } from "@/components/ui/Input"
 
@@ -11,8 +11,6 @@ interface NavLinks {
 }
 
 const quickResults = [
-  { name: "John Okonkwo", detail: "Patient • Cardiology Clinic", href: "/patients/1", icon: FileText },
-  { name: "Adaeze Nnamdi", detail: "Patient • ICU Unit 1", href: "/patients/2", icon: FileText },
   { name: "Location Matrix", detail: "View bed occupancy", href: "/location-matrix", icon: MapPin },
   { name: "System Settings", detail: "Configure hospital preferences", href: "/settings", icon: Settings },
 ]
