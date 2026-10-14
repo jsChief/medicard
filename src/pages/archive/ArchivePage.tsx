@@ -7,6 +7,8 @@ import {
   Download,
   Eye,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Loader2,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/Card"
@@ -31,6 +33,8 @@ import {
 import { toast } from "sonner"
 import { describeError, runBatch, batchMessage } from "@/lib/errors"
 import { ErrorState } from "@/components/common/ErrorState"
+import { buildCsv, downloadCsv } from "@/lib/csv"
+import { ArchiveRecordDialog } from "@/components/archive/ArchiveRecordDialog"
 
 interface ArchivedPatientView {
   id: string
@@ -78,6 +82,44 @@ function getStatusConfig(status: ArchiveStatus) {
   }
 }
 
+const PAGE_SIZE = 10
+
+const ARCHIVE_CSV_COLUMNS = [
+  "Name",
+  "MRN",
+  "Date of Birth",
+  "Age",
+  "Department",
+  "Status",
+  "Attending Physician",
+  "Admission Date",
+  "Discharge Date",
+  "Discharge Reason",
+  "Length of Stay (days)",
+  "Archived At",
+  "Archived By",
+  "Conditions",
+] as const
+
+function archiveToCsvRow(patient: ArchivedPatientView): Record<string, string> {
+  return {
+    Name: patient.name,
+    MRN: patient.mrn,
+    "Date of Birth": patient.dob ? formatDate(patient.dob) : "",
+    Age: String(patient.age),
+    Department: patient.department,
+    Status: getStatusConfig(patient.status).label,
+    "Attending Physician": patient.attendingPhysician,
+    "Admission Date": patient.admissionDate ? formatDate(patient.admissionDate) : "",
+    "Discharge Date": patient.dischargeDate ? formatDate(patient.dischargeDate) : "",
+    "Discharge Reason": patient.dischargeReason,
+    "Length of Stay (days)": String(patient.lengthOfStay),
+    "Archived At": patient.archivedAt ? formatDate(patient.archivedAt) : "",
+    "Archived By": patient.archivedBy,
+    Conditions: patient.conditions.join("; "),
+  }
+}
+
 export function ArchivePage() {
   const { user } = useAuth()
   const { notify } = useNotifications()
@@ -92,6 +134,8 @@ export function ArchivePage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [viewRecord, setViewRecord] = useState<ArchivedPatientView | null>(null)
 
   const fetchArchives = useCallback(async () => {
     if (!user?.hospitalId) {
@@ -149,6 +193,28 @@ export function ArchivePage() {
       const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0
       return sortOrder === "asc" ? cmp : -cmp
     })
+
+  const totalPages = Math.max(1, Math.ceil(filteredPatients.length / PAGE_SIZE))
+  const currentPageClamped = Math.min(currentPage, totalPages)
+  const pagedPatients = filteredPatients.slice(
+    (currentPageClamped - 1) * PAGE_SIZE,
+    currentPageClamped * PAGE_SIZE,
+  )
+
+  const selectedViews = useMemo(
+    () => patients.filter(p => selectedItems.includes(p.id)),
+    [patients, selectedItems],
+  )
+
+  const handleExport = (rows: ArchivedPatientView[]) => {
+    if (rows.length === 0) {
+      toast.info("No records to export")
+      return
+    }
+    const csv = buildCsv(ARCHIVE_CSV_COLUMNS, rows.map(archiveToCsvRow))
+    downloadCsv(`archive-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+    toast.success(`Exported ${rows.length} record${rows.length === 1 ? "" : "s"}`)
+  }
 
   const handleSort = (field: string) => {
     if (sortBy === field) setSortOrder(sortOrder === "asc" ? "desc" : "asc")
@@ -260,7 +326,13 @@ export function ArchivePage() {
           <p className="text-text-muted">View and manage archived patient records</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" className="gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => handleExport(filteredPatients)}
+            aria-label="Export archive"
+            title="Export the archived records shown to CSV"
+          >
             <Download className="h-4 w-4" />
             Export Archive
           </Button>
@@ -275,17 +347,30 @@ export function ArchivePage() {
       <Card className="p-0">
         <CardContent className="p-4">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_170px_190px]">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-              <Input
-                placeholder="Search by name or MRN..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+            <div className="flex w-full flex-col">
+              <span className="mb-1.5 text-sm font-medium text-text">Search</span>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+                <Input
+                  placeholder="Search by name or MRN..."
+                  value={searchQuery}
+                  onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1) }}
+                  className="pl-10"
+                />
+              </div>
             </div>
-            <FilterDropdown value={statusFilter} onChange={setStatusFilter} options={statusOptions} />
-            <FilterDropdown value={departmentFilter} onChange={setDepartmentFilter} options={departmentOptions} />
+            <FilterDropdown
+              label="Status"
+              value={statusFilter}
+              onChange={value => { setStatusFilter(value); setCurrentPage(1) }}
+              options={statusOptions}
+            />
+            <FilterDropdown
+              label="Department"
+              value={departmentFilter}
+              onChange={value => { setDepartmentFilter(value); setCurrentPage(1) }}
+              options={departmentOptions}
+            />
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:max-w-md">
             <div>
@@ -293,14 +378,14 @@ export function ArchivePage() {
                 <CalendarDays className="h-3.5 w-3.5 text-text-muted" />
                 Archived from
               </label>
-              <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+              <Input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setCurrentPage(1) }} />
             </div>
             <div>
               <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-text">
                 <CalendarDays className="h-3.5 w-3.5 text-text-muted" />
                 Archived to
               </label>
-              <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+              <Input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setCurrentPage(1) }} />
             </div>
           </div>
         </CardContent>
@@ -314,7 +399,7 @@ export function ArchivePage() {
           </span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="gap-1" onClick={restoreSelected}><RotateCcw className="h-4 w-4" /> Restore</Button>
-            <Button variant="outline" size="sm" className="gap-1"><Download className="h-4 w-4" /> Export</Button>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => handleExport(selectedViews)}><Download className="h-4 w-4" /> Export</Button>
             <Button variant="danger" size="sm" className="gap-1" onClick={deleteSelected}><Trash2 className="h-4 w-4" /> Delete</Button>
             <Button variant="ghost" size="sm" onClick={() => setSelectedItems([])}>Clear</Button>
           </div>
@@ -352,7 +437,7 @@ export function ArchivePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredPatients.map(patient => {
+              {pagedPatients.map(patient => {
                 const statusConfig = getStatusConfig(patient.status)
                 const isSelected = selectedItems.includes(patient.id)
                 return (
@@ -380,7 +465,7 @@ export function ArchivePage() {
                     <td className="px-4 py-4 text-sm text-text">{formatDate(patient.archivedAt)}</td>
                     <td className="px-4 py-4">
                       <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="View record"><Eye className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={`View ${patient.name}`} title="View record" onClick={() => setViewRecord(patient)}><Eye className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Restore record" onClick={async () => {
                           const record = archiveRecords.find(a => a.id === patient.id)
                           if (!record) return
@@ -431,17 +516,45 @@ export function ArchivePage() {
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
-          <p className="text-sm text-text-muted">Page 1 of 1</p>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" disabled>Previous</Button>
-            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-sm font-medium text-white">1</span>
-            <span className="flex h-8 w-8 items-center justify-center rounded-md text-sm text-text-muted hover:bg-bg">2</span>
-            <span className="flex h-8 w-8 items-center justify-center rounded-md text-sm text-text-muted hover:bg-bg">3</span>
-            <Button variant="outline" size="sm">Next</Button>
+        {filteredPatients.length > 0 && (
+          <div className="flex flex-col items-center justify-between gap-3 border-t border-border px-4 py-3 sm:flex-row">
+            <p className="text-sm text-text-muted">
+              Showing {(currentPageClamped - 1) * PAGE_SIZE + 1} to{" "}
+              {Math.min(currentPageClamped * PAGE_SIZE, filteredPatients.length)} of {filteredPatients.length}{" "}
+              record{filteredPatients.length === 1 ? "" : "s"}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPageClamped === 1}
+                onClick={() => setCurrentPage(currentPageClamped - 1)}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="px-3 text-sm text-text-muted">
+                Page {currentPageClamped} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPageClamped === totalPages}
+                onClick={() => setCurrentPage(currentPageClamped + 1)}
+                aria-label="Next page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
       </Card>
+
+      <ArchiveRecordDialog
+        open={viewRecord !== null}
+        onOpenChange={open => { if (!open) setViewRecord(null) }}
+        record={viewRecord}
+      />
     </div>
   )
 }
