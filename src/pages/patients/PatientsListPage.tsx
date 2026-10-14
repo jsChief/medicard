@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { Select } from "@/components/ui/Select"
 import { useAuth } from "@/context/AuthContext"
+import { useNotifications } from "@/context/NotificationContext"
 import { queryPatients, bulkCreatePatients, getExistingMrns, type Patient, type PatientQueryOptions, type PageCursor } from "@/lib/database"
 import { patientsToCsv, parsePatientImportCsv, importIssuesToCsv, type ImportIssue } from "@/lib/patientCsv"
 import { toast } from "sonner"
@@ -53,6 +54,7 @@ function downloadImportReport(issues: ImportIssue[]) {
 
 export function PatientsListPage() {
   const { user } = useAuth()
+  const { notify } = useNotifications()
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState("")
   const [departmentFilter, setDepartmentFilter] = useState("All")
@@ -250,6 +252,12 @@ export function PatientsListPage() {
           : `Imported ${toCreate.length} patient(s)`,
         reportAction ? { action: reportAction } : undefined
       )
+      await notify({
+        type: "patient",
+        title: "Patients imported",
+        description: `${toCreate.length} patient${toCreate.length === 1 ? "" : "s"} were imported from a CSV file`,
+        link: "/patients",
+      })
       await fetchPatients(true)
     } catch (error) {
       toast.dismiss("import-progress")

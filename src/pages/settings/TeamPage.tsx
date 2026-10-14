@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/Input"
 import { Select } from "@/components/ui/Select"
 import { useAuth } from "@/context/AuthContext"
+import { useNotifications } from "@/context/NotificationContext"
 import { describeError } from "@/lib/errors"
 import {
   cancelHospitalInvite,
@@ -48,6 +49,7 @@ function initials(name: string) {
 
 export function TeamPage() {
   const { user } = useAuth()
+  const { notify } = useNotifications()
   const [members, setMembers] = useState<HospitalMember[]>([])
   const [invites, setInvites] = useState<HospitalInvite[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -96,6 +98,13 @@ export function TeamPage() {
       })
       toast.success(`Invitation sent to ${email}`)
       setInviteEmail("")
+      await notify({
+        type: "team",
+        title: "Invitation sent",
+        description: `${email} was invited to join as ${roleLabel(inviteRole).toLowerCase()}`,
+        link: "/settings/team",
+        roles: ["admin"],
+      })
       await load()
     } catch (error) {
       toast.error(describeError(error, "send the invitation"))
@@ -111,6 +120,13 @@ export function TeamPage() {
       await setStaffRole(member.id, role)
       setMembers((prev) => prev.map((item) => (item.id === member.id ? { ...item, role } : item)))
       toast.success(`${member.name} is now ${roleLabel(role).toLowerCase()}`)
+      await notify({
+        type: "team",
+        title: "Team role changed",
+        description: `${member.name} is now ${roleLabel(role).toLowerCase()}`,
+        link: "/settings/team",
+        roles: ["admin"],
+      })
     } catch (error) {
       toast.error(describeError(error, "change the role"))
     } finally {
@@ -126,6 +142,13 @@ export function TeamPage() {
       await removeStaff(member.id)
       setMembers((prev) => prev.filter((item) => item.id !== member.id))
       toast.success(`${member.name} was removed from this hospital`)
+      await notify({
+        type: "team",
+        title: "Team member removed",
+        description: `${member.name} was removed from this hospital`,
+        link: "/settings/team",
+        roles: ["admin"],
+      })
       setMemberToRemove(null)
     } catch (error) {
       toast.error(describeError(error, "remove the member"))
