@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Users,
   Archive,
+  Upload,
   Clock,
   ChevronDown,
   RefreshCw,
@@ -119,6 +120,13 @@ export function DashboardPage() {
       icon: Users,
       iconBg: "bg-primary/10 text-primary",
       href: "/patients/new",
+    },
+    {
+      label: "Import Patients",
+      description: "Bulk-add patients from a CSV file",
+      icon: Upload,
+      iconBg: "bg-success/10 text-success",
+      href: "/patients",
     },
     {
       label: "Manage Archive",
