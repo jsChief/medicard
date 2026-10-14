@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/Select"
 import { EmptyState } from "@/components/ui/EmptyState"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { cn, formatDate } from "@/lib/utils"
+import { buildCsv, downloadCsv } from "@/lib/csv"
 import { getPatient, type Patient as FirestorePatient } from "@/lib/database"
 import { useAuth } from "@/context/AuthContext"
 import { toast } from "sonner"
@@ -425,6 +426,56 @@ export function PatientDetailPage() {
 
   const initials = patient.name.split(" ").map(n => n[0]).join("")
 
+  const patientUrl = `${window.location.origin}/patients/${patient.id}`
+
+  const handlePrint = () => {
+    window.print()
+  }
+
+  const handleExport = () => {
+    const csv = buildCsv(["Field", "Value"], [
+      { Field: "Name", Value: patient.name },
+      { Field: "MRN", Value: patient.mrn },
+      { Field: "Date of birth", Value: formatDate(patient.dob) },
+      { Field: "Age", Value: String(patient.age) },
+      { Field: "Gender", Value: patient.gender },
+      { Field: "Status", Value: patient.status },
+      { Field: "Department", Value: patient.department },
+      { Field: "Attending physician", Value: patient.attendingPhysician },
+      { Field: "Phone", Value: patient.phone },
+      { Field: "Email", Value: patient.email },
+      { Field: "Address", Value: patient.address },
+      { Field: "City", Value: patient.city },
+      { Field: "State", Value: patient.state },
+      { Field: "Postal code", Value: patient.postalCode },
+      { Field: "Country", Value: patient.country },
+      { Field: "Blood type", Value: patient.bloodType },
+      { Field: "Admission date", Value: formatDate(patient.admissionDate) },
+    ])
+    downloadCsv(`patient-${patient.mrn}.csv`, csv)
+    toast.success("Patient data exported")
+  }
+
+  const handleShare = async () => {
+    try {
+      if (typeof navigator.share === "function") {
+        await navigator.share({
+          title: `${patient.name} (${patient.mrn})`,
+          text: `Patient record for ${patient.name}`,
+          url: patientUrl,
+        })
+        return
+      }
+      await navigator.clipboard.writeText(patientUrl)
+      toast.success("Patient link copied to clipboard")
+    } catch (err) {
+      // Ignore the user dismissing the native share sheet.
+      if ((err as DOMException)?.name === "AbortError") return
+      console.error("Failed to share patient:", err)
+      toast.error(describeError(err, "share patient"))
+    }
+  }
+
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       {/* Sticky patient header */}
@@ -451,11 +502,11 @@ export function PatientDetailPage() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <Button variant="outline" size="sm" className="hidden sm:flex">
+            <Button variant="outline" size="sm" className="hidden sm:flex" onClick={handlePrint}>
               <Printer className="mr-2 h-4 w-4" />
               Print
             </Button>
-            <Button variant="outline" size="sm" className="hidden sm:flex">
+            <Button variant="outline" size="sm" className="hidden sm:flex" onClick={handleExport}>
               <Download className="mr-2 h-4 w-4" />
               Export
             </Button>
@@ -504,15 +555,15 @@ export function PatientDetailPage() {
                 <Edit className="h-4 w-4" />
                 Edit Patient
               </Button>
-              <Button variant="outline" className="w-full justify-start gap-3">
+              <Button variant="outline" className="w-full justify-start gap-3" onClick={() => { setMobileMenuOpen(false); handlePrint() }}>
                 <Printer className="h-4 w-4" />
                 Print Summary
               </Button>
-              <Button variant="outline" className="w-full justify-start gap-3">
+              <Button variant="outline" className="w-full justify-start gap-3" onClick={() => { setMobileMenuOpen(false); handleExport() }}>
                 <Download className="h-4 w-4" />
                 Export Data
               </Button>
-              <Button variant="outline" className="w-full justify-start gap-3">
+              <Button variant="outline" className="w-full justify-start gap-3" onClick={() => { setMobileMenuOpen(false); handleShare() }}>
                 <Share2 className="h-4 w-4" />
                 Share Patient
               </Button>
