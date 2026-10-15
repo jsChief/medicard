@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/context/AuthContext"
 import { useNotifications } from "@/context/NotificationContext"
+import { canChangePatientStatus } from "@/lib/permissions"
 import { createPatient, type Patient } from "@/lib/database"
 import { toast } from "sonner"
 import { describeError } from "@/lib/errors"
@@ -34,13 +35,14 @@ const personalInfoSchema = z.object({
   address: z.string().min(1, "Address is required"),
   city: z.string().min(1, "City is required"),
   state: z.string().min(1, "State/Province is required"),
-  postalCode: z.string().min(1, "Postal code is required"),
+  postalCode: z.string().default(""),
   country: z.string().default("Philippines"),
   mrn: z.string().optional(),
   bloodType: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Unknown"], { required_error: "Please select blood type" }),
   maritalStatus: z.enum(["single", "married", "divorced", "widowed", "other"], { required_error: "Please select marital status" }),
   occupation: z.string().optional(),
   nationality: z.string().default("Filipino"),
+  status: z.enum(["pending", "active", "critical", "transferred", "discharged"], { required_error: "Please select status" }),
 })
 
 const medicalHistorySchema = z.object({
@@ -105,12 +107,20 @@ const planTypes = [
   { value: "Medicaid", label: "Medicaid" },
   { value: "Other", label: "Other" },
 ]
+const patientStatuses = [
+  { value: "pending", label: "Pending" },
+  { value: "active", label: "Active" },
+  { value: "critical", label: "Critical" },
+  { value: "transferred", label: "Transferred" },
+  { value: "discharged", label: "Discharged" },
+]
+type PatientStatusValue = PatientFormData["status"]
 
 const textareaClass =
   "w-full resize-y rounded-lg border border-border bg-surface px-4 py-2.5 text-sm placeholder:text-text-muted transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-24"
 
 const stepFields: Record<number, Array<keyof PatientFormData>> = {
-  1: ["firstName", "lastName", "middleName", "dob", "gender", "phone", "email", "address", "city", "state", "postalCode", "country", "mrn", "bloodType", "maritalStatus", "occupation", "nationality"],
+  1: ["firstName", "lastName", "middleName", "dob", "gender", "phone", "email", "address", "city", "state", "postalCode", "country", "mrn", "bloodType", "maritalStatus", "occupation", "nationality", "status"],
   2: ["conditions", "medications", "allergies", "surgeries", "familyHistory", "immunizations", "notes"],
   3: ["contacts"],
   4: ["provider", "policyNumber", "groupNumber", "memberId", "planType", "effectiveDate", "expiryDate", "copayAmount", "deductibleAmount", "coverageNotes", "secondaryInsurance", "secondaryProvider", "secondaryPolicyNumber"],
@@ -165,6 +175,8 @@ export function AddPatientPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { notify } = useNotifications()
+  // New patients default to "pending"; only clinical/admin roles may pick otherwise.
+  const canChangeStatus = canChangePatientStatus(user?.role)
   const [currentStep, setCurrentStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -197,6 +209,7 @@ export function AddPatientPage() {
       maritalStatus: "single",
       occupation: "",
       nationality: "Filipino",
+      status: "pending",
       conditions: [],
       medications: [],
       allergies: [],
@@ -330,7 +343,7 @@ export function AddPatientPage() {
         },
         attendingPhysician: user.name,
         department: "General",
-        status: "pending",
+        status: data.status,
         admissionDate: now,
         lastVisit: now,
         createdBy: user.id,
@@ -391,7 +404,7 @@ export function AddPatientPage() {
             <div className="grid gap-4 sm:grid-cols-3">
               <Input label="City *" placeholder="Manila" {...register("city")} error={errors.city?.message} />
               <Input label="State/Province *" placeholder="Metro Manila" {...register("state")} error={errors.state?.message} />
-              <Input label="Postal Code *" placeholder="1000" {...register("postalCode")} error={errors.postalCode?.message} />
+              <Input label="Postal Code" placeholder="1000" {...register("postalCode")} error={errors.postalCode?.message} />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Country" {...register("country")} />
@@ -407,7 +420,18 @@ export function AddPatientPage() {
               />
               <Input label="Occupation" placeholder="Software Engineer" {...register("occupation")} error={errors.occupation?.message} />
             </div>
-            <Input label="Nationality" {...register("nationality")} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input label="Nationality" {...register("nationality")} />
+              <Select
+                label="Patient Status *"
+                options={patientStatuses}
+                value={watch("status")}
+                disabled={!canChangeStatus}
+                onChange={(value) => setValue("status", value as PatientStatusValue, { shouldValidate: true })}
+                error={errors.status?.message}
+                helperText={canChangeStatus ? undefined : "Only doctors and admins can change patient status"}
+              />
+            </div>
           </div>
         )
       case 2:

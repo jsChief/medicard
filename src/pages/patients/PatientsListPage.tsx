@@ -1,14 +1,31 @@
 import { useState, useEffect, useMemo, useRef, type ChangeEvent } from "react"
-import { Search, Filter, ChevronDown, ChevronUp, ChevronRight, MoreHorizontal, Edit, Plus, RefreshCw, AlertCircle, Download, Upload } from "lucide-react"
+import { Search, ChevronDown, ChevronUp, ChevronRight, MoreHorizontal, Edit, Eye, Copy, Link2, Plus, RefreshCw, AlertCircle, Download, Upload, Archive as ArchiveIcon } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { Select } from "@/components/ui/Select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/context/AuthContext"
+import { canArchivePatients } from "@/lib/permissions"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/Dialog"
 import { useNotifications } from "@/context/NotificationContext"
-import { queryPatients, bulkCreatePatients, getExistingMrns, type Patient, type PatientQueryOptions, type PageCursor } from "@/lib/database"
+import { queryPatients, bulkCreatePatients, getExistingMrns, archivePatient, type Patient, type PatientQueryOptions, type PageCursor } from "@/lib/database"
 import { patientsToCsv, parsePatientImportCsv, importIssuesToCsv, type ImportIssue } from "@/lib/patientCsv"
 import { toast } from "sonner"
 import { describeError } from "@/lib/errors"
@@ -36,6 +53,16 @@ function getAge(dob: Date | string | undefined) {
   return new Date().getFullYear() - new Date(dob).getFullYear()
 }
 
+async function copyToClipboard(value: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(value)
+    toast.success(`${label} copied to clipboard`)
+  } catch (error) {
+    console.error(`Failed to copy ${label}:`, error)
+    toast.error(describeError(error, `copy ${label.toLowerCase()}`))
+  }
+}
+
 function downloadCsvFile(filename: string, csv: string) {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
   const url = URL.createObjectURL(blob)
@@ -61,7 +88,6 @@ export function PatientsListPage() {
   const [statusFilter, setStatusFilter] = useState("All")
   const [sortBy, setSortBy] = useState<string>("lastName")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
-  const [showFilters, setShowFilters] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [patients, setPatients] = useState<Patient[]>([])
   const [lastDoc, setLastDoc] = useState<any>(null)
@@ -160,12 +186,33 @@ export function PatientsListPage() {
       })
   }, [patients, searchQuery, sortBy, sortOrder])
 
+  const [archivingId, setArchivingId] = useState<string | null>(null)
+  // Row menu archives need confirming; the detail page has its own dialog.
+  const [pendingArchive, setPendingArchive] = useState<Patient | null>(null)
+  const canArchive = canArchivePatients(user?.role)
+
   const handleSort = (field: string) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc")
     } else {
       setSortBy(field)
       setSortOrder("asc")
+    }
+  }
+
+  const handleArchive = async (patient: Patient) => {
+    setArchivingId(patient.id)
+    try {
+      await archivePatient(patient.id, { archivedBy: user?.name })
+      toast.success(
+        `${patient.firstName} ${patient.lastName} moved to the archive`,
+      )
+      await fetchPatients(true)
+    } catch (error) {
+      console.error("Failed to archive patient:", error)
+      toast.error(describeError(error, "archive patient"))
+    } finally {
+      setArchivingId(null)
     }
   }
 
@@ -268,8 +315,14 @@ export function PatientsListPage() {
     }
   }
 
-  const SortIcon = sortOrder === "asc" ? ChevronUp : ChevronDown
   const patientHref = (id: string) => `/patients/${id}`
+  const patientEditHref = (id: string) => `/patients/${id}/edit`
+  const sortIndicator = (field: string) =>
+    sortBy === field
+      ? (sortOrder === "asc"
+          ? <ChevronUp className="ml-1 inline h-4 w-4" />
+          : <ChevronDown className="ml-1 inline h-4 w-4" />)
+      : null
 
   return (
     <div className="space-y-6">
@@ -281,10 +334,6 @@ export function PatientsListPage() {
           <Button variant="outline" onClick={() => fetchPatients(true)} isLoading={isLoading && patients.length > 0} className="gap-2">
             {/*<RefreshCw className={`h-4 w-4 ${isLoading && patients.length > 0 ? "animate-spin" : ""}`} /> */}
             Refresh
-          </Button>
-          <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="gap-2">
-            <Filter className="h-4 w-4" />
-            <span className="hidden sm:inline">Filters</span>
           </Button>
           <Button variant="outline" onClick={handleExport} isLoading={isExporting} className="gap-2" aria-label="Export patients" title="Export all patients to CSV">
             <Download className="h-4 w-4" />
@@ -308,34 +357,33 @@ export function PatientsListPage() {
         </div>
       </div>
 
-      {showFilters && (
-        <Card className="border-border/50">
-          <CardContent className="p-4 pt-0">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Input
-                placeholder="Search by name, MRN, email, phone..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="max-w-xs"
-              >
-                <Search className="h-4 w-4 text-text-muted" slot="prefix" />
-              </Input>
-              <Select
-                label="Department"
-                value={departmentFilter}
-                onChange={setDepartmentFilter}
-                options={departments.map((d) => ({ value: d, label: d }))}
-              />
-              <Select
-                label="Status"
-                value={statusFilter}
-                onChange={setStatusFilter}
-                options={statuses.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Card className="border-border/50">
+        <CardContent className="p-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Input
+              label="Search"
+              placeholder="Search by name, MRN, email, phone..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="max-w-xs"
+            >
+              <Search className="h-4 w-4 text-text-muted" />
+            </Input>
+            <Select
+              label="Department"
+              value={departmentFilter}
+              onChange={setDepartmentFilter}
+              options={departments.map((d) => ({ value: d, label: d }))}
+            />
+            <Select
+              label="Status"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={statuses.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="px-4 py-3">
@@ -383,7 +431,7 @@ export function PatientsListPage() {
                           className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
                           onClick={() => handleSort("firstName")}
                         >
-                          Patient <SortIcon className="ml-1 inline h-4 w-4" />
+                          Patient {sortIndicator("firstName")}
                         </Button>
                       </th>
                       <th className="px-4 py-3 text-left">
@@ -393,7 +441,7 @@ export function PatientsListPage() {
                           className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
                           onClick={() => handleSort("mrn")}
                         >
-                          MRN <SortIcon className="ml-1 inline h-4 w-4" />
+                          MRN {sortIndicator("mrn")}
                         </Button>
                       </th>
                       <th className="hidden px-4 py-3 text-left md:table-cell">
@@ -403,7 +451,7 @@ export function PatientsListPage() {
                           className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
                           onClick={() => handleSort("dob")}
                         >
-                          DOB / Age <SortIcon className="ml-1 inline h-4 w-4" />
+                          DOB / Age {sortIndicator("dob")}
                         </Button>
                       </th>
                       <th className="hidden px-4 py-3 text-left lg:table-cell">
@@ -413,7 +461,7 @@ export function PatientsListPage() {
                           className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
                           onClick={() => handleSort("department")}
                         >
-                          Department <SortIcon className="ml-1 inline h-4 w-4" />
+                          Department {sortIndicator("department")}
                         </Button>
                       </th>
                       <th className="hidden px-4 py-3 text-left lg:table-cell">
@@ -423,7 +471,7 @@ export function PatientsListPage() {
                           className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
                           onClick={() => handleSort("attendingPhysician")}
                         >
-                          Attending Physician <SortIcon className="ml-1 inline h-4 w-4" />
+                          Attending Physician {sortIndicator("attendingPhysician")}
                         </Button>
                       </th>
                       <th className="px-4 py-3 text-left">
@@ -433,7 +481,7 @@ export function PatientsListPage() {
                           className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
                           onClick={() => handleSort("status")}
                         >
-                          Status <SortIcon className="ml-1 inline h-4 w-4" />
+                          Status {sortIndicator("status")}
                         </Button>
                       </th>
                       <th className="hidden px-4 py-3 text-left md:table-cell">
@@ -443,7 +491,7 @@ export function PatientsListPage() {
                           className="h-auto p-0 text-left font-semibold text-text-muted hover:text-text"
                           onClick={() => handleSort("admissionDate")}
                         >
-                          Admitted <SortIcon className="ml-1 inline h-4 w-4" />
+                          Admitted {sortIndicator("admissionDate")}
                         </Button>
                       </th>
                       <th className="px-4 py-3 text-right">Actions</th>
@@ -503,12 +551,60 @@ export function PatientsListPage() {
                           <td className="px-4 py-4 text-right">
                             {/* stopPropagation so the actions don't trigger the row's navigation */}
                             <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" className="size-8 p-0" aria-label="Edit patient">
+                              <Button
+                                variant="ghost"
+                                className="size-8 p-0"
+                                aria-label={`Edit ${fullName}`}
+                                title="Edit patient"
+                                onClick={() => navigate(patientEditHref(patient.id))}
+                              >
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" className="size-8 p-0" aria-label="More actions">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    className="size-8 p-0"
+                                    aria-label={`More actions for ${fullName}`}
+                                    title="More actions"
+                                  >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48">
+                                  <DropdownMenuLabel className="truncate">{fullName}</DropdownMenuLabel>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onSelect={() => navigate(patientHref(patient.id))}>
+                                    <Eye className="h-4 w-4" />
+                                    View details
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onSelect={() => navigate(patientEditHref(patient.id))}>
+                                    <Edit className="h-4 w-4" />
+                                    Edit patient
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onSelect={() => copyToClipboard(patient.mrn, "MRN")}>
+                                    <Copy className="h-4 w-4" />
+                                    Copy MRN
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onSelect={() =>
+                                      copyToClipboard(`${window.location.origin}${patientHref(patient.id)}`, "Patient link")
+                                    }
+                                  >
+                                    <Link2 className="h-4 w-4" />
+                                    Copy patient link
+                                  </DropdownMenuItem>
+                                  {canArchive && (
+                                    <DropdownMenuItem
+                                      onSelect={() => setPendingArchive(patient)}
+                                    >
+                                      <ArchiveIcon className="h-4 w-4" />
+                                      Archive patient
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </td>
                         </tr>
@@ -560,6 +656,44 @@ export function PatientsListPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Confirm archive from the row menu */}
+      <Dialog
+        open={pendingArchive !== null}
+        onOpenChange={(open) => !open && setPendingArchive(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Archive this patient?</DialogTitle>
+            <DialogDescription>
+              {pendingArchive
+                ? `${pendingArchive.firstName} ${pendingArchive.lastName} (${pendingArchive.mrn}) will be moved out of the active patient list into the archive. Nothing is deleted and the record can be restored at any time.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPendingArchive(null)}
+              disabled={archivingId !== null}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!pendingArchive) return
+                await handleArchive(pendingArchive)
+                setPendingArchive(null)
+              }}
+              isLoading={archivingId !== null}
+              className="gap-2"
+            >
+              {archivingId === null && <ArchiveIcon className="h-4 w-4" />}
+              Archive patient
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -1,6 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react"
-import { ArrowLeft, Building2, Info, Loader2, Save } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Building2, Info, Loader2, Save } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent } from "@/components/ui/Card"
@@ -92,13 +91,6 @@ export function OrganizationPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <Link
-          to="/settings"
-          className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-primary"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to settings
-        </Link>
         <h1 className="text-xl font-semibold text-text">Organization</h1>
         <p className="mt-1 text-sm text-text-muted">
           These details identify your hospital across CardEase, including the dashboard sidebar.

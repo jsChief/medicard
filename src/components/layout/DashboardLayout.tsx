@@ -19,6 +19,7 @@ import {
   Sun,
   Moon,
   UserCog,
+  Building2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
@@ -51,8 +52,8 @@ import {
 } from "@/components/ui/sidebar";
 import {CustomTrigger} from "@/components/ui/SidebarTrigger";
 
-// Settings is appended separately so an admin-only "Team" entry can slot in
-// just before it without reordering the module-level list.
+// Settings is appended separately so the admin-only "Team" and "Organization"
+// entries can slot in just before it without reordering the module-level list.
 const baseNavigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Patients", href: "/patients", icon: Users },
@@ -63,6 +64,7 @@ const baseNavigation = [
 
 const settingsNavigation = { name: "Settings", href: "/settings", icon: Settings };
 const teamNavigation = { name: "Team", href: "/settings/team", icon: UserCog };
+const organizationNavigation = { name: "Organization", href: "/settings/organization", icon: Building2 };
 
 // function MobileMenuButton() {
 //   const { toggleSidebar } = useSidebar();
@@ -83,12 +85,13 @@ export function DashboardLayout() {
   const { user, logout } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
 
-  // Only admins can manage the team, so the entry (and its page) is hidden for
-  // everyone else. The server enforces this too: invite/role/remove RPCs all
-  // require is_admin().
+  // Only admins can manage the team or the organization, so those entries (and
+  // their pages) are hidden for everyone else. The server enforces this too:
+  // invite/role/remove RPCs require is_admin(), and the hospitals RLS policy
+  // scopes organization edits to the owner.
   const navigation =
     user?.role === "admin"
-      ? [...baseNavigation, teamNavigation, settingsNavigation]
+      ? [...baseNavigation, teamNavigation, organizationNavigation, settingsNavigation]
       : [...baseNavigation, settingsNavigation];
 
   // Notifications is reached from the bell rather than the sidebar, but it still

@@ -13,6 +13,7 @@ import {
   Calendar,
   User,
   Loader2,
+  Plus,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
@@ -21,6 +22,7 @@ import { Badge } from "@/components/ui/Badge"
 import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { SortableTh } from "@/components/ui/SortableTh"
 import { cn, formatDate } from "@/lib/utils"
+import { buildCsv, downloadCsv } from "@/lib/csv"
 import { useAuth } from "@/context/AuthContext"
 import { useNotifications } from "@/context/NotificationContext"
 import {
@@ -32,6 +34,7 @@ import {
 import { toast } from "sonner"
 import { describeError, runBatch, batchMessage } from "@/lib/errors"
 import { ErrorState } from "@/components/common/ErrorState"
+import { NewCheckoutDialog } from "@/components/checkouts/NewCheckoutDialog"
 
 interface CheckoutView {
   id: string
@@ -94,6 +97,55 @@ function getStatusConfig(status: CheckoutView["status"]) {
   }
 }
 
+const DISCHARGE_TYPE_LABELS: Record<CheckoutView["dischargeType"], string> = {
+  home: "Home",
+  transfer: "Transfer to another facility",
+  "home-care": "Home care",
+  rehab: "Rehabilitation",
+  other: "Other",
+}
+
+const CHECKOUT_CSV_COLUMNS = [
+  "MRN",
+  "Patient",
+  "Department",
+  "Room",
+  "Bed",
+  "Attending Physician",
+  "Admission Date",
+  "Expected Discharge",
+  "Actual Discharge",
+  "Status",
+  "Discharge Type",
+  "Pending Tasks",
+  "Medications",
+  "Follow-up Appointments",
+] as const
+
+function checkoutToCsvRow(checkout: CheckoutView): Record<string, string> {
+  const followUps = checkout.followUpAppointments
+    .map(appt => [appt.specialty, appt.provider, appt.date ? formatDate(appt.date) : ""].filter(Boolean).join(" · "))
+    .filter(Boolean)
+    .join("; ")
+
+  return {
+    MRN: checkout.mrn,
+    Patient: checkout.patientName,
+    Department: checkout.department,
+    Room: checkout.room,
+    Bed: checkout.bed,
+    "Attending Physician": checkout.attendingPhysician,
+    "Admission Date": checkout.admissionDate ? formatDate(checkout.admissionDate) : "",
+    "Expected Discharge": checkout.expectedDischargeDate ? formatDate(checkout.expectedDischargeDate) : "",
+    "Actual Discharge": checkout.actualDischargeDate ? formatDate(checkout.actualDischargeDate) : "",
+    Status: getStatusConfig(checkout.status).label,
+    "Discharge Type": DISCHARGE_TYPE_LABELS[checkout.dischargeType] ?? checkout.dischargeType,
+    "Pending Tasks": checkout.pendingTasks.join("; "),
+    Medications: checkout.medications.join("; "),
+    "Follow-up Appointments": followUps,
+  }
+}
+
 export function CheckoutsPage() {
   const { user } = useAuth()
   const { notify } = useNotifications()
@@ -101,11 +153,11 @@ export function CheckoutsPage() {
   const [checkouts, setCheckouts] = useState<Checkout[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("All")
-  const [departmentFilter, setDepartmentFilter] = useState("All")
   const [sortBy, setSortBy] = useState("expectedDischargeDate")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
+  const [isNewCheckoutOpen, setIsNewCheckoutOpen] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const fetchCheckouts = useCallback(async () => {
@@ -138,20 +190,14 @@ export function CheckoutsPage() {
 
   const viewCheckouts = useMemo(() => checkouts.map(toView), [checkouts])
 
-  const departments = useMemo(() => {
-    const depts = Array.from(new Set(viewCheckouts.map(c => c.department).filter(Boolean)))
-    return ["All", ...depts.sort()]
-  }, [viewCheckouts])
   const statuses = ["All", "pending", "approved", "in-progress", "completed", "cancelled", "delayed"]
   const statusOptions = statuses.map(s => ({ value: s, label: s === "All" ? "All" : s.charAt(0).toUpperCase() + s.slice(1).replace("-", " ") }))
-  const departmentOptions = departments.map(d => ({ value: d, label: d }))
 
   const filteredCheckouts = viewCheckouts
     .filter(c => {
       const matchesSearch = c.patientName.toLowerCase().includes(searchQuery.toLowerCase()) || c.mrn.toLowerCase().includes(searchQuery.toLowerCase())
       const matchesStatus = statusFilter === "All" || c.status === statusFilter
-      const matchesDept = departmentFilter === "All" || c.department === departmentFilter
-      return matchesSearch && matchesStatus && matchesDept
+      return matchesSearch && matchesStatus
     })
     .sort((a, b) => {
       const aVal = a[sortBy as keyof CheckoutView]
@@ -161,6 +207,16 @@ export function CheckoutsPage() {
       const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0
       return sortOrder === "asc" ? cmp : -cmp
     })
+
+  const handleExport = () => {
+    if (filteredCheckouts.length === 0) {
+      toast.info("No checkouts to export")
+      return
+    }
+    const csv = buildCsv(CHECKOUT_CSV_COLUMNS, filteredCheckouts.map(checkoutToCsvRow))
+    downloadCsv(`checkouts-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+    toast.success(`Exported ${filteredCheckouts.length} checkout(s)`)
+  }
 
   const handleSort = (field: string) => {
     if (sortBy === field) setSortOrder(sortOrder === "asc" ? "desc" : "asc")
@@ -246,12 +302,18 @@ export function CheckoutsPage() {
           <p className="text-text-muted">Manage patient discharge workflows</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" className="gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={handleExport}
+            aria-label="Export checkouts"
+            title="Export the checkouts shown to CSV"
+          >
             <Download className="h-4 w-4" />
             Export
           </Button>
-          <Button className="gap-2">
-            <ArrowRight className="h-4 w-4" />
+          <Button className="gap-2" onClick={() => setIsNewCheckoutOpen(true)}>
+            <Plus className="h-4 w-4" />
             New Checkout
           </Button>
         </div>
@@ -277,18 +339,20 @@ export function CheckoutsPage() {
       {/* Filters */}
       <Card className="p-0">
         <CardContent className="p-4">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_190px]">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-              <Input
-                placeholder="Search by name or MRN..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px]">
+            <div className="flex w-full flex-col">
+              <span className="mb-1.5 text-sm font-medium text-text">Search</span>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+                <Input
+                  placeholder="Search by name or MRN..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-            <FilterDropdown value={statusFilter} onChange={setStatusFilter} options={statusOptions} />
-            <FilterDropdown value={departmentFilter} onChange={setDepartmentFilter} options={departmentOptions} />
+            <FilterDropdown label="Status" value={statusFilter} onChange={setStatusFilter} options={statusOptions} />
           </div>
         </CardContent>
       </Card>
@@ -482,6 +546,15 @@ export function CheckoutsPage() {
           </div>
         ) : null}
       </Card>
+
+      <NewCheckoutDialog
+        open={isNewCheckoutOpen}
+        onOpenChange={setIsNewCheckoutOpen}
+        onCreated={async (checkoutId) => {
+          await fetchCheckouts()
+          setExpandedRow(checkoutId)
+        }}
+      />
     </div>
   )
 }

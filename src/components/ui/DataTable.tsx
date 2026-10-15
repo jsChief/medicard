@@ -229,7 +229,7 @@ export function DataTable<T extends Record<string, unknown>>({
               setCurrentPage(1)
             }}
           >
-            <Search className="h-4 w-4 text-text-muted" slot="prefix" />
+            <Search className="h-4 w-4 text-text-muted" />
           </Input>
         </div>
       )}

@@ -1,21 +1,40 @@
 import { useState, useEffect, useRef, type ChangeEvent } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import {
-  User, Heart, Pill, AlertTriangle, Phone, Shield, FileText, Calendar, MapPin, Mail, Edit, ArrowLeft, Printer, Download, Share2, Clock, Stethoscope, Building2, Shield as ShieldIcon, AlertCircle, CheckCircle2, XCircle, Info, ExternalLink, Menu, X, Upload, Trash2, Loader2,
+  User, Heart, Pill, AlertTriangle, Phone, Shield, FileText, Calendar, MapPin, Mail, Edit, ArrowLeft, Printer, Download, Share2, Clock, Stethoscope, Building2, Shield as ShieldIcon, AlertCircle, CheckCircle2, XCircle, Info, ExternalLink, Menu, X, Upload, Trash2, Loader2, ChevronDown, Check, Archive as ArchiveIcon, RotateCcw,
 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/Button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar"
 import { Select } from "@/components/ui/Select"
+import { Input } from "@/components/ui/Input"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/Dialog"
 import { EmptyState } from "@/components/ui/EmptyState"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { cn, formatDate } from "@/lib/utils"
-import { getPatient, type Patient as FirestorePatient } from "@/lib/database"
+import { buildCsv, downloadCsv } from "@/lib/csv"
+import { getPatient, updatePatient, archivePatient, restoreArchivedPatient, type Patient as FirestorePatient } from "@/lib/database"
 import { useAuth } from "@/context/AuthContext"
 import { toast } from "sonner"
 import { describeError } from "@/lib/errors"
+import { canChangePatientStatus, canArchivePatients } from "@/lib/permissions"
 import {
   ALLOWED_DOCUMENT_MIME_TYPES,
   MAX_DOCUMENT_SIZE_BYTES,
@@ -51,6 +70,8 @@ interface Patient {
   department: string
   attendingPhysician: string
   status: "active" | "discharged" | "transferred" | "critical" | "pending"
+  archivedAt: string
+  dischargeReason: string
   admissionDate: string
   lastVisit: string
   conditions: string[]
@@ -118,6 +139,8 @@ function mapFirestorePatient(fp: FirestorePatient): Patient {
     department: fp.department,
     attendingPhysician: fp.attendingPhysician,
     status: fp.status,
+    archivedAt: fp.archivedAt ? formatDateStr(fp.archivedAt) : "",
+    dischargeReason: fp.dischargeReason ?? "",
     admissionDate: formatDateStr(fp.admissionDate),
     lastVisit: formatDateStr(fp.lastVisit),
     conditions: fp.conditions || [],
@@ -163,6 +186,9 @@ function getStatusConfig(status: Patient["status"]) {
   }
 }
 
+// Order matters: it drives the order of the dropdown options.
+const patientStatuses: Patient["status"][] = ["pending", "active", "critical", "transferred", "discharged"]
+
 function getGenderLabel(gender: string) {
   switch (gender) {
     case "M": return "Male"
@@ -180,6 +206,66 @@ function StatusBadge({ status, className }: { status: Patient["status"]; classNa
       <Icon className="h-3 w-3" />
       {config.label}
     </Badge>
+  )
+}
+
+/**
+ * Status badge that doubles as a dropdown, so staff can change a patient's
+ * status in place without opening the full edit wizard.
+ *
+ * Uses Radix rather than a native <select> because the OS-rendered option list
+ * ignores the app theme and renders white-on-white in dark mode.
+ */
+function StatusControl({
+  status,
+  onChange,
+  disabled,
+  className,
+}: {
+  status: Patient["status"]
+  onChange: (status: Patient["status"]) => void
+  disabled?: boolean
+  className?: string
+}) {
+  const config = getStatusConfig(status)
+  const Icon = config.icon
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild disabled={disabled}>
+        <Badge
+          variant={config.variant}
+          className={cn(
+            "cursor-pointer gap-1.5 capitalize select-none",
+            disabled && "cursor-not-allowed opacity-60",
+            className,
+          )}
+        >
+          {disabled ? <Loader2 className="h-3 w-3 animate-spin" /> : <Icon className="h-3 w-3" />}
+          {config.label}
+          {!disabled && <ChevronDown className="h-3 w-3 opacity-70" />}
+        </Badge>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-44">
+        <DropdownMenuLabel>Change status</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {patientStatuses.map((option) => {
+          const optionConfig = getStatusConfig(option)
+          const OptionIcon = optionConfig.icon
+          return (
+            <DropdownMenuItem
+              key={option}
+              onSelect={() => onChange(option)}
+              className={cn("gap-2.5", option === status && "bg-accent text-accent-foreground")}
+            >
+              <OptionIcon className={cn("h-4 w-4", optionConfig.color)} />
+              {optionConfig.label}
+              {option === status && <Check className="ml-auto h-4 w-4" />}
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -242,11 +328,18 @@ export function PatientDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const canChangeStatus = canChangePatientStatus(user?.role)
+  const canArchive = canArchivePatients(user?.role)
   const [activeTab, setActiveTab] = useState("overview")
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [patient, setPatient] = useState<Patient | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false)
+  const [dischargeReason, setDischargeReason] = useState("")
+  const [isArchiving, setIsArchiving] = useState(false)
+  const [isRestoring, setIsRestoring] = useState(false)
 
   const [documents, setDocuments] = useState<PatientDocument[]>([])
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false)
@@ -425,6 +518,119 @@ export function PatientDetailPage() {
 
   const initials = patient.name.split(" ").map(n => n[0]).join("")
 
+  const patientUrl = `${window.location.origin}/patients/${patient.id}`
+
+  const handlePrint = () => {
+    window.print()
+  }
+
+  const handleExport = () => {
+    const csv = buildCsv(["Field", "Value"], [
+      { Field: "Name", Value: patient.name },
+      { Field: "MRN", Value: patient.mrn },
+      { Field: "Date of birth", Value: formatDate(patient.dob) },
+      { Field: "Age", Value: String(patient.age) },
+      { Field: "Gender", Value: patient.gender },
+      { Field: "Status", Value: patient.status },
+      { Field: "Department", Value: patient.department },
+      { Field: "Attending physician", Value: patient.attendingPhysician },
+      { Field: "Phone", Value: patient.phone },
+      { Field: "Email", Value: patient.email },
+      { Field: "Address", Value: patient.address },
+      { Field: "City", Value: patient.city },
+      { Field: "State", Value: patient.state },
+      { Field: "Postal code", Value: patient.postalCode },
+      { Field: "Country", Value: patient.country },
+      { Field: "Blood type", Value: patient.bloodType },
+      { Field: "Admission date", Value: formatDate(patient.admissionDate) },
+    ])
+    downloadCsv(`patient-${patient.mrn}.csv`, csv)
+    toast.success("Patient data exported")
+  }
+
+  const handleArchive = async () => {
+    if (!patient || isArchiving) return
+    setIsArchiving(true)
+    try {
+      await archivePatient(patient.id, {
+        archivedBy: user?.name,
+        dischargeReason: dischargeReason.trim() || undefined,
+      })
+      toast.success(`${patient.name} moved to the archive`)
+      setArchiveDialogOpen(false)
+      setDischargeReason("")
+      // The record is no longer in the active list, so leaving them on a page
+      // that is now unreachable would just strand them.
+      navigate("/patients")
+    } catch (err) {
+      console.error("Failed to archive patient:", err)
+      toast.error(describeError(err, "archive patient"))
+    } finally {
+      setIsArchiving(false)
+    }
+  }
+
+  const handleRestore = async () => {
+    if (!patient || isRestoring) return
+    setIsRestoring(true)
+    try {
+      await restoreArchivedPatient(patient.id)
+      toast.success(`${patient.name} restored to the active list`)
+      // Re-read so the header stops showing the archived state.
+      const fresh = await getPatient(patient.id)
+      if (fresh) setPatient(mapFirestorePatient(fresh))
+    } catch (err) {
+      console.error("Failed to restore patient:", err)
+      toast.error(describeError(err, "restore patient"))
+    } finally {
+      setIsRestoring(false)
+    }
+  }
+
+  const handleStatusChange = async (next: Patient["status"]) => {
+    if (!patient || next === patient.status || isUpdatingStatus) return
+    // Guard again at the call site: this is the boundary that actually writes.
+    if (!canChangeStatus) {
+      toast.error("Only doctors and admins can change patient status")
+      return
+    }
+
+    const previous = patient.status
+    // Optimistic update so the badge reacts immediately, reverted on failure.
+    setPatient({ ...patient, status: next })
+    setIsUpdatingStatus(true)
+    try {
+      await updatePatient(patient.id, { status: next })
+      toast.success(`Status updated to ${getStatusConfig(next).label}`)
+    } catch (err) {
+      console.error("Failed to update patient status:", err)
+      setPatient((current) => (current ? { ...current, status: previous } : current))
+      toast.error(describeError(err, "update patient status"))
+    } finally {
+      setIsUpdatingStatus(false)
+    }
+  }
+
+  const handleShare = async () => {
+    try {
+      if (typeof navigator.share === "function") {
+        await navigator.share({
+          title: `${patient.name} (${patient.mrn})`,
+          text: `Patient record for ${patient.name}`,
+          url: patientUrl,
+        })
+        return
+      }
+      await navigator.clipboard.writeText(patientUrl)
+      toast.success("Patient link copied to clipboard")
+    } catch (err) {
+      // Ignore the user dismissing the native share sheet.
+      if ((err as DOMException)?.name === "AbortError") return
+      console.error("Failed to share patient:", err)
+      toast.error(describeError(err, "share patient"))
+    }
+  }
+
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       {/* Sticky patient header */}
@@ -443,7 +649,16 @@ export function PatientDetailPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="truncate text-sm font-semibold text-text sm:text-lg">{patient.name}</h1>
-                <StatusBadge status={patient.status} className="hidden shrink-0 sm:inline-flex" />
+                {canChangeStatus ? (
+                  <StatusControl
+                    status={patient.status}
+                    onChange={handleStatusChange}
+                    disabled={isUpdatingStatus}
+                    className="shrink-0"
+                  />
+                ) : (
+                  <StatusBadge status={patient.status} className="hidden shrink-0 capitalize sm:inline-flex" />
+                )}
               </div>
               <p className="truncate text-xs text-text-muted">
                 {patient.mrn} • {patient.department} • Age {patient.age}
@@ -451,14 +666,36 @@ export function PatientDetailPage() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <Button variant="outline" size="sm" className="hidden sm:flex">
+            <Button variant="outline" size="sm" className="hidden sm:flex" onClick={handlePrint}>
               <Printer className="mr-2 h-4 w-4" />
               Print
             </Button>
-            <Button variant="outline" size="sm" className="hidden sm:flex">
+            <Button variant="outline" size="sm" className="hidden sm:flex" onClick={handleExport}>
               <Download className="mr-2 h-4 w-4" />
               Export
             </Button>
+            {canArchive && (patient.archivedAt ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden sm:flex"
+                onClick={handleRestore}
+                isLoading={isRestoring}
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Restore
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden sm:flex"
+                onClick={() => setArchiveDialogOpen(true)}
+              >
+                <ArchiveIcon className="mr-2 h-4 w-4" />
+                Archive
+              </Button>
+            ))}
             <Button variant="primary" size="sm" className="hidden sm:flex" onClick={() => navigate(`/patients/${id}/edit`)}>
               <Edit className="mr-2 h-4 w-4" />
               Edit
@@ -500,19 +737,49 @@ export function PatientDetailPage() {
               </Button>
             </div>
             <div className="flex-1 space-y-2 overflow-y-auto p-4">
+              {canChangeStatus && (
+                <div className="space-y-2 rounded-lg border border-border p-3">
+                  <p className="text-xs font-medium uppercase tracking-wider text-text-muted">Change Status</p>
+                  <StatusControl
+                    status={patient.status}
+                    onChange={handleStatusChange}
+                    disabled={isUpdatingStatus}
+                  />
+                </div>
+              )}
               <Button variant="outline" className="w-full justify-start gap-3" onClick={() => { setMobileMenuOpen(false); navigate(`/patients/${id}/edit`) }}>
                 <Edit className="h-4 w-4" />
                 Edit Patient
               </Button>
-              <Button variant="outline" className="w-full justify-start gap-3">
+              <Button variant="outline" className="w-full justify-start gap-3" onClick={() => { setMobileMenuOpen(false); handlePrint() }}>
                 <Printer className="h-4 w-4" />
                 Print Summary
               </Button>
-              <Button variant="outline" className="w-full justify-start gap-3">
+              {canArchive && (patient.archivedAt ? (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-3"
+                  onClick={() => { setMobileMenuOpen(false); void handleRestore() }}
+                  isLoading={isRestoring}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Restore from archive
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-3"
+                  onClick={() => { setMobileMenuOpen(false); setArchiveDialogOpen(true) }}
+                >
+                  <ArchiveIcon className="h-4 w-4" />
+                  Archive patient
+                </Button>
+              ))}
+              <Button variant="outline" className="w-full justify-start gap-3" onClick={() => { setMobileMenuOpen(false); handleExport() }}>
                 <Download className="h-4 w-4" />
                 Export Data
               </Button>
-              <Button variant="outline" className="w-full justify-start gap-3">
+              <Button variant="outline" className="w-full justify-start gap-3" onClick={() => { setMobileMenuOpen(false); handleShare() }}>
                 <Share2 className="h-4 w-4" />
                 Share Patient
               </Button>
@@ -537,11 +804,19 @@ export function PatientDetailPage() {
                         {initials}
                       </AvatarFallback>
                     </Avatar>
-                    {/* <StatusBadge status={patient.status} className="absolute -bottom-2 -right-2" /> */}
                   </div>
                   <div className="min-w-0">
                     <h2 className="truncate text-2xl font-bold text-text sm:text-3xl">{patient.name}</h2>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {canChangeStatus ? (
+                        <StatusControl
+                          status={patient.status}
+                          onChange={handleStatusChange}
+                          disabled={isUpdatingStatus}
+                        />
+                      ) : (
+                        <StatusBadge status={patient.status} className="px-3 py-1.5" />
+                      )}
                       <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
                         <Calendar className="h-3.5 w-3.5" />
                         Age {patient.age} • {formatDate(patient.dob)}
@@ -1027,6 +1302,47 @@ export function PatientDetailPage() {
           </Card>
         </TabsContent>
       </div>
+
+      {/* Archive confirmation */}
+      <Dialog open={archiveDialogOpen} onOpenChange={(open) => !open && setArchiveDialogOpen(false)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Archive this patient?</DialogTitle>
+            <DialogDescription>
+              {patient.name} ({patient.mrn}) will be moved out of the active patient list into the
+              archive. Nothing is deleted — the full record is kept and can be restored at any time.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div>
+            <label htmlFor="discharge-reason" className="mb-1.5 block text-sm font-medium text-text">
+              Discharge reason <span className="font-normal text-text-muted">(optional)</span>
+            </label>
+            <Input
+              id="discharge-reason"
+              placeholder="e.g. Recovered, discharged with medication"
+              value={dischargeReason}
+              onChange={(event) => setDischargeReason(event.target.value)}
+              disabled={isArchiving}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setArchiveDialogOpen(false)}
+              disabled={isArchiving}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleArchive} isLoading={isArchiving} className="gap-2">
+              {!isArchiving && <ArchiveIcon className="h-4 w-4" />}
+              Archive patient
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Tabs>
   )
 }

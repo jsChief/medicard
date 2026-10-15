@@ -10,8 +10,9 @@ export interface InputProps
 
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, label, error, helperText, id, ...props }, ref) => {
+  ({ className, label, error, helperText, id, children, ...props }, ref) => {
     const inputId = id || label?.toLowerCase().replace(/\s+/g, "-")
+    const hasPrefix = Boolean(children)
 
     return (
       <div className="w-full">
@@ -20,18 +21,26 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {label}
           </label>
         )}
-        <input
-          ref={ref}
-          id={inputId}
-          className={cn(
-            "w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors disabled:bg-bg disabled:cursor-not-allowed",
-            error && "border-danger focus:border-danger focus:ring-danger/20",
-            className
+        <div className="relative">
+          {hasPrefix && (
+            <span className="pointer-events-none absolute left-3.5 top-1/2 flex -translate-y-1/2 items-center text-text-muted">
+              {children}
+            </span>
           )}
-          aria-invalid={error ? "true" : "false"}
-          aria-describedby={error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined}
-          {...props}
-        />
+          <input
+            ref={ref}
+            id={inputId}
+            className={cn(
+              "w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors disabled:bg-bg disabled:cursor-not-allowed",
+              error && "border-danger focus:border-danger focus:ring-danger/20",
+              hasPrefix && "pl-10",
+              className
+            )}
+            aria-invalid={error ? "true" : "false"}
+            aria-describedby={error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined}
+            {...props}
+          />
+        </div>
         {error && (
           <p id={`${inputId}-error`} className="mt-1.5 text-sm text-danger" role="alert">
             {error}

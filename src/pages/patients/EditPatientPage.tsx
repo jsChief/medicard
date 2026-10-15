@@ -2,7 +2,7 @@ import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useState, useEffect } from "react"
-import { ArrowRight, Check, X, User, Heart, Phone, Shield, ChevronLeft, ChevronRight, Loader2, Save, RotateCcw } from "lucide-react"
+import { ArrowRight, Check, X, User, Heart, Phone, Shield, ChevronLeft, ChevronRight, Loader2, Save, RotateCcw, AlertCircle } from "lucide-react"
 
 // Ensure these icon imports are treated as used by the compiler
 const _icons_used = { ArrowRight, Check, X, User, Heart, Phone, Shield, ChevronLeft, ChevronRight, Loader2, Save, RotateCcw }
@@ -10,10 +10,23 @@ void _icons_used
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/Dialog"
 import { Select } from "@/components/ui/Select"
 // Tabs component not used in this page
 import { cn } from "@/lib/utils"
 import { useNavigate, useParams } from "react-router-dom"
+import { getPatient, updatePatient, type Patient as DbPatient } from "@/lib/database"
+import { toast } from "sonner"
+import { describeError } from "@/lib/errors"
+import { useAuth } from "@/context/AuthContext"
+import { canChangePatientStatus } from "@/lib/permissions"
 
 const steps = [
   { id: 1, title: "Personal Info", icon: User, description: "Basic patient information" },
@@ -33,13 +46,14 @@ const personalInfoSchema = z.object({
   address: z.string().min(1, "Address is required"),
   city: z.string().min(1, "City is required"),
   state: z.string().min(1, "State/Province is required"),
-  postalCode: z.string().min(1, "Postal code is required"),
+  postalCode: z.string().default(""),
   country: z.string().default("Philippines"),
   mrn: z.string().optional(),
   bloodType: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Unknown"], { required_error: "Please select blood type" }),
   maritalStatus: z.enum(["single", "married", "divorced", "widowed", "other"], { required_error: "Please select marital status" }),
   occupation: z.string().optional(),
   nationality: z.string().default("Filipino"),
+  status: z.enum(["pending", "active", "critical", "transferred", "discharged"], { required_error: "Please select status" }),
 })
 
 const medicalHistorySchema = z.object({
@@ -82,6 +96,27 @@ const insuranceSchema = z.object({
 const fullSchema = personalInfoSchema.merge(medicalHistorySchema).merge(emergencyContactSchema).merge(insuranceSchema)
 type PatientFormData = z.infer<typeof fullSchema>
 
+// Fields rendered per wizard step, used to jump the user to the first step
+// containing a validation error when the final "Save Changes" submit fails.
+const stepFields: (keyof PatientFormData)[][] = [
+  [
+    "firstName", "lastName", "middleName", "dob", "gender", "phone", "email",
+    "address", "city", "state", "postalCode", "country", "mrn", "bloodType",
+    "maritalStatus", "occupation", "nationality", "status",
+  ],
+  [
+    "conditions", "medications", "allergies", "surgeries", "familyHistory",
+    "immunizations", "notes",
+  ],
+  ["contacts"],
+  [
+    "provider", "policyNumber", "groupNumber", "memberId", "planType",
+    "effectiveDate", "expiryDate", "copayAmount", "deductibleAmount",
+    "coverageNotes", "secondaryInsurance", "secondaryProvider",
+    "secondaryPolicyNumber",
+  ],
+]
+
 const bloodTypes = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Unknown"]
 const maritalStatuses = [
   { value: "single", label: "Single" },
@@ -104,79 +139,195 @@ const planTypes = [
   { value: "Medicaid", label: "Medicaid" },
   { value: "Other", label: "Other" },
 ]
+const patientStatuses = [
+  { value: "pending", label: "Pending" },
+  { value: "active", label: "Active" },
+  { value: "critical", label: "Critical" },
+  { value: "transferred", label: "Transferred" },
+  { value: "discharged", label: "Discharged" },
+]
+type PatientStatusValue = PatientFormData["status"]
 
-const mockPatientData: PatientFormData = {
-  firstName: "Maria",
-  lastName: "Santos",
-  middleName: "Cruz",
-  dob: "1985-03-15",
-  gender: "F",
-  phone: "+63 917 123 4567",
-  email: "maria.santos@email.com",
-  address: "123 Main Street, Barangay 123",
-  city: "Manila",
-  state: "Metro Manila",
-  postalCode: "1000",
+function toDateInput(value: Date | string | null | undefined): string {
+  if (!value) return ""
+  const parsed = value instanceof Date ? value : new Date(`${value}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return ""
+  const year = parsed.getFullYear()
+  const month = String(parsed.getMonth() + 1).padStart(2, "0")
+  const day = String(parsed.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+// Build a local-midnight Date from a `YYYY-MM-DD` input value so `dateOnly()`
+// (which reads local parts) round-trips the same calendar day.
+function toLocalDate(value: string | undefined): Date | undefined {
+  if (!value) return undefined
+  const parsed = new Date(`${value}T00:00:00`)
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed
+}
+
+function newContact(): PatientFormData["contacts"][number] {
+  return { name: "", relationship: "", phone: "", email: "", address: "", isPrimary: false }
+}
+
+const emptyPatientData: PatientFormData = {
+  firstName: "",
+  lastName: "",
+  middleName: "",
+  dob: "",
+  gender: "M",
+  phone: "",
+  email: "",
+  address: "",
+  city: "",
+  state: "",
+  postalCode: "",
   country: "Philippines",
-  mrn: "MRN-2024-001234",
-  bloodType: "O+",
-  maritalStatus: "married",
-  occupation: "Teacher",
+  mrn: "",
+  bloodType: "Unknown",
+  maritalStatus: "single",
+  occupation: "",
   nationality: "Filipino",
-  conditions: ["Hypertension", "Type 2 Diabetes", "Hyperlipidemia"],
-  medications: ["Metformin 500mg BID", "Lisinopril 10mg Daily", "Atorvastatin 20mg HS", "Aspirin 81mg Daily"],
-  allergies: ["Penicillin", "Sulfa drugs"],
-  surgeries: ["Appendectomy (2010)", "Cholecystectomy (2018)"],
-  familyHistory: ["Father: Coronary artery disease", "Mother: Type 2 diabetes", "Brother: Hypertension"],
-  immunizations: ["COVID-19 mRNA (2023)", "Influenza (2024)", "Hepatitis B series (2015)", "Tdap (2020)"],
-  notes: "Patient is compliant with medications. Blood pressure well-controlled on current regimen. HbA1c 7.2% last check. Recommended annual eye exam and foot exam for diabetes monitoring.",
-  contacts: [
-    { name: "Jose Santos", relationship: "Husband", phone: "+63 918 234 5678", email: "jose.santos@email.com", address: "123 Main Street, Barangay 123, Manila", isPrimary: true },
-    { name: "Ana Santos", relationship: "Daughter", phone: "+63 919 345 6789", email: "ana.santos@email.com", address: "456 Oak Avenue, Quezon City", isPrimary: false },
-  ],
-  provider: "PhilHealth",
-  policyNumber: "PH-2024-123456789",
-  groupNumber: "GRP-987654321",
-  memberId: "MID-111222333",
+  status: "pending",
+  conditions: [],
+  medications: [],
+  allergies: [],
+  surgeries: [],
+  familyHistory: [],
+  immunizations: [],
+  notes: "",
+  contacts: [{ ...newContact(), isPrimary: true }],
+  provider: "",
+  policyNumber: "",
+  groupNumber: "",
+  memberId: "",
   planType: "HMO",
-  effectiveDate: "2024-01-01",
-  expiryDate: "2024-12-31",
-  copayAmount: "₦500",
-  deductibleAmount: "₦10,000",
-  coverageNotes: "Covers inpatient, outpatient, and emergency services. Pre-authorization required for elective procedures.",
-  secondaryInsurance: true,
-  secondaryProvider: "Maxicare",
-  secondaryPolicyNumber: "MAX-2024-987654321",
+  effectiveDate: "",
+  expiryDate: "",
+  copayAmount: "",
+  deductibleAmount: "",
+  coverageNotes: "",
+  secondaryInsurance: false,
+  secondaryProvider: "",
+  secondaryPolicyNumber: "",
+}
+
+function mapPatientToFormData(patient: DbPatient): PatientFormData {
+  const contacts = patient.emergencyContacts?.length
+    ? patient.emergencyContacts
+    : [{ name: "", relationship: "", phone: "", email: "", address: "", isPrimary: true }]
+
+  return {
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    middleName: patient.middleName ?? "",
+    dob: toDateInput(patient.dob),
+    gender: patient.gender,
+    phone: patient.phone,
+    email: patient.email ?? "",
+    address: patient.address,
+    city: patient.city,
+    state: patient.state,
+    postalCode: patient.postalCode,
+    country: patient.country,
+    mrn: patient.mrn,
+    bloodType: patient.bloodType,
+    maritalStatus: patient.maritalStatus,
+    occupation: patient.occupation ?? "",
+    nationality: patient.nationality ?? "",
+    status: patient.status,
+    conditions: patient.conditions ?? [],
+    medications: patient.medications ?? [],
+    allergies: patient.allergies ?? [],
+    surgeries: patient.surgeries ?? [],
+    familyHistory: patient.familyHistory ?? [],
+    immunizations: patient.immunizations ?? [],
+    notes: patient.notes ?? "",
+    contacts: contacts.map((contact) => ({
+      name: contact.name,
+      relationship: contact.relationship,
+      phone: contact.phone,
+      email: contact.email ?? "",
+      address: contact.address ?? "",
+      isPrimary: contact.isPrimary,
+    })),
+    provider: patient.insurance?.provider ?? "",
+    policyNumber: patient.insurance?.policyNumber ?? "",
+    groupNumber: patient.insurance?.groupNumber ?? "",
+    memberId: patient.insurance?.memberId ?? "",
+    planType: patient.insurance?.planType ?? "HMO",
+    effectiveDate: toDateInput(patient.insurance?.effectiveDate),
+    expiryDate: toDateInput(patient.insurance?.expiryDate),
+    copayAmount: patient.insurance?.copayAmount ?? "",
+    deductibleAmount: patient.insurance?.deductibleAmount ?? "",
+    coverageNotes: patient.insurance?.coverageNotes ?? "",
+    secondaryInsurance: patient.insurance?.secondaryInsurance ?? false,
+    secondaryProvider: patient.insurance?.secondaryProvider ?? "",
+    secondaryPolicyNumber: patient.insurance?.secondaryPolicyNumber ?? "",
+  }
 }
 
 export function EditPatientPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  // Status is restricted to clinical/admin roles; everyone else sees it read-only.
+  const canChangeStatus = canChangePatientStatus(user?.role)
   const [currentStep, setCurrentStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [hasChanges, setHasChanges] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [patient, setPatient] = useState<DbPatient | null>(null)
+  const [showConfirmSave, setShowConfirmSave] = useState(false)
+  const [pendingData, setPendingData] = useState<PatientFormData | null>(null)
 
   const {
     register,
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors, isDirty },
     reset,
   } = useForm<PatientFormData>({
     resolver: zodResolver(fullSchema) as unknown as Resolver<PatientFormData>,
-    defaultValues: mockPatientData,
+    defaultValues: emptyPatientData,
     mode: "onChange",
   })
 
   useEffect(() => {
-    const subscription = watch((_value) => {
-      setHasChanges(true)
-    })
-    setIsLoading(false)
-    return () => subscription.unsubscribe()
-  }, [watch])
+    let cancelled = false
+
+    async function loadPatient() {
+      if (!id) {
+        setLoadError("Patient not found")
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(true)
+      setLoadError(null)
+      try {
+        const loaded = await getPatient(id)
+        if (cancelled) return
+        if (!loaded) {
+          setLoadError("Patient not found")
+          return
+        }
+        setPatient(loaded)
+        reset(mapPatientToFormData(loaded))
+      } catch (error) {
+        console.error("Failed to load patient:", error)
+        if (!cancelled) setLoadError(describeError(error, "load patient"))
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+
+    loadPatient()
+    return () => {
+      cancelled = true
+    }
+  }, [id, reset])
 
   const watchedContacts = watch("contacts", [{ name: "", relationship: "", phone: "", email: "", address: "", isPrimary: true }]) as PatientFormData["contacts"]
   const watchedConditions = watch("conditions", []) as PatientFormData["conditions"]
@@ -200,8 +351,7 @@ export function EditPatientPage() {
     defaultValue: PatientFormData[T] extends Array<infer U> ? U : never,
   ) => {
     const current = (watch(field) as Array<typeof defaultValue>) || []
-    setValue(field as any, [...current, defaultValue] as any, { shouldValidate: true })
-    setHasChanges(true)
+    setValue(field as any, [...current, defaultValue] as any, { shouldValidate: true, shouldDirty: true })
   }
 
   const removeArrayItem = <T extends keyof PatientFormData>(
@@ -209,8 +359,7 @@ export function EditPatientPage() {
     index: number,
   ) => {
     const current = (watch(field) as Array<PatientFormData[T] extends Array<infer U> ? U : never>) || []
-    setValue(field as any, current.filter((_, i) => i !== index) as any, { shouldValidate: true })
-    setHasChanges(true)
+    setValue(field as any, current.filter((_, i) => i !== index) as any, { shouldValidate: true, shouldDirty: true })
   }
 
   const updateArrayItem = <T extends keyof PatientFormData>(
@@ -221,20 +370,101 @@ export function EditPatientPage() {
     const current = (watch(field) as Array<typeof value>) || []
     const updated = [...current]
     updated[index] = value
-    setValue(field as any, updated as any, { shouldValidate: true })
-    setHasChanges(true)
+    setValue(field as any, updated as any, { shouldValidate: true, shouldDirty: true })
   }
 
-  const onSubmit = async (_data: PatientFormData) => {
+  const submitChanges = async (data: PatientFormData) => {
+    if (!id) return
+
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setIsSubmitting(false)
-    navigate(`/patients/${id}`)
+    try {
+      const payload: Partial<DbPatient> = {
+        mrn: data.mrn ?? "",
+        firstName: data.firstName,
+        lastName: data.lastName,
+        middleName: data.middleName ?? "",
+        dob: toLocalDate(data.dob) ?? new Date(),
+        gender: data.gender,
+        phone: data.phone,
+        email: data.email ?? "",
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        postalCode: data.postalCode,
+        country: data.country,
+        bloodType: data.bloodType,
+        maritalStatus: data.maritalStatus,
+        occupation: data.occupation ?? "",
+        nationality: data.nationality ?? "",
+        status: data.status,
+        conditions: data.conditions,
+        medications: data.medications,
+        allergies: data.allergies,
+        surgeries: data.surgeries,
+        familyHistory: data.familyHistory,
+        immunizations: data.immunizations,
+        notes: data.notes ?? "",
+        emergencyContacts: data.contacts.map((contact) => ({
+          name: contact.name,
+          relationship: contact.relationship,
+          phone: contact.phone,
+          email: contact.email ?? "",
+          address: contact.address ?? "",
+          isPrimary: contact.isPrimary,
+        })),
+        insurance: {
+          provider: data.provider,
+          policyNumber: data.policyNumber,
+          groupNumber: data.groupNumber ?? "",
+          memberId: data.memberId ?? "",
+          planType: data.planType,
+          effectiveDate: toLocalDate(data.effectiveDate) ?? new Date(),
+          expiryDate: toLocalDate(data.expiryDate) ?? new Date(),
+          copayAmount: data.copayAmount ?? "",
+          deductibleAmount: data.deductibleAmount ?? "",
+          coverageNotes: data.coverageNotes ?? "",
+          secondaryInsurance: data.secondaryInsurance,
+          secondaryProvider: data.secondaryProvider ?? "",
+          secondaryPolicyNumber: data.secondaryPolicyNumber ?? "",
+        },
+      }
+
+      await updatePatient(id, payload)
+      toast.success("Patient updated")
+      navigate(`/patients/${id}`)
+    } catch (error) {
+      console.error("Failed to update patient:", error)
+      toast.error(describeError(error, "update patient"))
+    } finally {
+      setIsSubmitting(false)
+      setShowConfirmSave(false)
+      setPendingData(null)
+    }
   }
+
+  const onSubmit = async (data: PatientFormData) => {
+    setPendingData(data)
+    setShowConfirmSave(true)
+  }
+
+  const onInvalid = (formErrors: Record<string, unknown>) => {
+    const badStepIndex = stepFields.findIndex((fields) =>
+      fields.some((field) => formErrors[field as string]),
+    )
+    if (badStepIndex >= 0 && badStepIndex + 1 !== currentStep) {
+      setCurrentStep(badStepIndex + 1)
+    }
+    toast.error("Please fix the highlighted fields before saving")
+  }
+
+  const requestSave = handleSubmit(
+    (data) => onSubmit(data as unknown as PatientFormData),
+    onInvalid,
+  )
 
   const handleReset = () => {
-    reset(mockPatientData)
-    setHasChanges(false)
+    if (!patient) return
+    reset(mapPatientToFormData(patient))
   }
 
   const isLastStep = currentStep === steps.length
@@ -274,7 +504,7 @@ export function EditPatientPage() {
             <div className="grid gap-4 sm:grid-cols-3">
               <Input label="City *" placeholder="Manila" {...register("city")} error={errors.city?.message} />
               <Input label="State/Province *" placeholder="Metro Manila" {...register("state")} error={errors.state?.message} />
-              <Input label="Postal Code *" placeholder="1000" {...register("postalCode")} error={errors.postalCode?.message} />
+              <Input label="Postal Code" placeholder="1000" {...register("postalCode")} error={errors.postalCode?.message} />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Country" {...register("country")} />
@@ -290,7 +520,18 @@ export function EditPatientPage() {
               />
               <Input label="Occupation" placeholder="Software Engineer" {...register("occupation")} error={errors.occupation?.message} />
             </div>
-            <Input label="Nationality" {...register("nationality")} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input label="Nationality" {...register("nationality")} />
+              <Select
+                label="Patient Status *"
+                options={patientStatuses}
+                value={watch("status")}
+                disabled={!canChangeStatus}
+                onChange={(value) => setValue("status", value as PatientStatusValue, { shouldValidate: true, shouldDirty: true })}
+                error={errors.status?.message}
+                helperText={canChangeStatus ? undefined : "Only doctors and admins can change patient status"}
+              />
+            </div>
           </div>
         )
       case 2:
@@ -556,15 +797,30 @@ export function EditPatientPage() {
     )
   }
 
+  if (loadError || !patient) {
+    return (
+      <div className="flex items-center justify-center min-h-100">
+        <div className="text-center">
+          <AlertCircle className="mx-auto mb-4 h-12 w-12 text-danger" />
+          <h2 className="mb-2 text-xl font-semibold text-text">{loadError || "Patient not found"}</h2>
+          <Button variant="outline" onClick={() => navigate("/patients")} className="gap-2">
+            <ChevronLeft className="h-4 w-4" />
+            Back to patients
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <form onSubmit={handleSubmit((d) => onSubmit(d as unknown as PatientFormData))} className="space-y-6" noValidate>
+    <form onSubmit={requestSave} className="space-y-6" noValidate>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text">Edit Patient</h1>
-          <p className="text-text-muted mt-1">MRN-2024-001234 • Maria Santos</p>
+          <p className="text-text-muted mt-1">{patient.mrn} • {patient.firstName} {patient.lastName}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" onClick={handleReset} disabled={!hasChanges || isSubmitting} className="gap-2">
+          <Button type="button" variant="outline" onClick={handleReset} disabled={!isDirty || isSubmitting} className="gap-2">
             <RotateCcw className="h-4 w-4" />
             Reset
           </Button>
@@ -628,12 +884,18 @@ export function EditPatientPage() {
           </Button>
           <div className="flex gap-3">
             {isLastStep ? (
-              <Button type="submit" isLoading={isSubmitting} className="gap-2">
+              <Button
+                key="save"
+                type="button"
+                onClick={requestSave}
+                isLoading={isSubmitting}
+                className="gap-2"
+              >
                 <Save className="h-4 w-4" />
                 Save Changes
               </Button>
             ) : (
-              <Button type="button" onClick={nextStep} className="gap-2">
+              <Button key="next" type="button" onClick={nextStep} className="gap-2">
                 Next
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -644,7 +906,7 @@ export function EditPatientPage() {
 
       {/* Mobile Step Navigation */}
       <div className="lg:hidden flex items-center justify-between">
-        <Button variant="outline" onClick={prevStep} disabled={currentStep === 1} className="gap-1">
+        <Button type="button" variant="outline" onClick={prevStep} disabled={currentStep === 1} className="gap-1">
           <ChevronLeft className="h-4 w-4" />
           Back
         </Button>
@@ -665,11 +927,53 @@ export function EditPatientPage() {
             />
           ))}
         </div>
-        <Button variant="outline" onClick={nextStep} disabled={currentStep === steps.length} className="gap-1">
+        <Button key="next-mobile" type="button" variant="outline" onClick={nextStep} disabled={currentStep === steps.length} className="gap-1">
           Next
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* Confirm Save */}
+      <Dialog
+        open={showConfirmSave}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowConfirmSave(false)
+            setPendingData(null)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save patient changes?</DialogTitle>
+            <DialogDescription>
+              This will update the record for {patient.firstName} {patient.lastName} ({patient.mrn}).
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowConfirmSave(false)
+                setPendingData(null)
+              }}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => pendingData && submitChanges(pendingData)}
+              isLoading={isSubmitting}
+              className="gap-2"
+            >
+              <Save className="h-4 w-4" />
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   )
 }

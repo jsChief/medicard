@@ -28,6 +28,11 @@ import { useAuth } from "@/context/AuthContext"
 import { queryLocations, type Location as FSLocation } from "@/lib/database"
 import { describeError } from "@/lib/errors"
 import { ErrorState } from "@/components/common/ErrorState"
+import { buildCsv, downloadCsv } from "@/lib/csv"
+import { toast } from "sonner"
+import { LocationDialog, type LocationDialogMode } from "@/components/locations/LocationDialog"
+import { BulkEditLocationsDialog } from "@/components/locations/BulkEditLocationsDialog"
+import { NotifyStaffDialog } from "@/components/locations/NotifyStaffDialog"
 
 interface LocationView {
   id: string
@@ -100,6 +105,39 @@ function getEquipmentConfig(status: LocationView["equipmentStatus"]) {
   }
 }
 
+const LOCATION_CSV_COLUMNS = [
+  "Name",
+  "Type",
+  "Floor",
+  "Wing",
+  "Capacity",
+  "Occupied",
+  "Available",
+  "Occupancy Rate",
+  "Status",
+  "Staff on Duty",
+  "Equipment",
+  "Notes",
+] as const
+
+function locationToCsvRow(location: LocationView): Record<string, string> {
+  const rate = location.capacity > 0 ? Math.round((location.occupied / location.capacity) * 100) : 0
+  return {
+    Name: location.name,
+    Type: locationTypes[location.type].label,
+    Floor: location.floor,
+    Wing: location.wing,
+    Capacity: String(location.capacity),
+    Occupied: String(location.occupied),
+    Available: String(location.available),
+    "Occupancy Rate": `${rate}%`,
+    Status: getStatusConfig(location.status).label,
+    "Staff on Duty": String(location.staffOnDuty),
+    Equipment: getEquipmentConfig(location.equipmentStatus).label,
+    Notes: location.notes ?? "",
+  }
+}
+
 function OccupancyBar({ occupied, capacity }: { occupied: number; capacity: number }) {
   const rate = getOccupancyRate(occupied, capacity)
   return (
@@ -131,6 +169,11 @@ export function LocationMatrixPage() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<"table" | "grid">("table")
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [dialogMode, setDialogMode] = useState<LocationDialogMode>("create")
+  const [dialogLocation, setDialogLocation] = useState<FSLocation | null>(null)
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [notifyOpen, setNotifyOpen] = useState(false)
 
   const fetchLocations = useCallback(async () => {
     if (!user?.hospitalId) {
@@ -208,6 +251,33 @@ export function LocationMatrixPage() {
     else setSelectedItems(filteredLocations.map(l => l.id))
   }
 
+  const selectedLocations = useMemo(
+    () => locations.filter(l => selectedItems.includes(l.id)),
+    [locations, selectedItems],
+  )
+
+  const openLocationDialog = (locationId: string, mode: LocationDialogMode) => {
+    setDialogLocation(locations.find(l => l.id === locationId) ?? null)
+    setDialogMode(mode)
+    setDialogOpen(true)
+  }
+
+  const openCreateLocation = () => {
+    setDialogLocation(null)
+    setDialogMode("create")
+    setDialogOpen(true)
+  }
+
+  const handleExport = () => {
+    if (filteredLocations.length === 0) {
+      toast.info("No locations to export")
+      return
+    }
+    const csv = buildCsv(LOCATION_CSV_COLUMNS, filteredLocations.map(locationToCsvRow))
+    downloadCsv(`locations-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+    toast.success(`Exported ${filteredLocations.length} location(s)`)
+  }
+
   const totalCapacity = viewLocations.reduce((sum, l) => sum + l.capacity, 0)
   const totalOccupied = viewLocations.reduce((sum, l) => sum + l.occupied, 0)
   const totalAvailable = totalCapacity - totalOccupied
@@ -258,15 +328,17 @@ export function LocationMatrixPage() {
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
             Refresh
           </Button>
-          <Button variant="outline" className="gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={handleExport}
+            aria-label="Export locations"
+            title="Export the locations shown to CSV"
+          >
             <Download className="h-4 w-4" />
             Export
           </Button>
-          <Button variant="outline" className="gap-2">
-            <Settings className="h-4 w-4" />
-            Configure
-          </Button>
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={openCreateLocation}>
             <MapPin className="h-4 w-4" />
             Add Location
           </Button>
@@ -294,18 +366,21 @@ export function LocationMatrixPage() {
       <Card className="p-0">
         <CardContent className="p-4">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_200px_170px]">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-              <Input
-                placeholder="Search locations or wings..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+            <div className="flex w-full flex-col">
+              <span className="mb-1.5 text-sm font-medium text-text">Search</span>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+                <Input
+                  placeholder="Search locations or wings..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-            <FilterDropdown value={typeFilter} onChange={setTypeFilter} options={typeOptions} />
-            <FilterDropdown value={statusFilter} onChange={setStatusFilter} options={statusOptions} />
-            <FilterDropdown value={floorFilter} onChange={setFloorFilter} options={floorOptions} />
+            <FilterDropdown label="Type" value={typeFilter} onChange={setTypeFilter} options={typeOptions} />
+            <FilterDropdown label="Status" value={statusFilter} onChange={setStatusFilter} options={statusOptions} />
+            <FilterDropdown label="Floor" value={floorFilter} onChange={setFloorFilter} options={floorOptions} />
           </div>
         </CardContent>
       </Card>
@@ -317,8 +392,12 @@ export function LocationMatrixPage() {
             {selectedItems.length} location(s) selected
           </span>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1"><Bell className="h-4 w-4" /> Notify Staff</Button>
-            <Button variant="outline" size="sm" className="gap-1"><Settings className="h-4 w-4" /> Bulk Edit</Button>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => setNotifyOpen(true)}>
+              <Bell className="h-4 w-4" /> Notify Staff
+            </Button>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => setBulkEditOpen(true)}>
+              <Settings className="h-4 w-4" /> Bulk Edit
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => setSelectedItems([])}>Clear</Button>
           </div>
         </div>
@@ -429,10 +508,22 @@ export function LocationMatrixPage() {
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={e => e.stopPropagation()} aria-label="View location">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={e => { e.stopPropagation(); openLocationDialog(location.id, "view") }}
+                              aria-label={`View ${location.name}`}
+                            >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={e => e.stopPropagation()} aria-label="Edit location">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={e => { e.stopPropagation(); openLocationDialog(location.id, "edit") }}
+                              aria-label={`Edit ${location.name}`}
+                            >
                               <Settings className="h-4 w-4" />
                             </Button>
                             <span className={cn("flex h-8 w-8 items-center justify-center text-text-muted transition-transform", isExpanded && "rotate-180")}>
@@ -575,6 +666,27 @@ export function LocationMatrixPage() {
           })}
         </div>
       )}
+
+      <LocationDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        mode={dialogMode}
+        location={dialogLocation}
+        onSaved={fetchLocations}
+        onRequestEdit={() => setDialogMode("edit")}
+      />
+
+      <BulkEditLocationsDialog
+        open={bulkEditOpen}
+        onOpenChange={setBulkEditOpen}
+        locations={selectedLocations}
+        onApplied={async () => {
+          setSelectedItems([])
+          await fetchLocations()
+        }}
+      />
+
+      <NotifyStaffDialog open={notifyOpen} onOpenChange={setNotifyOpen} locations={selectedLocations} />
     </div>
   )
 }

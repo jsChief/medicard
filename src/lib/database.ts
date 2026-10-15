@@ -38,6 +38,9 @@ interface PatientRow {
   last_visit: string
   room: string | null
   bed: string | null
+  archived_at: string | null
+  archived_by: string | null
+  discharge_reason: string | null
   hospital_id: string
   created_by: string | null
   created_at: string
@@ -121,6 +124,11 @@ export interface Patient {
   lastVisit: Date
   room?: string
   bed?: string
+  /** Soft-archive marker. null/undefined means the patient is active. */
+  archivedAt?: Date | null
+  /** Display name of whoever archived the record. */
+  archivedBy?: string | null
+  dischargeReason?: string
   createdAt: Date
   updatedAt: Date
   createdBy: string
@@ -260,6 +268,9 @@ function mapPatient(row: PatientWithRelations): Patient {
     lastVisit: toDate(row.last_visit),
     room: row.room ?? undefined,
     bed: row.bed ?? undefined,
+    archivedAt: row.archived_at ? toDate(row.archived_at) : null,
+    archivedBy: row.archived_by ?? null,
+    dischargeReason: row.discharge_reason ?? "",
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
     createdBy: row.created_by ?? "",
@@ -401,6 +412,9 @@ export async function getExistingMrns(hospitalId: string): Promise<Set<string>> 
       sortOrder: "asc",
       pageSize: 1000,
       startAfterDoc: cursor ?? undefined,
+      // Archived records still hold their MRN, so they must stay in this set or
+      // a duplicate MRN could be issued for a patient who is only archived.
+      includeArchived: true,
     })
     patients.forEach((patient) => {
       if (patient.mrn) mrns.add(patient.mrn.trim().toLowerCase())
@@ -457,6 +471,11 @@ export interface PatientQueryOptions {
   sortOrder?: "asc" | "desc"
   pageSize?: number
   startAfterDoc?: PageCursor | null
+  /**
+   * Archived records are hidden by default. Set true only for screens that are
+   * specifically about the archive.
+   */
+  includeArchived?: boolean
 }
 
 export async function queryPatients(
@@ -482,6 +501,7 @@ export async function queryPatients(
     .order(sortColumn, { ascending: sortOrder === "asc" })
 
   if (options.hospitalId) query = query.eq("hospital_id", options.hospitalId)
+  if (!options.includeArchived) query = query.is("archived_at", null)
   if (options.department) query = query.eq("department", options.department)
   if (options.status) query = query.eq("status", options.status)
   if (options.search) {
@@ -525,6 +545,7 @@ export async function searchPatients(hospitalId: string, searchTerm: string): Pr
     .from("patients")
     .select(PATIENT_RELATIONS)
     .eq("hospital_id", hospitalId)
+    .is("archived_at", null)
     .or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%,mrn.ilike.%${term}%`)
     .limit(20)
 
@@ -537,6 +558,7 @@ export async function getPatientsByPhysician(physicianId: string): Promise<Patie
     .from("patients")
     .select(PATIENT_RELATIONS)
     .eq("attending_physician", physicianId)
+    .is("archived_at", null)
 
   if (error) throw new Error(`${error.message} [${error.code ?? "select"}]`)
   return ((data ?? []) as unknown as PatientWithRelations[]).map(mapPatient)
@@ -1349,75 +1371,6 @@ export interface ArchivedPatient {
   createdBy: string
 }
 
-interface ArchiveRow {
-  id: string
-  mrn: string
-  name: string
-  dob: string
-  age: number
-  department: string
-  status: ArchiveStatus
-  attending_physician: string
-  admission_date: string
-  discharge_date: string
-  discharge_reason: string
-  archived_at: string
-  archived_by: string
-  conditions: string[]
-  length_of_stay: number
-  hospital_id: string
-  created_by: string | null
-}
-
-function mapArchive(row: ArchiveRow): ArchivedPatient {
-  return {
-    id: row.id,
-    mrn: row.mrn,
-    name: row.name,
-    dob: toDate(row.dob),
-    age: row.age,
-    department: row.department,
-    status: row.status,
-    attendingPhysician: row.attending_physician,
-    admissionDate: toDate(row.admission_date),
-    dischargeDate: toDate(row.discharge_date),
-    dischargeReason: row.discharge_reason,
-    archivedAt: toDate(row.archived_at),
-    archivedBy: row.archived_by,
-    conditions: row.conditions ?? [],
-    lengthOfStay: row.length_of_stay,
-    hospitalId: row.hospital_id,
-    createdBy: row.created_by ?? "",
-  }
-}
-
-export async function createArchive(archived: Omit<ArchivedPatient, "id">): Promise<string> {
-  const { data, error } = await getSupabase()
-    .from("archives")
-    .insert({
-      mrn: archived.mrn,
-      name: archived.name,
-      dob: dateOnly(archived.dob),
-      age: archived.age,
-      department: archived.department,
-      status: archived.status,
-      attending_physician: archived.attendingPhysician,
-      admission_date: archived.admissionDate.toISOString(),
-      discharge_date: archived.dischargeDate.toISOString(),
-      discharge_reason: archived.dischargeReason,
-      archived_at: archived.archivedAt.toISOString(),
-      archived_by: archived.archivedBy,
-      conditions: archived.conditions ?? [],
-      length_of_stay: archived.lengthOfStay,
-      hospital_id: archived.hospitalId,
-    })
-    .select("id")
-    .single()
-
-  if (error) throw new Error(`${error.message} [${error.code ?? "insert"}]`)
-  return (data as { id: string }).id
-}
-
 export interface ArchiveQueryOptions {
   hospitalId?: string
   status?: ArchiveStatus
@@ -1430,12 +1383,18 @@ export interface ArchiveQueryOptions {
 
 const ARCHIVE_SORT_COLUMNS: Record<string, string> = {
   archivedAt: "archived_at",
-  name: "name",
+  name: "last_name",
   status: "status",
   department: "department",
-  dischargeDate: "discharge_date",
+  dischargeDate: "archived_at",
 }
 
+/**
+ * The archive is now a view over patients.archived_at rather than the legacy
+ * archives table, so a record keeps its id and all of its fields — which is what
+ * makes restore lossless. The result is projected into ArchivedPatient so the
+ * archive screen keeps its existing contract.
+ */
 export async function queryArchives(
   options: ArchiveQueryOptions = {},
 ): Promise<{ archives: ArchivedPatient[]; lastDoc: PageCursor | null }> {
@@ -1450,9 +1409,12 @@ export async function queryArchives(
   })
 
   let query = getSupabase()
-    .from("archives")
-    .select("*")
-    .order(ARCHIVE_SORT_COLUMNS[sortBy] ?? sortBy, { ascending: sortOrder === "asc" })
+    .from("patients")
+    .select(PATIENT_RELATIONS)
+    .not("archived_at", "is", null)
+    .order(ARCHIVE_SORT_COLUMNS[sortBy] ?? ARCHIVE_SORT_COLUMNS.archivedAt, {
+      ascending: sortOrder === "asc",
+    })
 
   if (options.hospitalId) query = query.eq("hospital_id", options.hospitalId)
   if (options.status) query = query.eq("status", options.status)
@@ -1461,8 +1423,8 @@ export async function queryArchives(
   const { data, error } = await query.range(cursor.offset, cursor.offset + pageSize - 1)
   if (error) throw new Error(`${error.message} [${error.code ?? "select"}]`)
 
-  const rows = (data ?? []) as ArchiveRow[]
-  const archives = rows.map(mapArchive)
+  const rows = (data ?? []) as unknown as PatientWithRelations[]
+  const archives = rows.map(mapPatientToArchived)
 
   return {
     archives,
@@ -1473,63 +1435,100 @@ export async function queryArchives(
   }
 }
 
+/** Age in whole years, accounting for whether the birthday has passed. */
+export function calculateAge(dob: Date, now: Date = new Date()): number {
+  if (Number.isNaN(dob.getTime())) return 0
+  let age = now.getFullYear() - dob.getFullYear()
+  const monthDiff = now.getMonth() - dob.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) age -= 1
+  return Math.max(0, age)
+}
+
+function daysBetween(from: Date, to: Date): number {
+  return Math.max(1, Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)))
+}
+
+/** Projects a patient row into the archive screen's existing view shape. */
+function mapPatientToArchived(row: PatientWithRelations): ArchivedPatient {
+  const archivedAt = toDate(row.archived_at)
+  return {
+    id: row.id,
+    mrn: row.mrn,
+    name: `${row.first_name} ${row.last_name}`.trim(),
+    dob: toDate(row.dob),
+    age: calculateAge(toDate(row.dob)),
+    department: row.department,
+    // patient_status and archive_status share their three discharge-ish values;
+    // a patient archived while still 'active' is reported as discharged, which
+    // is what actually happened to them.
+    status: (["discharged", "transferred", "deceased"] as const).includes(
+      row.status as "discharged" | "transferred" | "deceased",
+    )
+      ? (row.status as ArchiveStatus)
+      : "discharged",
+    attendingPhysician: row.attending_physician,
+    admissionDate: toDate(row.admission_date),
+    dischargeDate: archivedAt,
+    dischargeReason: row.discharge_reason ?? "",
+    archivedAt,
+    archivedBy: row.archived_by ?? "",
+    conditions: row.conditions ?? [],
+    lengthOfStay: daysBetween(toDate(row.admission_date), archivedAt),
+    hospitalId: row.hospital_id,
+    createdBy: row.created_by ?? "",
+  }
+}
+
+/** The archive listing is read-only apart from restore/delete. */
 export async function updateArchive(id: string, data: Partial<ArchivedPatient>): Promise<void> {
   const row: Record<string, unknown> = {}
-  if (data.name !== undefined) row.name = data.name
   if (data.department !== undefined) row.department = data.department
-  if (data.status !== undefined) row.status = data.status
-  if (data.attendingPhysician !== undefined) row.attending_physician = data.attendingPhysician
   if (data.dischargeReason !== undefined) row.discharge_reason = data.dischargeReason
-  if (data.conditions !== undefined) row.conditions = data.conditions
-  if (data.lengthOfStay !== undefined) row.length_of_stay = data.lengthOfStay
-  if (data.archivedBy !== undefined) row.archived_by = data.archivedBy
 
-  const { error } = await getSupabase().from("archives").update(row).eq("id", id)
+  const { error } = await getSupabase().from("patients").update(row).eq("id", id)
   if (error) throw new Error(`${error.message} [${error.code ?? "update"}]`)
 }
 
-export async function deleteArchive(id: string): Promise<void> {
-  const { error } = await getSupabase().from("archives").delete().eq("id", id)
-  if (error) throw new Error(`${error.message} [${error.code ?? "delete"}]`)
+export interface ArchiveOptions {
+  /** Display name recorded as the actor. Falls back to the caller's role. */
+  archivedBy?: string
+  dischargeReason?: string
 }
 
-export async function bulkDeleteArchives(ids: string[]): Promise<void> {
-  if (ids.length === 0) return
-  const { error } = await getSupabase().from("archives").delete().in("id", ids)
-  if (error) throw new Error(`${error.message} [${error.code ?? "delete"}]`)
-}
-
-export async function restoreArchive(archive: ArchivedPatient): Promise<void> {
-  const { error } = await getSupabase().rpc("restore_archive", { p_archive_id: archive.id })
+/**
+ * Soft archive: stamps archived_at on the patient row instead of copying it into
+ * a separate table. Nothing is duplicated and nothing is lost, so this is safe
+ * to call repeatedly — the RPC treats an already-archived row as a no-op.
+ */
+export async function archivePatient(id: string, options: ArchiveOptions = {}): Promise<void> {
+  const { error } = await getSupabase().rpc("archive_patient", {
+    p_id: id,
+    p_archived_by: options.archivedBy ?? null,
+    p_discharge_reason: options.dischargeReason ?? null,
+  })
   if (error) throw new Error(`${error.message} [${error.code ?? "rpc"}]`)
 }
 
-export async function archivePatientAsDischarged(patient: Patient): Promise<void> {
-  const lengthOfStay = Math.max(
-    1,
-    Math.round(((patient.admissionDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) * -1),
-  )
+/** Bring an archived record back into the active list. */
+export async function restoreArchivedPatient(id: string): Promise<void> {
+  const { error } = await getSupabase().rpc("restore_patient", { p_id: id })
+  if (error) throw new Error(`${error.message} [${error.code ?? "rpc"}]`)
+}
 
-  const archived: Omit<ArchivedPatient, "id"> = {
-    mrn: patient.mrn,
-    name: `${patient.firstName} ${patient.lastName}`.trim(),
-    dob: patient.dob,
-    age: patient.dob.getFullYear() > 1900 ? new Date().getFullYear() - patient.dob.getFullYear() : 0,
-    department: patient.department,
-    status: "discharged",
-    attendingPhysician: patient.attendingPhysician,
-    admissionDate: patient.admissionDate,
-    dischargeDate: new Date(),
-    dischargeReason: patient.notes || "Discharged",
-    archivedAt: new Date(),
-    archivedBy: patient.attendingPhysician || "System",
-    conditions: patient.conditions ?? [],
-    lengthOfStay,
-    hospitalId: patient.hospitalId,
-    createdBy: patient.createdBy,
-  }
+/**
+ * Permanently removes the patient row. This is the only destructive path in the
+ * archive and is deliberately not reachable from the archive list's bulk action
+ * without the existing confirmation.
+ */
+export async function deleteArchivedPatient(id: string): Promise<void> {
+  const { error } = await getSupabase().from("patients").delete().eq("id", id)
+  if (error) throw new Error(`${error.message} [${error.code ?? "delete"}]`)
+}
 
-  await createArchive(archived)
+export async function bulkDeleteArchivedPatients(ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  const { error } = await getSupabase().from("patients").delete().in("id", ids)
+  if (error) throw new Error(`${error.message} [${error.code ?? "delete"}]`)
 }
 
 /* ============================================================================
@@ -1550,6 +1549,8 @@ export interface CountOptions {
   to?: Date
   status?: string
   statuses?: string[]
+  /** Archived records are excluded by default; opt in to count them. */
+  includeArchived?: boolean
 }
 
 export async function countPatients(options: CountOptions): Promise<number> {
@@ -1558,6 +1559,7 @@ export async function countPatients(options: CountOptions): Promise<number> {
     .select("*", { count: "exact", head: true })
     .eq("hospital_id", options.hospitalId)
 
+  if (!options.includeArchived) query = query.is("archived_at", null)
   if (options.statuses) query = query.in("status", options.statuses)
   if (options.status) query = query.eq("status", options.status)
   if (options.from) query = query.gte("admission_date", options.from.toISOString())
@@ -1568,9 +1570,10 @@ export async function countPatients(options: CountOptions): Promise<number> {
 
 export async function countArchives(options: CountOptions): Promise<number> {
   let query = getSupabase()
-    .from("archives")
+    .from("patients")
     .select("*", { count: "exact", head: true })
     .eq("hospital_id", options.hospitalId)
+    .not("archived_at", "is", null)
 
   if (options.statuses) query = query.in("status", options.statuses)
   if (options.status) query = query.eq("status", options.status)
@@ -1698,6 +1701,153 @@ export async function getDashboardCounts(
     archiveBalanceChange: percentChange(archivesPrevious, archivesCurrent),
     activeCheckoutsChange: percentChange(checkoutsPrevious, checkoutsCurrent),
   }
+}
+
+const DAY_MS = 86400000
+
+export type SeriesBucket = "hour" | "day" | "week"
+
+export interface SeriesWindow {
+  start: Date
+  end: Date
+  label: string
+}
+
+/**
+ * Contiguous, gapless windows covering the current half of `getPeriodWindow`,
+ * so the chart always reconciles with the "vs last period" metric cards.
+ *
+ * The bucket size is chosen per range to keep the point count readable: hourly
+ * for a single day, daily for a week or month, weekly for a quarter.
+ */
+export function getSeriesWindows(
+  range: DashboardRange,
+  now: Date = new Date(),
+): { bucket: SeriesBucket; windows: SeriesWindow[] } {
+  const { currentStart } = getPeriodWindow(range, now)
+
+  if (range === "today") {
+    const step = 3600000
+    const end = now.getTime() + 1
+    const windows: SeriesWindow[] = []
+    // Only elapsed hours: charting the remaining hours of the day as zero would
+    // read as "no admissions yet" rather than "that hour has not happened".
+    for (let t = currentStart.getTime(); t < end; t += step) {
+      windows.push({
+        start: new Date(t),
+        end: new Date(Math.min(t + step, end)),
+        label: new Date(t).toLocaleTimeString(undefined, { hour: "numeric" }),
+      })
+    }
+    return { bucket: "hour", windows }
+  }
+
+  const step = range === "quarter" ? 7 * DAY_MS : DAY_MS
+  const windows: SeriesWindow[] = []
+  // The final window is clipped to `now` so a partially elapsed bucket is not
+  // displayed as if it were complete.
+  const end = now.getTime() + 1
+  for (let t = currentStart.getTime(); t < end; t += step) {
+    windows.push({
+      start: new Date(t),
+      end: new Date(Math.min(t + step, end)),
+      label: new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    })
+  }
+  return { bucket: range === "quarter" ? "week" : "day", windows }
+}
+
+/** Index of the window containing `time`, or -1 when it falls outside. */
+function findWindowIndex(windows: SeriesWindow[], time: number): number {
+  let low = 0
+  let high = windows.length - 1
+  while (low <= high) {
+    const mid = (low + high) >> 1
+    const { start, end } = windows[mid]
+    if (time < start.getTime()) high = mid - 1
+    else if (time >= end.getTime()) low = mid + 1
+    else return mid
+  }
+  return -1
+}
+
+async function bucketTimestamps(
+  table: string,
+  column: string,
+  hospitalId: string,
+  windows: SeriesWindow[],
+): Promise<number[]> {
+  const buckets = new Array<number>(windows.length).fill(0)
+  const first = windows[0]
+  const last = windows[windows.length - 1]
+  if (!first || !last) return buckets
+
+  const { data, error } = await getSupabase()
+    .from(table)
+    .select(column)
+    .eq("hospital_id", hospitalId)
+    .gte(column, first.start.toISOString())
+    .lt(column, last.end.toISOString())
+
+  if (error) throw new Error(`${error.message} [${error.code ?? "select"}]`)
+
+  for (const row of (data ?? []) as unknown as Array<Record<string, string>>) {
+    const index = findWindowIndex(windows, new Date(row[column]).getTime())
+    if (index >= 0) buckets[index] += 1
+  }
+  return buckets
+}
+
+export interface ActivityPoint {
+  label: string
+  admissions: number
+  checkouts: number
+}
+
+/**
+ * Patient admissions and card checkouts per bucket. Used for the dashboard
+ * activity chart; both columns are timestamptz and indexed with hospital_id.
+ */
+export async function getActivitySeries(
+  hospitalId: string,
+  range: DashboardRange = "month",
+): Promise<ActivityPoint[]> {
+  const { windows } = getSeriesWindows(range)
+  if (windows.length === 0) return []
+
+  const [admissions, checkouts] = await Promise.all([
+    bucketTimestamps("patients", "admission_date", hospitalId, windows),
+    bucketTimestamps("checkouts", "created_at", hospitalId, windows),
+  ])
+
+  return windows.map((window, index) => ({
+    label: window.label,
+    admissions: admissions[index],
+    checkouts: checkouts[index],
+  }))
+}
+
+const PATIENT_STATUSES: Patient["status"][] = [
+  "pending",
+  "active",
+  "critical",
+  "transferred",
+  "discharged",
+]
+
+export interface PatientStatusSlice {
+  status: Patient["status"]
+  count: number
+}
+
+/** Current patient count per status, for the dashboard distribution chart. */
+export async function getPatientStatusBreakdown(
+  hospitalId: string,
+): Promise<PatientStatusSlice[]> {
+  const counts = await Promise.all(
+    PATIENT_STATUSES.map((status) => countPatients({ hospitalId, status })),
+  )
+  return PATIENT_STATUSES.map((status, index) => ({ status, count: counts[index] }))
 }
 
 export { throwIfError }
