@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, type ChangeEvent } from "react"
-import { Search, Filter, ChevronDown, ChevronUp, ChevronRight, MoreHorizontal, Edit, Eye, Copy, Link2, Plus, RefreshCw, AlertCircle, Download, Upload } from "lucide-react"
+import { Search, ChevronDown, ChevronUp, ChevronRight, MoreHorizontal, Edit, Eye, Copy, Link2, Plus, RefreshCw, AlertCircle, Download, Upload } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
@@ -79,7 +79,6 @@ export function PatientsListPage() {
   const [statusFilter, setStatusFilter] = useState("All")
   const [sortBy, setSortBy] = useState<string>("lastName")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
-  const [showFilters, setShowFilters] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [patients, setPatients] = useState<Patient[]>([])
   const [lastDoc, setLastDoc] = useState<any>(null)
@@ -306,10 +305,6 @@ export function PatientsListPage() {
             {/*<RefreshCw className={`h-4 w-4 ${isLoading && patients.length > 0 ? "animate-spin" : ""}`} /> */}
             Refresh
           </Button>
-          <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="gap-2">
-            <Filter className="h-4 w-4" />
-            <span className="hidden sm:inline">Filters</span>
-          </Button>
           <Button variant="outline" onClick={handleExport} isLoading={isExporting} className="gap-2" aria-label="Export patients" title="Export all patients to CSV">
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">Export</span>
@@ -332,34 +327,33 @@ export function PatientsListPage() {
         </div>
       </div>
 
-      {showFilters && (
-        <Card className="border-border/50">
-          <CardContent className="p-4 pt-0">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Input
-                placeholder="Search by name, MRN, email, phone..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="max-w-xs"
-              >
-                <Search className="h-4 w-4 text-text-muted" />
-              </Input>
-              <Select
-                label="Department"
-                value={departmentFilter}
-                onChange={setDepartmentFilter}
-                options={departments.map((d) => ({ value: d, label: d }))}
-              />
-              <Select
-                label="Status"
-                value={statusFilter}
-                onChange={setStatusFilter}
-                options={statuses.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Card className="border-border/50">
+        <CardContent className="p-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Input
+              label="Search"
+              placeholder="Search by name, MRN, email, phone..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="max-w-xs"
+            >
+              <Search className="h-4 w-4 text-text-muted" />
+            </Input>
+            <Select
+              label="Department"
+              value={departmentFilter}
+              onChange={setDepartmentFilter}
+              options={departments.map((d) => ({ value: d, label: d }))}
+            />
+            <Select
+              label="Status"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={statuses.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="px-4 py-3">
