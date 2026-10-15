@@ -819,7 +819,7 @@ export function EditPatientPage() {
 
       {/* Mobile Step Navigation */}
       <div className="lg:hidden flex items-center justify-between">
-        <Button variant="outline" onClick={prevStep} disabled={currentStep === 1} className="gap-1">
+        <Button type="button" variant="outline" onClick={prevStep} disabled={currentStep === 1} className="gap-1">
           <ChevronLeft className="h-4 w-4" />
           Back
         </Button>
@@ -840,7 +840,7 @@ export function EditPatientPage() {
             />
           ))}
         </div>
-        <Button variant="outline" onClick={nextStep} disabled={currentStep === steps.length} className="gap-1">
+        <Button type="button" variant="outline" onClick={nextStep} disabled={currentStep === steps.length} className="gap-1">
           Next
           <ChevronRight className="h-4 w-4" />
         </Button>

@@ -9,7 +9,7 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "primary", size = "md", isLoading, children, disabled, ...props }, ref) => {
+  ({ className, variant = "primary", size = "md", type = "button", isLoading, children, disabled, ...props }, ref) => {
     const baseStyles = "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus:outline-none focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
     
     const variants = {
@@ -29,6 +29,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <button
         ref={ref}
+        type={type}
         className={cn(baseStyles, variants[variant], sizes[size], className)}
         disabled={disabled || isLoading}
         {...props}
