@@ -10,6 +10,14 @@ void _icons_used
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/Dialog"
 import { Select } from "@/components/ui/Select"
 // Tabs component not used in this page
 import { cn } from "@/lib/utils"
@@ -17,6 +25,8 @@ import { useNavigate, useParams } from "react-router-dom"
 import { getPatient, updatePatient, type Patient as DbPatient } from "@/lib/database"
 import { toast } from "sonner"
 import { describeError } from "@/lib/errors"
+import { useAuth } from "@/context/AuthContext"
+import { canChangePatientStatus } from "@/lib/permissions"
 
 const steps = [
   { id: 1, title: "Personal Info", icon: User, description: "Basic patient information" },
@@ -43,6 +53,7 @@ const personalInfoSchema = z.object({
   maritalStatus: z.enum(["single", "married", "divorced", "widowed", "other"], { required_error: "Please select marital status" }),
   occupation: z.string().optional(),
   nationality: z.string().default("Filipino"),
+  status: z.enum(["pending", "active", "critical", "transferred", "discharged"], { required_error: "Please select status" }),
 })
 
 const medicalHistorySchema = z.object({
@@ -85,6 +96,27 @@ const insuranceSchema = z.object({
 const fullSchema = personalInfoSchema.merge(medicalHistorySchema).merge(emergencyContactSchema).merge(insuranceSchema)
 type PatientFormData = z.infer<typeof fullSchema>
 
+// Fields rendered per wizard step, used to jump the user to the first step
+// containing a validation error when the final "Save Changes" submit fails.
+const stepFields: (keyof PatientFormData)[][] = [
+  [
+    "firstName", "lastName", "middleName", "dob", "gender", "phone", "email",
+    "address", "city", "state", "postalCode", "country", "mrn", "bloodType",
+    "maritalStatus", "occupation", "nationality", "status",
+  ],
+  [
+    "conditions", "medications", "allergies", "surgeries", "familyHistory",
+    "immunizations", "notes",
+  ],
+  ["contacts"],
+  [
+    "provider", "policyNumber", "groupNumber", "memberId", "planType",
+    "effectiveDate", "expiryDate", "copayAmount", "deductibleAmount",
+    "coverageNotes", "secondaryInsurance", "secondaryProvider",
+    "secondaryPolicyNumber",
+  ],
+]
+
 const bloodTypes = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Unknown"]
 const maritalStatuses = [
   { value: "single", label: "Single" },
@@ -107,6 +139,14 @@ const planTypes = [
   { value: "Medicaid", label: "Medicaid" },
   { value: "Other", label: "Other" },
 ]
+const patientStatuses = [
+  { value: "pending", label: "Pending" },
+  { value: "active", label: "Active" },
+  { value: "critical", label: "Critical" },
+  { value: "transferred", label: "Transferred" },
+  { value: "discharged", label: "Discharged" },
+]
+type PatientStatusValue = PatientFormData["status"]
 
 function toDateInput(value: Date | string | null | undefined): string {
   if (!value) return ""
@@ -148,6 +188,7 @@ const emptyPatientData: PatientFormData = {
   maritalStatus: "single",
   occupation: "",
   nationality: "Filipino",
+  status: "pending",
   conditions: [],
   medications: [],
   allergies: [],
@@ -194,6 +235,7 @@ function mapPatientToFormData(patient: DbPatient): PatientFormData {
     maritalStatus: patient.maritalStatus,
     occupation: patient.occupation ?? "",
     nationality: patient.nationality ?? "",
+    status: patient.status,
     conditions: patient.conditions ?? [],
     medications: patient.medications ?? [],
     allergies: patient.allergies ?? [],
@@ -228,6 +270,9 @@ function mapPatientToFormData(patient: DbPatient): PatientFormData {
 export function EditPatientPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  // Status is restricted to clinical/admin roles; everyone else sees it read-only.
+  const canChangeStatus = canChangePatientStatus(user?.role)
   const [currentStep, setCurrentStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -351,6 +396,7 @@ export function EditPatientPage() {
         maritalStatus: data.maritalStatus,
         occupation: data.occupation ?? "",
         nationality: data.nationality ?? "",
+        status: data.status,
         conditions: data.conditions,
         medications: data.medications,
         allergies: data.allergies,
@@ -400,6 +446,21 @@ export function EditPatientPage() {
     setPendingData(data)
     setShowConfirmSave(true)
   }
+
+  const onInvalid = (formErrors: Record<string, unknown>) => {
+    const badStepIndex = stepFields.findIndex((fields) =>
+      fields.some((field) => formErrors[field as string]),
+    )
+    if (badStepIndex >= 0 && badStepIndex + 1 !== currentStep) {
+      setCurrentStep(badStepIndex + 1)
+    }
+    toast.error("Please fix the highlighted fields before saving")
+  }
+
+  const requestSave = handleSubmit(
+    (data) => onSubmit(data as unknown as PatientFormData),
+    onInvalid,
+  )
 
   const handleReset = () => {
     if (!patient) return
@@ -459,7 +520,18 @@ export function EditPatientPage() {
               />
               <Input label="Occupation" placeholder="Software Engineer" {...register("occupation")} error={errors.occupation?.message} />
             </div>
-            <Input label="Nationality" {...register("nationality")} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input label="Nationality" {...register("nationality")} />
+              <Select
+                label="Patient Status *"
+                options={patientStatuses}
+                value={watch("status")}
+                disabled={!canChangeStatus}
+                onChange={(value) => setValue("status", value as PatientStatusValue, { shouldValidate: true, shouldDirty: true })}
+                error={errors.status?.message}
+                helperText={canChangeStatus ? undefined : "Only doctors and admins can change patient status"}
+              />
+            </div>
           </div>
         )
       case 2:
@@ -741,7 +813,7 @@ export function EditPatientPage() {
   }
 
   return (
-    <form onSubmit={handleSubmit((d) => onSubmit(d as unknown as PatientFormData))} className="space-y-6" noValidate>
+    <form onSubmit={requestSave} className="space-y-6" noValidate>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text">Edit Patient</h1>
@@ -815,10 +887,7 @@ export function EditPatientPage() {
               <Button
                 key="save"
                 type="button"
-                onClick={handleSubmit((d) => {
-                  setPendingData(d as PatientFormData)
-                  setShowConfirmSave(true)
-                })}
+                onClick={requestSave}
                 isLoading={isSubmitting}
                 className="gap-2"
               >
@@ -863,6 +932,48 @@ export function EditPatientPage() {
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* Confirm Save */}
+      <Dialog
+        open={showConfirmSave}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowConfirmSave(false)
+            setPendingData(null)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save patient changes?</DialogTitle>
+            <DialogDescription>
+              This will update the record for {patient.firstName} {patient.lastName} ({patient.mrn}).
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowConfirmSave(false)
+                setPendingData(null)
+              }}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => pendingData && submitChanges(pendingData)}
+              isLoading={isSubmitting}
+              className="gap-2"
+            >
+              <Save className="h-4 w-4" />
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   )
 }

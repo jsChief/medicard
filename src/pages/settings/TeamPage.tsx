@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react"
-import { ArrowLeft, Loader2, Mail, Megaphone, Trash2, UserPlus } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Loader2, Mail, Megaphone, Trash2, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
@@ -174,13 +173,6 @@ export function TeamPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <Link
-          to="/settings"
-          className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-primary"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to settings
-        </Link>
         <h1 className="text-xl font-semibold text-text">Team</h1>
         <p className="mt-1 text-sm text-text-muted">
           Everyone listed here signs in to this hospital and shares its patients, cards and archives.

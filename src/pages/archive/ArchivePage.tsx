@@ -22,11 +22,11 @@ import { useAuth } from "@/context/AuthContext"
 import { useNotifications } from "@/context/NotificationContext"
 import {
   queryArchives,
-  bulkDeleteArchives,
-  deleteArchive,
-  restoreArchive,
+  bulkDeleteArchivedPatients,
+  deleteArchivedPatient,
+  restoreArchivedPatient,
   queryPatients,
-  archivePatientAsDischarged,
+  archivePatient,
   type ArchivedPatient,
   type ArchiveStatus,
 } from "@/lib/database"
@@ -235,7 +235,7 @@ export function ArchivePage() {
     const records = archiveRecords.filter(a => selectedItems.includes(a.id))
     try {
       const result = await runBatch(
-        records.map((record) => () => restoreArchive(record)),
+        records.map((record) => () => restoreArchivedPatient(record.id)),
         { keys: records.map((record) => record.id) },
       )
       if (result.failed === 0) {
@@ -265,7 +265,7 @@ export function ArchivePage() {
   const deleteSelected = useCallback(async () => {
     if (selectedItems.length === 0) return
     try {
-      await bulkDeleteArchives(selectedItems)
+      await bulkDeleteArchivedPatients(selectedItems)
       toast.success(`Deleted ${selectedItems.length} record(s)`)
       setSelectedItems([])
       await fetchArchives()
@@ -275,14 +275,19 @@ export function ArchivePage() {
     }
   }, [selectedItems, fetchArchives])
 
+  // Hoisted to primitives so the callback depends on the values it actually
+  // reads, rather than on the whole user object.
+  const hospitalId = user?.hospitalId
+  const archivedBy = user?.name ?? "System"
+
   const archiveCurrent = useCallback(async () => {
-    if (!user?.hospitalId) {
+    if (!hospitalId) {
       toast.error("Your account is not linked to a hospital. Please sign in again.")
       return
     }
     try {
       const result = await queryPatients({
-        hospitalId: user.hospitalId,
+        hospitalId,
         sortBy: "lastName",
         sortOrder: "asc",
         pageSize: 200,
@@ -293,7 +298,7 @@ export function ArchivePage() {
         return
       }
       const archived = await runBatch(
-        toArchive.map((patient) => () => archivePatientAsDischarged(patient)),
+        toArchive.map((patient) => () => archivePatient(patient.id, { archivedBy })),
         { keys: toArchive.map((patient) => patient.id) },
       )
       if (archived.failed === 0) {
@@ -316,7 +321,7 @@ export function ArchivePage() {
       console.error("Failed to archive current patients:", error)
       toast.error(describeError(error, "archive patients"))
     }
-  }, [user?.hospitalId, fetchArchives])
+  }, [hospitalId, archivedBy, notify, fetchArchives])
 
   return (
     <div className="space-y-6">
@@ -470,7 +475,7 @@ export function ArchivePage() {
                           const record = archiveRecords.find(a => a.id === patient.id)
                           if (!record) return
                           try {
-                            await restoreArchive(record)
+                            await restoreArchivedPatient(record.id)
                             toast.success(`Restored ${record.name}`)
                             await fetchArchives()
                           } catch (error) {
@@ -480,7 +485,7 @@ export function ArchivePage() {
                         }}><RotateCcw className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Delete record" onClick={async () => {
                           try {
-                            await deleteArchive(patient.id)
+                            await deleteArchivedPatient(patient.id)
                             toast.success("Record deleted")
                             await fetchArchives()
                           } catch (error) {

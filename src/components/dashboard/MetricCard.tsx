@@ -36,23 +36,23 @@ export function MetricCard({
       className={cn("overflow-hidden p-0 transition-shadow", href ? "cursor-pointer hover:shadow-sm" : "hover:shadow-xs")}
       onClick={() => href && navigate(href)}
     >
-      <CardContent className="flex items-start justify-between gap-3 p-6">
+      <CardContent className="flex items-start justify-between gap-3 p-4">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-text-muted">{title}</p>
-          <p className="mt-2 text-3xl font-bold text-text">{value}</p>
+          <p className="truncate text-sm font-medium text-text-muted">{title}</p>
+          <p className="mt-1 text-2xl font-bold text-text">{value}</p>
           {change !== undefined && (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <TrendIcon className={cn("h-4 w-4 shrink-0", trendColor)} aria-hidden="true" />
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <TrendIcon className={cn("h-3.5 w-3.5 shrink-0", trendColor)} aria-hidden="true" />
               <span className={cn("text-sm font-medium", trendColor)}>
                 {change > 0 ? "+" : ""}
                 {change}%
               </span>
-              <span className="text-sm text-text-muted">{changeLabel || "vs last month"}</span>
+              <span className="text-xs text-text-muted">{changeLabel || "vs last month"}</span>
             </div>
           )}
         </div>
-        <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-xl", iconBg)}>
-          <Icon className={cn("h-6 w-6", iconColor)} aria-hidden="true" />
+        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", iconBg)}>
+          <Icon className={cn("h-4.5 w-4.5", iconColor)} aria-hidden="true" />
         </div>
       </CardContent>
     </Card>

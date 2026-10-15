@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, type ChangeEvent } from "react"
-import { Search, ChevronDown, ChevronUp, ChevronRight, MoreHorizontal, Edit, Eye, Copy, Link2, Plus, RefreshCw, AlertCircle, Download, Upload } from "lucide-react"
+import { Search, ChevronDown, ChevronUp, ChevronRight, MoreHorizontal, Edit, Eye, Copy, Link2, Plus, RefreshCw, AlertCircle, Download, Upload, Archive as ArchiveIcon } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
@@ -15,8 +15,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/context/AuthContext"
+import { canArchivePatients } from "@/lib/permissions"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/Dialog"
 import { useNotifications } from "@/context/NotificationContext"
-import { queryPatients, bulkCreatePatients, getExistingMrns, type Patient, type PatientQueryOptions, type PageCursor } from "@/lib/database"
+import { queryPatients, bulkCreatePatients, getExistingMrns, archivePatient, type Patient, type PatientQueryOptions, type PageCursor } from "@/lib/database"
 import { patientsToCsv, parsePatientImportCsv, importIssuesToCsv, type ImportIssue } from "@/lib/patientCsv"
 import { toast } from "sonner"
 import { describeError } from "@/lib/errors"
@@ -177,12 +186,33 @@ export function PatientsListPage() {
       })
   }, [patients, searchQuery, sortBy, sortOrder])
 
+  const [archivingId, setArchivingId] = useState<string | null>(null)
+  // Row menu archives need confirming; the detail page has its own dialog.
+  const [pendingArchive, setPendingArchive] = useState<Patient | null>(null)
+  const canArchive = canArchivePatients(user?.role)
+
   const handleSort = (field: string) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc")
     } else {
       setSortBy(field)
       setSortOrder("asc")
+    }
+  }
+
+  const handleArchive = async (patient: Patient) => {
+    setArchivingId(patient.id)
+    try {
+      await archivePatient(patient.id, { archivedBy: user?.name })
+      toast.success(
+        `${patient.firstName} ${patient.lastName} moved to the archive`,
+      )
+      await fetchPatients(true)
+    } catch (error) {
+      console.error("Failed to archive patient:", error)
+      toast.error(describeError(error, "archive patient"))
+    } finally {
+      setArchivingId(null)
     }
   }
 
@@ -565,6 +595,14 @@ export function PatientsListPage() {
                                     <Link2 className="h-4 w-4" />
                                     Copy patient link
                                   </DropdownMenuItem>
+                                  {canArchive && (
+                                    <DropdownMenuItem
+                                      onSelect={() => setPendingArchive(patient)}
+                                    >
+                                      <ArchiveIcon className="h-4 w-4" />
+                                      Archive patient
+                                    </DropdownMenuItem>
+                                  )}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </div>
@@ -618,6 +656,44 @@ export function PatientsListPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Confirm archive from the row menu */}
+      <Dialog
+        open={pendingArchive !== null}
+        onOpenChange={(open) => !open && setPendingArchive(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Archive this patient?</DialogTitle>
+            <DialogDescription>
+              {pendingArchive
+                ? `${pendingArchive.firstName} ${pendingArchive.lastName} (${pendingArchive.mrn}) will be moved out of the active patient list into the archive. Nothing is deleted and the record can be restored at any time.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPendingArchive(null)}
+              disabled={archivingId !== null}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!pendingArchive) return
+                await handleArchive(pendingArchive)
+                setPendingArchive(null)
+              }}
+              isLoading={archivingId !== null}
+              className="gap-2"
+            >
+              {archivingId === null && <ArchiveIcon className="h-4 w-4" />}
+              Archive patient
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

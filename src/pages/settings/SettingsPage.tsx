@@ -1,8 +1,6 @@
 import { useState, type ReactNode } from "react"
-import { Link } from "react-router-dom"
-import { Sun, Moon, Bell, Shield, Database, Users, Building2 } from "lucide-react"
+import { Sun, Moon, Bell, Shield, Database } from "lucide-react"
 import { useTheme } from "next-themes"
-import { useAuth } from "@/context/AuthContext"
 import { useNotifications } from "@/context/NotificationContext"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent } from "@/components/ui/Card"
@@ -85,7 +83,6 @@ function SettingsRow({
 
 export function SettingsPage() {
   const { resolvedTheme, setTheme } = useTheme()
-  const { user } = useAuth()
   const { preferences, updatePreferences } = useNotifications()
   const [twoFactor, setTwoFactor] = useState(false)
 
@@ -104,46 +101,6 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6">
-
-      {/* Team — admin only; the page and the invite/role RPCs are admin-gated. */}
-      {user?.role === "admin" && (
-        <Card className="p-0">
-          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Users className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="font-medium text-text">Team</p>
-                <p className="text-sm text-text-muted">Invite colleagues and manage who can access this hospital</p>
-              </div>
-            </div>
-            <Link to="/settings/team" className="shrink-0">
-              <Button variant="outline" size="sm">Manage team</Button>
-            </Link>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Organization — admin only; edits are owner-scoped by the hospitals RLS policy. */}
-      {user?.role === "admin" && (
-        <Card className="p-0">
-          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Building2 className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="font-medium text-text">Organization</p>
-                <p className="text-sm text-text-muted">View and update your hospital's name and contact details</p>
-              </div>
-            </div>
-            <Link to="/settings/organization" className="shrink-0">
-              <Button variant="outline" size="sm">Manage organization</Button>
-            </Link>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Appearance */}
       <Card className="p-0">

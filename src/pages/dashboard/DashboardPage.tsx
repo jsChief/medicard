@@ -11,6 +11,8 @@ import {
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { LocationMatrix } from "@/components/dashboard/LocationMatrix";
 import { ActionWatchlist } from "@/components/dashboard/ActionWatchlist";
+import { PatientActivityChart } from "@/components/dashboard/PatientActivityChart";
+import { PatientStatusChart } from "@/components/dashboard/PatientStatusChart";
 import { Card, CardContent } from "@/components/ui/Card";
 import {
   DropdownMenu,
@@ -241,23 +243,33 @@ export function DashboardPage() {
         </Card>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {countsError ? null : isLoadingCounts && metrics.length === 0
-          ? Array.from({ length: 4 }).map((_, i) => (
+          ? Array.from({ length: 3 }).map((_, i) => (
               <Card key={i} className="overflow-hidden p-0">
-                <CardContent className="flex items-start justify-between gap-3 p-6">
+                <CardContent className="flex items-start justify-between gap-3 p-4">
                   <div className="min-w-0 flex-1">
                     <div className="h-4 w-20 animate-pulse rounded bg-border" />
-                    <div className="mt-3 h-8 w-24 animate-pulse rounded bg-border" />
-                    <div className="mt-3 h-4 w-28 animate-pulse rounded bg-border" />
+                    <div className="mt-1 h-7 w-24 animate-pulse rounded bg-border" />
+                    <div className="mt-1.5 h-4 w-28 animate-pulse rounded bg-border" />
                   </div>
-                  <div className="h-12 w-12 shrink-0 animate-pulse rounded-xl bg-border" />
+                  <div className="h-9 w-9 shrink-0 animate-pulse rounded-lg bg-border" />
                 </CardContent>
               </Card>
             ))
           : metrics.map((metric) => (
               <MetricCard key={metric.title} {...metric} />
             ))}
+      </div>
+
+      {/* Charts */}
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="min-w-0 lg:col-span-8">
+          <PatientActivityChart range={timeRange} />
+        </div>
+        <div className="min-w-0 lg:col-span-4">
+          <PatientStatusChart />
+        </div>
       </div>
 
       {/* Main Content Grid */}
