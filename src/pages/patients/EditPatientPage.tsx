@@ -233,6 +233,8 @@ export function EditPatientPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [patient, setPatient] = useState<DbPatient | null>(null)
+  const [showConfirmSave, setShowConfirmSave] = useState(false)
+  const [pendingData, setPendingData] = useState<PatientFormData | null>(null)
 
   const {
     register,
@@ -326,7 +328,7 @@ export function EditPatientPage() {
     setValue(field as any, updated as any, { shouldValidate: true, shouldDirty: true })
   }
 
-  const onSubmit = async (data: PatientFormData) => {
+  const submitChanges = async (data: PatientFormData) => {
     if (!id) return
 
     setIsSubmitting(true)
@@ -389,7 +391,14 @@ export function EditPatientPage() {
       toast.error(describeError(error, "update patient"))
     } finally {
       setIsSubmitting(false)
+      setShowConfirmSave(false)
+      setPendingData(null)
     }
+  }
+
+  const onSubmit = async (data: PatientFormData) => {
+    setPendingData(data)
+    setShowConfirmSave(true)
   }
 
   const handleReset = () => {
@@ -803,12 +812,21 @@ export function EditPatientPage() {
           </Button>
           <div className="flex gap-3">
             {isLastStep ? (
-              <Button type="submit" isLoading={isSubmitting} className="gap-2">
+              <Button
+                key="save"
+                type="button"
+                onClick={handleSubmit((d) => {
+                  setPendingData(d as PatientFormData)
+                  setShowConfirmSave(true)
+                })}
+                isLoading={isSubmitting}
+                className="gap-2"
+              >
                 <Save className="h-4 w-4" />
                 Save Changes
               </Button>
             ) : (
-              <Button type="button" onClick={nextStep} className="gap-2">
+              <Button key="next" type="button" onClick={nextStep} className="gap-2">
                 Next
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -840,7 +858,7 @@ export function EditPatientPage() {
             />
           ))}
         </div>
-        <Button type="button" variant="outline" onClick={nextStep} disabled={currentStep === steps.length} className="gap-1">
+        <Button key="next-mobile" type="button" variant="outline" onClick={nextStep} disabled={currentStep === steps.length} className="gap-1">
           Next
           <ChevronRight className="h-4 w-4" />
         </Button>
