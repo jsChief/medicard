@@ -90,12 +90,7 @@ export function OrganizationPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-text">Organization</h1>
-        <p className="mt-1 text-sm text-text-muted">
-          These details identify your hospital across CardEase, including the dashboard sidebar.
-        </p>
-      </div>
+      
 
       <Card className="p-0">
         <div className="flex items-center gap-3 border-b border-border px-4 py-3">
