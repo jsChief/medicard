@@ -7,6 +7,7 @@ import {
   Clock,
   ChevronDown,
   RefreshCw,
+  UserCog,
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { LocationMatrix } from "@/components/dashboard/LocationMatrix";
@@ -111,6 +112,19 @@ export function DashboardPage() {
           iconBg: "bg-success/10",
           trend: counts.activeCheckoutsChange > 0 ? ("up" as const) : counts.activeCheckoutsChange < 0 ? ("down" as const) : ("neutral" as const),
           href: "/checkouts",
+        },
+        {
+          title: "Team Size",
+          value: counts.teamSize.toLocaleString(),
+          change: counts.teamSizeChange,
+          changeLabel: "vs last period",
+          icon: UserCog,
+          iconColor: "text-purple-500",
+          iconBg: "bg-purple-500/10",
+          trend: counts.teamSizeChange > 0 ? ("up" as const) : counts.teamSizeChange < 0 ? ("down" as const) : ("neutral" as const),
+          // /settings/team is admin-only; other roles would be bounced straight
+          // back to the dashboard, so leave the card unlinked for them.
+          href: user?.role === "admin" ? "/settings/team" : undefined,
         },
       ]
     : [];
@@ -243,15 +257,15 @@ export function DashboardPage() {
         </Card>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {countsError ? null : isLoadingCounts && metrics.length === 0
-          ? Array.from({ length: 3 }).map((_, i) => (
+          ? Array.from({ length: 4 }).map((_, i) => (
               <Card key={i} className="overflow-hidden p-0">
                 <CardContent className="flex items-start justify-between gap-3 p-4">
                   <div className="min-w-0 flex-1">
                     <div className="h-4 w-20 animate-pulse rounded bg-border" />
-                    <div className="mt-1 h-7 w-24 animate-pulse rounded bg-border" />
-                    <div className="mt-1.5 h-4 w-28 animate-pulse rounded bg-border" />
+                    <div className="mt-3 h-14 w-24 animate-pulse rounded bg-border" />
+                    <div className="mt-3 h-4 w-28 animate-pulse rounded bg-border" />
                   </div>
                   <div className="h-9 w-9 shrink-0 animate-pulse rounded-lg bg-border" />
                 </CardContent>

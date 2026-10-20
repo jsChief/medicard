@@ -172,7 +172,7 @@ export function DashboardLayout() {
             <img
               src={cardeaseLogo}
               alt="CardEase"
-              className="size-12 shrink-0 rounded-lg object-contain p-0.5"
+              className="size-12 shrink-0 rounded-lg object-contain"
             />
             <span className="text-xl font-bold text-text group-data-[collapsible=icon]:hidden">
               CardEase
@@ -301,27 +301,30 @@ export function DashboardLayout() {
                 )?.name || "Dashboard"}
               </h1>
             </div>
-            <div className="flex items-center gap-3">
-              <NotificationsMenu />
-
-              <div className="hidden sm:flex h-8 w-px bg-border" />
+            <div className="flex items-center sm:gap-3">
+              
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setSearchOpen(true)}
                 aria-label="Open search"
               >
-                <Search className="h-5 w-5" />
+                <Search className="size-5" />
               </Button>
               <div className="hidden sm:flex h-8 w-px bg-border" />
+
+              <NotificationsMenu />
+
+              <div className="hidden md:flex h-8 w-px bg-border" />
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
                 aria-label="Toggle theme"
+                className="hidden md:flex"
               >
-                <Sun className="h-5 w-5 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
-                <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
+                <Sun className="size-5 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0"/>
+                <Moon className="absolute size-5 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
               </Button>
             </div>
           </div>

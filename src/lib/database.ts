@@ -1606,6 +1606,23 @@ export async function countLocations(hospitalId: string): Promise<number> {
   )
 }
 
+/**
+ * Staff belonging to a hospital. RLS already scopes public.profiles to the
+ * caller's hospital, but the explicit filter keeps the count correct if the
+ * policy is ever widened.
+ */
+export async function countTeamMembers(options: Pick<CountOptions, "hospitalId" | "from" | "to">): Promise<number> {
+  let query = getSupabase()
+    .from("profiles")
+    .select("*", { count: "exact", head: true })
+    .eq("hospital_id", options.hospitalId)
+
+  if (options.from) query = query.gte("created_at", options.from.toISOString())
+  if (options.to) query = query.lt("created_at", options.to.toISOString())
+
+  return finalizeCount(await query)
+}
+
 export interface SystemStatusTotals {
   records: number
   databaseOk: boolean
@@ -1658,9 +1675,11 @@ export interface DashboardCounts {
   totalPatients: number
   archiveBalance: number
   activeCheckouts: number
+  teamSize: number
   totalPatientsChange: number
   archiveBalanceChange: number
   activeCheckoutsChange: number
+  teamSizeChange: number
 }
 
 const ACTIVE_CHECKOUT_STATUSES: CheckoutStatus[] = ["pending", "approved", "in-progress", "delayed"]
@@ -1681,6 +1700,9 @@ export async function getDashboardCounts(
     activeCheckouts,
     checkoutsCurrent,
     checkoutsPrevious,
+    teamSize,
+    teamCurrent,
+    teamPrevious,
   ] = await Promise.all([
     countPatients({ hospitalId }),
     countPatients({ hospitalId, from: currentStart }),
@@ -1691,15 +1713,20 @@ export async function getDashboardCounts(
     countCheckouts({ hospitalId, statuses: ACTIVE_CHECKOUT_STATUSES }),
     countCheckouts({ hospitalId, from: currentStart }),
     countCheckouts({ hospitalId, from: previousStart, to: currentStart }),
+    countTeamMembers({ hospitalId }),
+    countTeamMembers({ hospitalId, from: currentStart }),
+    countTeamMembers({ hospitalId, from: previousStart, to: currentStart }),
   ])
 
   return {
     totalPatients,
     archiveBalance,
     activeCheckouts,
+    teamSize,
     totalPatientsChange: percentChange(patientsPrevious, patientsCurrent),
     archiveBalanceChange: percentChange(archivesPrevious, archivesCurrent),
     activeCheckoutsChange: percentChange(checkoutsPrevious, checkoutsCurrent),
+    teamSizeChange: percentChange(teamPrevious, teamCurrent),
   }
 }
 

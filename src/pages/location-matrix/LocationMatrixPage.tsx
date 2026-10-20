@@ -346,15 +346,15 @@ export function LocationMatrixPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
         {stats.map(stat => (
           <Card key={stat.label} className="p-0">
-            <CardContent className="flex items-center gap-3 p-4">
-              <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", stat.iconBg)}>
+            <CardContent className="flex items-center gap-2 p-3 sm:gap-3 sm:p-4">
+              <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10", stat.iconBg)}>
                 <stat.icon className="h-5 w-5" />
               </div>
-              <div>
-                <p className="text-sm text-text-muted">{stat.label}</p>
+              <div className="min-w-0">
+                <p className="text-sm leading-tight text-text-muted">{stat.label}</p>
                 <p className="text-2xl font-bold text-text">{stat.value}</p>
               </div>
             </CardContent>
