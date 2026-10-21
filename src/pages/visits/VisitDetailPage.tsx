@@ -196,9 +196,13 @@ export function VisitDetailPage() {
             the base TabsList is w-fit, which sizes it to its content and leaves
             overflow-x-auto nothing to scroll. The themed scrollbar is left
             visible here as the scroll affordance. From sm there is room, so the
-            list wraps back to the tidy contained block. */}
+            list wraps back to the tidy contained block.
+            justify-start matters: the base is justify-center, and centring
+            content that overflows a flex box spills it out both ends - the left
+            spill sits at a negative offset and cannot be scrolled back to, which
+            is what pushed Overview off-screen. */}
         <TabsList
-          className="flex w-full flex-nowrap items-center gap-1 overflow-x-auto rounded-xl border border-border bg-bg p-1.5 shadow-sm sm:flex-wrap [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:border-[1px] [&_[data-slot=tabs-trigger]]:flex-none [&_[data-slot=tabs-trigger]]:shrink-0 [&_[data-slot=tabs-trigger]]:whitespace-nowrap [&_[data-slot=tabs-trigger][data-state=active]]:bg-primary [&_[data-slot=tabs-trigger][data-state=active]]:text-white dark:[&_[data-slot=tabs-trigger][data-state=active]]:bg-primary dark:[&_[data-slot=tabs-trigger][data-state=active]]:text-white"
+          className="flex w-full flex-nowrap items-center justify-start gap-1 overflow-x-auto rounded-xl border border-border bg-bg p-1.5 shadow-sm sm:flex-wrap sm:justify-center [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:border-[1px] [&_[data-slot=tabs-trigger]]:flex-none [&_[data-slot=tabs-trigger]]:shrink-0 [&_[data-slot=tabs-trigger]]:whitespace-nowrap [&_[data-slot=tabs-trigger][data-state=active]]:bg-primary [&_[data-slot=tabs-trigger][data-state=active]]:text-white dark:[&_[data-slot=tabs-trigger][data-state=active]]:bg-primary dark:[&_[data-slot=tabs-trigger][data-state=active]]:text-white"
           // The base TabsList is h-9, which assumes a non-scrolling row. That
           // fixed height clips the scrollbar once overflow is enabled, and the
           // group-data variant that sets it ties with h-auto on specificity, so
