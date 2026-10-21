@@ -191,13 +191,12 @@ export function VisitDetailPage() {
       <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab}>
         {/* Mobile: one row that scrolls sideways instead of wrapping into a
             ragged stack. The triggers are forced to their natural width
-            (flex-none) so the strip actually overflows rather than squashing,
-            and the scrollbar is hidden - the partially-visible next tab is the
-            better affordance at this size. From sm there is room, so the list
-            wraps back to the tidy contained block. */}
+            (flex-none) so the strip actually overflows rather than squashing.
+            The themed scrollbar is left visible here as the scroll affordance.
+            From sm there is room, so the list wraps back to the tidy contained
+            block. */}
         <TabsList
-          className="h-auto flex-nowrap gap-1 overflow-x-auto rounded-xl border border-border bg-bg p-1.5 shadow-sm sm:flex-wrap [&::-webkit-scrollbar]:hidden [&_[data-slot=tabs-trigger]]:flex-none [&_[data-slot=tabs-trigger]]:shrink-0 [&_[data-slot=tabs-trigger]]:whitespace-nowrap [&_[data-slot=tabs-trigger][data-state=active]]:bg-primary [&_[data-slot=tabs-trigger][data-state=active]]:text-white dark:[&_[data-slot=tabs-trigger][data-state=active]]:bg-primary dark:[&_[data-slot=tabs-trigger][data-state=active]]:text-white"
-          style={{ scrollbarWidth: "none" }}
+          className="h-auto flex-nowrap gap-1 overflow-x-auto rounded-xl border border-border bg-bg p-1.5 shadow-sm sm:flex-wrap [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:border-[1px] [&_[data-slot=tabs-trigger]]:flex-none [&_[data-slot=tabs-trigger]]:shrink-0 [&_[data-slot=tabs-trigger]]:whitespace-nowrap [&_[data-slot=tabs-trigger][data-state=active]]:bg-primary [&_[data-slot=tabs-trigger][data-state=active]]:text-white dark:[&_[data-slot=tabs-trigger][data-state=active]]:bg-primary dark:[&_[data-slot=tabs-trigger][data-state=active]]:text-white"
           role="tablist"
           aria-label="Visit sections"
         >
