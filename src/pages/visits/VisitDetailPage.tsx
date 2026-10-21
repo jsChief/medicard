@@ -189,7 +189,18 @@ export function VisitDetailPage() {
 
       {/* -------------------------------------------------------------- tabs */}
       <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="h-auto flex-wrap gap-1 rounded-xl border border-border bg-bg p-1.5 shadow-sm [&_[data-slot=tabs-trigger][data-state=active]]:bg-primary [&_[data-slot=tabs-trigger][data-state=active]]:text-white dark:[&_[data-slot=tabs-trigger][data-state=active]]:bg-primary dark:[&_[data-slot=tabs-trigger][data-state=active]]:text-white">
+        {/* Mobile: one row that scrolls sideways instead of wrapping into a
+            ragged stack. The triggers are forced to their natural width
+            (flex-none) so the strip actually overflows rather than squashing,
+            and the scrollbar is hidden - the partially-visible next tab is the
+            better affordance at this size. From sm there is room, so the list
+            wraps back to the tidy contained block. */}
+        <TabsList
+          className="h-auto flex-nowrap gap-1 overflow-x-auto rounded-xl border border-border bg-bg p-1.5 shadow-sm sm:flex-wrap [&::-webkit-scrollbar]:hidden [&_[data-slot=tabs-trigger]]:flex-none [&_[data-slot=tabs-trigger]]:shrink-0 [&_[data-slot=tabs-trigger]]:whitespace-nowrap [&_[data-slot=tabs-trigger][data-state=active]]:bg-primary [&_[data-slot=tabs-trigger][data-state=active]]:text-white dark:[&_[data-slot=tabs-trigger][data-state=active]]:bg-primary dark:[&_[data-slot=tabs-trigger][data-state=active]]:text-white"
+          style={{ scrollbarWidth: "none" }}
+          role="tablist"
+          aria-label="Visit sections"
+        >
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="vitals">Vitals ({vitals.length})</TabsTrigger>
           <TabsTrigger value="consult">Consultation</TabsTrigger>
