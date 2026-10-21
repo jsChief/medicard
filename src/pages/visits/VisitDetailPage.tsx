@@ -191,12 +191,20 @@ export function VisitDetailPage() {
       <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab}>
         {/* Mobile: one row that scrolls sideways instead of wrapping into a
             ragged stack. The triggers are forced to their natural width
-            (flex-none) so the strip actually overflows rather than squashing.
-            The themed scrollbar is left visible here as the scroll affordance.
-            From sm there is room, so the list wraps back to the tidy contained
-            block. */}
+            (flex-none) so the strip genuinely overflows rather than squashing,
+            and the list is pinned to w-full so it is bounded by the viewport -
+            the base TabsList is w-fit, which sizes it to its content and leaves
+            overflow-x-auto nothing to scroll. The themed scrollbar is left
+            visible here as the scroll affordance. From sm there is room, so the
+            list wraps back to the tidy contained block. */}
         <TabsList
-          className="h-auto flex-nowrap gap-1 overflow-x-auto rounded-xl border border-border bg-bg p-1.5 shadow-sm sm:flex-wrap [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:border-[1px] [&_[data-slot=tabs-trigger]]:flex-none [&_[data-slot=tabs-trigger]]:shrink-0 [&_[data-slot=tabs-trigger]]:whitespace-nowrap [&_[data-slot=tabs-trigger][data-state=active]]:bg-primary [&_[data-slot=tabs-trigger][data-state=active]]:text-white dark:[&_[data-slot=tabs-trigger][data-state=active]]:bg-primary dark:[&_[data-slot=tabs-trigger][data-state=active]]:text-white"
+          className="flex w-full flex-nowrap items-center gap-1 overflow-x-auto rounded-xl border border-border bg-bg p-1.5 shadow-sm sm:flex-wrap [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:border-[1px] [&_[data-slot=tabs-trigger]]:flex-none [&_[data-slot=tabs-trigger]]:shrink-0 [&_[data-slot=tabs-trigger]]:whitespace-nowrap [&_[data-slot=tabs-trigger][data-state=active]]:bg-primary [&_[data-slot=tabs-trigger][data-state=active]]:text-white dark:[&_[data-slot=tabs-trigger][data-state=active]]:bg-primary dark:[&_[data-slot=tabs-trigger][data-state=active]]:text-white"
+          // The base TabsList is h-9, which assumes a non-scrolling row. That
+          // fixed height clips the scrollbar once overflow is enabled, and the
+          // group-data variant that sets it ties with h-auto on specificity, so
+          // the winner would depend on emit order. Setting it inline sidesteps
+          // the tie entirely; the row sizes to its content plus the bar.
+          style={{ height: "auto" }}
           role="tablist"
           aria-label="Visit sections"
         >
