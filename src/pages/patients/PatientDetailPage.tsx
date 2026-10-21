@@ -707,7 +707,16 @@ export function PatientDetailPage() {
         </div>
 
         {/* Tab bar */}
-        <TabsList className="mt-2 flex h-auto w-full flex-nowrap items-center gap-1 justify-start overflow-x-auto rounded-none bg-transparent p-0 sm:mt-3 sm:flex-wrap sm:justify-center sm:gap-1.5 scrollbar-none [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Patient sections">
+        <TabsList
+          className="mt-2 flex h-auto w-full flex-nowrap items-center gap-1 justify-start overflow-x-auto rounded-none bg-transparent p-0 sm:mt-3 sm:flex-wrap sm:justify-center sm:gap-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:border-[1px]"
+          // The base TabsList sets h-9 through a group-data variant, which ties
+          // with a plain height utility on specificity and wins on emit order -
+          // that fixed height clips the scrollbar now that overflow is enabled.
+          // Setting it inline resolves the tie deterministically.
+          style={{ height: "auto" }}
+          role="tablist"
+          aria-label="Patient sections"
+        >
           {tabs.map((tab) => (
             <TabsTrigger
               key={tab.id}
