@@ -25,8 +25,13 @@ import { ArchivePage } from "./pages/archive/ArchivePage"
 import { CheckoutsPage } from "./pages/checkouts/CheckoutsPage"
 import { LocationMatrixPage } from "./pages/location-matrix/LocationMatrixPage"
 import { PricingPage } from "./pages/pricing/PricingPage"
+import { VisitsQueuePage } from "./pages/visits/VisitsQueuePage"
+import { CheckInPage } from "./pages/visits/CheckInPage"
+import { VisitDetailPage } from "./pages/visits/VisitDetailPage"
+import { ReportsPage } from "./pages/reports/ReportsPage"
 import { Toaster } from "./components/ui/sonner"
 import { Button } from "@/components/ui/Button"
+import type { AppRole } from "@/lib/auth"
 import { TriangleAlert } from "lucide-react"
 import React from "react"
 
@@ -56,7 +61,7 @@ function AuthUnavailable({ message }: { message: string }) {
   )
 }
 
-function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: ("admin" | "doctor" | "nurse" | "receptionist")[] }) {
+function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: AppRole[] }) {
   const { user, isLoading, isAuthenticated, authError } = useAuth()
 
   if (isLoading) {
@@ -162,7 +167,20 @@ function App() {
             <Route path="/patients/:id/edit" element={<EditPatientPage />} />
             <Route path="/archive" element={<ArchivePage />} />
             <Route path="/checkouts" element={<CheckoutsPage />} />
+            <Route path="/visits" element={<VisitsQueuePage />} />
+            {/* Check-in is front desk work; the page also guards itself, and the
+                visits RLS policies enforce the tenant boundary server-side. */}
+            <Route
+              path="/visits/check-in"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "receptionist"]}>
+                  <CheckInPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/visits/:id" element={<VisitDetailPage />} />
             <Route path="/location-matrix" element={<LocationMatrixPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             {/* Admin-only: the RLS policies and set_staff_role()/remove_staff()
                 enforce this server-side as well. */}

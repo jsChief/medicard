@@ -1,0 +1,6 @@
+This is the flow:
+When you visit a hospital,
+1. You will be checked in. Your HMO will confirm that you still have an active plan before your check in is complete and if you are a private patient, they will just check their record to be sure you have a card with the hospital.
+2. After your check in has been completed, they will take your vitals (temperature, weight, blood pressure, heart pulse, blood sugar, etc), after which they will ask you to see a Doctor.
+3. You will see a Doctor when it's your turn. The Doctor can either ask you to see the laboratory technician for tests and come back later for your result that will inform the choice of medications to prescribe, or see the Pharmacist for medications, or see the laboratory technician for tests and also see the Pharmacist for some medications, or tell you to get medications from other pharmacy if the prescribed medications are not available.
+4. You might need to wait for some time for your request for medications or test sent to your Doctor to be approved, if you use HMO, before you can proceed with the tests and getting medications. After seeing the laboratory technician or pharmacist, you are then checked out and your card will be withdrawn and stored in the archive. Your test results will be stored in your file when it's ready.

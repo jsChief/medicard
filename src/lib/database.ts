@@ -1,5 +1,6 @@
 import type { PostgrestError } from "@supabase/supabase-js"
 import { getSupabase, throwIfError } from "./supabase"
+import type { AppRole } from "./auth"
 
 /* ============================================================================
  * Row shapes as they exist in Postgres (snake_case).
@@ -779,7 +780,9 @@ export async function deleteStaffMember(id: string): Promise<void> {
  * tenancy — everyone with a profiles.hospital_id sees the same patients.
  * ========================================================================== */
 
-export type TeamRole = "admin" | "doctor" | "nurse" | "receptionist"
+// Mirrors public.user_role. Kept as an alias of AppRole so the team screens and
+// the auth layer can never drift apart when a role is added.
+export type TeamRole = AppRole
 
 export interface HospitalMember {
   id: string

@@ -12,10 +12,15 @@ interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>
   options: { value: string; label: string }[]
   value?: string
   onChange?: (value: string) => void
+  /**
+   * Tighter padding/text for toolbar and filter rows, where the select sits
+   * inline beside buttons. Left off by default so form selects stay comfortable.
+   */
+  compact?: boolean
 }
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, label, error, helperText, placeholder, options, id, children, value, onChange, ...props }, ref) => {
+  ({ className, label, error, helperText, placeholder, options, id, children, value, onChange, compact = false, ...props }, ref) => {
     const selectId = id || label?.toLowerCase().replace(/\s+/g, "-")
 
     const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -38,7 +43,8 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             value={value}
             onChange={handleChange}
             className={cn(
-              "w-full rounded-lg border border-border bg-surface px-4 py-2.5 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors disabled:bg-bg disabled:cursor-not-allowed appearance-none",
+              "w-full rounded-lg border border-border bg-surface text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors disabled:bg-bg disabled:cursor-not-allowed appearance-none",
+              compact ? "px-3 py-1.5 pr-8" : "px-4 py-2.5 pr-10",
               error && "border-danger focus:border-danger focus:ring-danger/20",
               className
             )}
@@ -58,8 +64,13 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             ))}
             {children}
           </select>
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted">
-            <ChevronDown className="h-4 w-4" />
+          <div
+            className={cn(
+              "absolute top-1/2 -translate-y-1/2 pointer-events-none text-text-muted",
+              compact ? "right-2.5" : "right-3",
+            )}
+          >
+            <ChevronDown className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
           </div>
         </div>
         {error && (

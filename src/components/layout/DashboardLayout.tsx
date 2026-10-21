@@ -20,8 +20,13 @@ import {
   Moon,
   UserCog,
   Building2,
+  ClipboardList,
+  BarChart3,
+  ShieldCheck,
+  FlaskConical,
+  Pill,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/Button";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -32,6 +37,8 @@ import {
 } from "@/components/layout/SearchDialog";
 import { NotificationsMenu } from "@/components/layout/NotificationsMenu";
 import { useAuth } from "@/context/AuthContext";
+import type { AppRole } from "@/lib/auth";
+import type { LucideIcon } from "lucide-react";
 import { getHospital } from "@/lib/database";
 import { describeError } from "@/lib/errors";
 import { toast } from "sonner";
@@ -56,15 +63,41 @@ import {CustomTrigger} from "@/components/ui/SidebarTrigger";
 // entries can slot in just before it without reordering the module-level list.
 const baseNavigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Visit Queue", href: "/visits", icon: ClipboardList },
   { name: "Patients", href: "/patients", icon: Users },
   { name: "Archive", href: "/archive", icon: Archive },
   { name: "Active Checkouts", href: "/checkouts", icon: Clock },
   { name: "Location Matrix", href: "/location-matrix", icon: MapPin },
+  { name: "Reports", href: "/reports", icon: BarChart3 },
 ];
 
 const settingsNavigation = { name: "Settings", href: "/settings", icon: Settings };
 const teamNavigation = { name: "Team", href: "/settings/team", icon: UserCog };
 const organizationNavigation = { name: "Organization", href: "/settings/organization", icon: Building2 };
+
+/**
+ * Sub-queues: the same queue page pinned to the stage a role actually works in.
+ *
+ * Showing all of them to everyone would be noise - a lab tech does not need the
+ * pharmacy stop - so each entry declares the roles it is for. The visit queue
+ * itself stays in baseNavigation for everyone; these are shortcuts into it.
+ */
+const subQueues: Array<{ name: string; href: string; icon: LucideIcon; roles: AppRole[] }> = [
+  {
+    name: "Awaiting Approval",
+    href: "/visits?status=awaiting-approval",
+    icon: ShieldCheck,
+    roles: ["admin", "hmo", "doctor"],
+  },
+  { name: "Lab Worklist", href: "/visits?status=at-lab", icon: FlaskConical, roles: ["admin", "lab_technician"] },
+  { name: "Pharmacy", href: "/visits?status=at-pharmacy", icon: Pill, roles: ["admin", "pharmacist"] },
+  {
+    name: "Ready for Check-out",
+    href: "/visits?status=ready-for-checkout",
+    icon: LogOut,
+    roles: ["admin", "receptionist", "doctor"],
+  },
+];
 
 // function MobileMenuButton() {
 //   const { toggleSidebar } = useSidebar();
@@ -94,6 +127,13 @@ export function DashboardLayout() {
       ? [...baseNavigation, teamNavigation, organizationNavigation, settingsNavigation]
       : [...baseNavigation, settingsNavigation];
 
+  // Only the sub-queues for this role. `user` can be null for a beat while the
+  // session resolves, in which case nothing role-specific is offered yet.
+  const visibleSubQueues = useMemo(
+    () => subQueues.filter(item => user?.role && item.roles.includes(user.role)),
+    [user?.role],
+  );
+
   // Notifications is reached from the bell rather than the sidebar, but it still
   // needs a page title and should be searchable, so it joins a wider list.
   const notificationsNavigation = { name: "Notifications", href: "/notifications", icon: Bell };
@@ -101,10 +141,16 @@ export function DashboardLayout() {
 
   // Highlight only the most specific match. "/settings/team" is both its own
   // entry and a child of "/settings", so a plain prefix test lights up both.
+  // Every sub-queue points at "/visits" with a status filter, so when one of
+  // those is active the bare "/visits" entry must stand down - otherwise both
+  // light up and it looks like two pages are open at once.
   const activeHref = navigation.reduce<string | null>((best, item) => {
+    const isVisitsRoot = item.href === "/visits";
+    const visitsFiltered = isVisitsRoot && location.search !== "";
     const matches =
-      location.pathname === item.href ||
-      location.pathname.startsWith(item.href + "/");
+      !visitsFiltered &&
+      (location.pathname === item.href ||
+        location.pathname.startsWith(item.href + "/"));
     if (!matches) return best;
     return !best || item.href.length > best.length ? item.href : best;
   }, null);
@@ -172,7 +218,7 @@ export function DashboardLayout() {
             <img
               src={cardeaseLogo}
               alt="CardEase"
-              className="size-12 shrink-0 rounded-lg object-contain"
+              className="size-10 shrink-0 rounded-lg object-contain"
             />
             <span className="text-xl font-bold text-text group-data-[collapsible=icon]:hidden">
               CardEase
@@ -222,6 +268,52 @@ export function DashboardLayout() {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+
+          {/* Role sub-queues: the same /visits page pinned to one stage. */}
+          {visibleSubQueues.length > 0 && (
+            <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+              <div className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                My Queues
+              </div>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {visibleSubQueues.map(item => {
+                    // Sub-queues share a pathname, so the query string decides
+                    // which one is current.
+                    const isActive =
+                      location.pathname === "/visits" &&
+                      location.search === item.href.slice(item.href.indexOf("?"));
+                    return (
+                      <SidebarMenuItem
+                        key={item.name}
+                        className={cn(isActive ? " bg-primary/20 rounded-2xl" : "")}
+                      >
+                        <SidebarMenuButton asChild tooltip={item.name} isActive={isActive}>
+                          <NavLink
+                            to={item.href}
+                            className={cn(
+                              "flex items-center gap-3",
+                              isActive ? "text-primary" : "text-text-muted hover:text-sidebar-accent-foreground",
+                            )}
+                            aria-current={isActive ? "page" : undefined}
+                          >
+                            <item.icon
+                              className={cn(
+                                "h-5 w-5 shrink-0",
+                                isActive ? "text-primary" : "text-text-muted",
+                              )}
+                              aria-hidden="true"
+                            />
+                            <span>{item.name}</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
         </SidebarContent>
 
         <SidebarFooter className="p-1 border-t border-sidebar-border">
@@ -289,7 +381,7 @@ export function DashboardLayout() {
         {/* Top bar */}
         <header className="sticky top-0 z-30 h-16 border-b border-border bg-background/80 backdrop-blur supports-backdrop-filter:bg-surface/60">
           <div className="flex h-full items-center justify-between px-1 lg:px-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               {/*<SidebarTrigger />*/}
               <CustomTrigger />
               
@@ -314,6 +406,7 @@ export function DashboardLayout() {
               <div className="hidden sm:flex h-8 w-px bg-border" />
 
               <NotificationsMenu />
+              <div className="md:hidden h-8 w-2" />
 
               <div className="hidden md:flex h-8 w-px bg-border" />
               <Button

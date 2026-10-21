@@ -89,8 +89,8 @@ export function NotificationsPage() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <FilterDropdown label="Type" value={typeFilter} onChange={setTypeFilter} options={TYPE_OPTIONS} />
-        <FilterDropdown label="Status" value={readFilter} onChange={setReadFilter} options={READ_OPTIONS} />
+        <FilterDropdown compact label="Type" value={typeFilter} onChange={setTypeFilter} options={TYPE_OPTIONS} />
+        <FilterDropdown compact label="Status" value={readFilter} onChange={setReadFilter} options={READ_OPTIONS} />
       </div>
 
       <Card className="overflow-hidden p-0">

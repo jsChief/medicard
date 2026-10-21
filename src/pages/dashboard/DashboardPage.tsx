@@ -14,6 +14,10 @@ import { LocationMatrix } from "@/components/dashboard/LocationMatrix";
 import { ActionWatchlist } from "@/components/dashboard/ActionWatchlist";
 import { PatientActivityChart } from "@/components/dashboard/PatientActivityChart";
 import { PatientStatusChart } from "@/components/dashboard/PatientStatusChart";
+import { VisitVolumeChart } from "@/components/dashboard/VisitVolumeChart";
+import { DispositionMixChart } from "@/components/dashboard/DispositionMixChart";
+import { VisitFlowPanel } from "@/components/dashboard/VisitFlowPanel";
+import { TodayVisitQueue } from "@/components/dashboard/TodayVisitQueue";
 import { Card, CardContent } from "@/components/ui/Card";
 import {
   DropdownMenu,
@@ -283,6 +287,28 @@ export function DashboardPage() {
         </div>
         <div className="min-w-0 lg:col-span-4">
           <PatientStatusChart />
+        </div>
+      </div>
+
+      {/* Visit flow history - volume over time and what the doctors decided,
+          both keyed off the same time range as the charts above. */}
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="min-w-0 lg:col-span-8">
+          <VisitVolumeChart range={timeRange} />
+        </div>
+        <div className="min-w-0 lg:col-span-4">
+          <DispositionMixChart range={timeRange} />
+        </div>
+      </div>
+
+      {/* Visit flow - the live queue, placed above the slower-moving panels so
+          the dashboard opens on what is happening in the building right now. */}
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="min-w-0 lg:col-span-7">
+          <VisitFlowPanel />
+        </div>
+        <div className="min-w-0 lg:col-span-5">
+          <TodayVisitQueue />
         </div>
       </div>
 

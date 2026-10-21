@@ -11,6 +11,7 @@ import { AnnouncementForm } from "@/components/notifications/AnnouncementForm"
 import { useAuth } from "@/context/AuthContext"
 import { useNotifications } from "@/context/NotificationContext"
 import { describeError } from "@/lib/errors"
+import { APP_ROLES, APP_ROLE_LABELS } from "@/lib/auth"
 import {
   cancelHospitalInvite,
   createHospitalInvite,
@@ -23,12 +24,12 @@ import {
   type TeamRole,
 } from "@/lib/database"
 
-const ROLE_OPTIONS: { value: TeamRole; label: string }[] = [
-  { value: "admin", label: "Administrator" },
-  { value: "doctor", label: "Doctor" },
-  { value: "nurse", label: "Nurse" },
-  { value: "receptionist", label: "Receptionist" },
-]
+// Derived from APP_ROLES/APP_ROLE_LABELS so a new role shows up in every picker
+// the moment it is added to the auth layer.
+const ROLE_OPTIONS: { value: TeamRole; label: string }[] = APP_ROLES.map((role) => ({
+  value: role,
+  label: APP_ROLE_LABELS[role],
+}))
 
 const roleLabel = (role: TeamRole) => ROLE_OPTIONS.find((option) => option.value === role)?.label ?? role
 

@@ -26,3 +26,6 @@ dist-ssr
 
 # Vercel CLI project link
 .vercel
+
+# Supabase CLI cache (version pin, not project config)
+supabase/.temp/

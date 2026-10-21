@@ -6,11 +6,17 @@ export interface InputProps
   label?: string
   error?: string
   helperText?: string
+  /**
+   * Tighter padding/text for toolbar and filter rows, where the control sits
+   * inline beside buttons rather than in a labelled form field. Left off by
+   * default so data-entry forms keep their comfortable target size.
+   */
+  compact?: boolean
 }
 
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, label, error, helperText, id, children, ...props }, ref) => {
+  ({ className, label, error, helperText, id, children, compact = false, ...props }, ref) => {
     const inputId = id || label?.toLowerCase().replace(/\s+/g, "-")
     const hasPrefix = Boolean(children)
 
@@ -23,7 +29,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         )}
         <div className="relative">
           {hasPrefix && (
-            <span className="pointer-events-none absolute left-3.5 top-1/2 flex -translate-y-1/2 items-center text-text-muted">
+            <span
+              className={cn(
+                "pointer-events-none absolute top-1/2 flex -translate-y-1/2 items-center text-text-muted",
+                compact ? "left-3" : "left-3.5",
+              )}
+            >
               {children}
             </span>
           )}
@@ -31,9 +42,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             className={cn(
-              "w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors disabled:bg-bg disabled:cursor-not-allowed",
+              "w-full rounded-lg border border-border bg-surface text-sm placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors disabled:bg-bg disabled:cursor-not-allowed",
+              compact ? "px-3 py-1.5" : "px-4 py-2.5",
               error && "border-danger focus:border-danger focus:ring-danger/20",
-              hasPrefix && "pl-10",
+              // A prefix icon overlaps the text, so the left padding has to clear
+              // it - the compact default of px-3 is too tight for that.
+              hasPrefix && (compact ? "pl-9" : "pl-10"),
               className
             )}
             aria-invalid={error ? "true" : "false"}
