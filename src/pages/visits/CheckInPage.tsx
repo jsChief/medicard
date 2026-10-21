@@ -203,8 +203,8 @@ export function CheckInPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
+      <div className="md:flex items-center justify-between gap-4">
+        <div className="md:mb-0 mb-2">
           <p className="text-text-muted">Step 1 of the visit flow — confirm the payer, then hand over the card</p>
         </div>
         {step === "confirm" && (
@@ -433,11 +433,11 @@ export function CheckInPage() {
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-3">
+          <div className="md:flex items-center justify-between gap-3">
             <p className="text-sm text-text-muted">
               The card is taken at the front desk and withdrawn again at check-out.
             </p>
-            <div className="flex gap-2">
+            <div className="flex gap-2 md:mt-0 mt-3">
               <Button type="button" variant="outline" onClick={reset}>
                 Cancel
               </Button>

@@ -722,7 +722,7 @@ export function PatientDetailPage() {
               key={tab.id}
               value={tab.id}
               className={cn(
-                "shrink-0 gap-1.5 whitespace-nowrap rounded-lg border border-transparent px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:py-2 sm:text-sm",
+                "shrink-0 gap-1.5 mb-2 whitespace-nowrap rounded-lg border border-transparent px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:py-2 sm:text-sm",
                 "text-text-muted hover:bg-bg hover:text-text",
                 "data-[state=active]:border-primary/20 data-[state=active]:bg-primary data-[state=active]:text-white dark:data-[state=active]:border-primary/20 dark:data-[state=active]:bg-primary dark:data-[state=active]:text-white"
               )}
