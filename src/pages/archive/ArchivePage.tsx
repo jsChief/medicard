@@ -357,20 +357,23 @@ export function ArchivePage() {
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
                 <Input
+                  compact
                   placeholder="Search by name or MRN..."
                   value={searchQuery}
                   onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1) }}
-                  className="pl-10"
+                  className="pl-9"
                 />
               </div>
             </div>
             <FilterDropdown
+              compact
               label="Status"
               value={statusFilter}
               onChange={value => { setStatusFilter(value); setCurrentPage(1) }}
               options={statusOptions}
             />
             <FilterDropdown
+              compact
               label="Department"
               value={departmentFilter}
               onChange={value => { setDepartmentFilter(value); setCurrentPage(1) }}
@@ -383,14 +386,14 @@ export function ArchivePage() {
                 <CalendarDays className="h-3.5 w-3.5 text-text-muted" />
                 Archived from
               </label>
-              <Input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setCurrentPage(1) }} />
+              <Input compact type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setCurrentPage(1) }} />
             </div>
             <div>
               <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-text">
                 <CalendarDays className="h-3.5 w-3.5 text-text-muted" />
                 Archived to
               </label>
-              <Input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setCurrentPage(1) }} />
+              <Input compact type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setCurrentPage(1) }} />
             </div>
           </div>
         </CardContent>

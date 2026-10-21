@@ -361,6 +361,7 @@ export function PatientsListPage() {
         <CardContent className="p-4">
           <div className="grid gap-4 sm:grid-cols-3">
             <Input
+              compact
               label="Search"
               placeholder="Search by name, MRN, email, phone..."
               value={searchQuery}
@@ -370,12 +371,14 @@ export function PatientsListPage() {
               <Search className="h-4 w-4 text-text-muted" />
             </Input>
             <Select
+              compact
               label="Department"
               value={departmentFilter}
               onChange={setDepartmentFilter}
               options={departments.map((d) => ({ value: d, label: d }))}
             />
             <Select
+              compact
               label="Status"
               value={statusFilter}
               onChange={setStatusFilter}

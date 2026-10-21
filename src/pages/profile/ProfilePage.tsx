@@ -9,12 +9,17 @@ import { Badge } from "@/components/ui/Badge"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { describeError } from "@/lib/errors"
+import type { AppRole } from "@/lib/auth"
 
-const roleConfig = {
-  admin: { label: "Administrator", variant: "primary" as const },
-  doctor: { label: "Doctor", variant: "warning" as const },
-  nurse: { label: "Nurse", variant: "success" as const },
-  receptionist: { label: "Receptionist", variant: "secondary" as const },
+// Typed against AppRole so a new role cannot ship without a badge here.
+const roleConfig: Record<AppRole, { label: string; variant: "primary" | "warning" | "success" | "secondary" }> = {
+  admin: { label: "Administrator", variant: "primary" },
+  doctor: { label: "Doctor", variant: "warning" },
+  nurse: { label: "Nurse", variant: "success" },
+  receptionist: { label: "Receptionist", variant: "secondary" },
+  lab_technician: { label: "Lab Technician", variant: "secondary" },
+  pharmacist: { label: "Pharmacist", variant: "secondary" },
+  hmo: { label: "HMO Approver", variant: "primary" },
 }
 
 function Switch({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }) {

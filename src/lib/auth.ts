@@ -1,9 +1,41 @@
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 import { getSupabase } from "./supabase"
 
-export type AppRole = "admin" | "doctor" | "nurse" | "receptionist"
+/**
+ * Roles mirror public.user_role (20260102000000_init_schema.sql plus the
+ * visit-flow additions in 20260102001100_visit_flow.sql). Keep both sides in
+ * sync: the DB enum is the real boundary, this union is what the UI styles
+ * and filters on.
+ */
+export type AppRole =
+  | "admin"
+  | "doctor"
+  | "nurse"
+  | "receptionist"
+  | "lab_technician"
+  | "pharmacist"
+  | "hmo"
 
-export const APP_ROLES: AppRole[] = ["admin", "doctor", "nurse", "receptionist"]
+export const APP_ROLES: AppRole[] = [
+  "admin",
+  "doctor",
+  "nurse",
+  "receptionist",
+  "lab_technician",
+  "pharmacist",
+  "hmo",
+]
+
+/** Human-readable labels for pickers (roles are snake_case in the DB). */
+export const APP_ROLE_LABELS: Record<AppRole, string> = {
+  admin: "Admin",
+  doctor: "Doctor",
+  nurse: "Nurse",
+  receptionist: "Receptionist",
+  lab_technician: "Lab Technician",
+  pharmacist: "Pharmacist",
+  hmo: "HMO Approver",
+}
 
 /**
  * App-level user shape. Mirrors the former Firestore `users/{uid}` document,

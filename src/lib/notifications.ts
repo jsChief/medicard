@@ -1,4 +1,5 @@
 import { getSupabase, throwIfError } from "./supabase"
+import type { AppRole } from "./auth"
 
 /**
  * In-app notifications.
@@ -42,7 +43,7 @@ export interface NotifyHospitalInput {
   /** Skip the acting user (default true, so you don't get pinged for your own action). */
   excludeActor?: boolean
   /** Restrict recipients to these roles. Omit to reach the whole hospital. */
-  roles?: ("admin" | "doctor" | "nurse" | "receptionist")[] | null
+  roles?: AppRole[] | null
 }
 
 interface NotificationRow {

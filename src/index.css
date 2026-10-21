@@ -62,6 +62,61 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  /* --- Scrollbars ----------------------------------------------------------
+     Themed to the primary teal so scroll affordances read as part of the app
+     rather than as browser chrome. Two syntaxes are needed: the -webkit- pseudo
+     elements cover Chromium/Safari/Edge, and scrollbar-color covers Firefox.
+     The track is transparent so the thumb floats over whatever surface it is
+     scrolling, and `scrollbar-width: thin` in Firefox keeps the two browsers
+     visually close. */
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+
+  /* Chromium / Safari / Edge */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border-radius: 9999px;
+    /* Transparent border + background-clip insets the thumb inside the track,
+       which is what gives it the floating look; without it the thumb fills the
+       full 10px and looks like a solid bar. */
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* The thumb tokens. Not --color-primary directly: in dark mode the charts use
+     a lightened teal (#2dd4bf) for contrast against the dark surfaces, and the
+     scrollbar should follow the same reasoning. */
+  :root {
+    --scrollbar-thumb: var(--color-primary);
+    --scrollbar-thumb-hover: var(--color-primary-hover);
+  }
+
+  .dark {
+    --scrollbar-thumb: #2dd4bf;
+    --scrollbar-thumb-hover: #5eead4;
+  }
+
   .dark {
     --color-bg: var(--color-dark-bg);
     --color-background: var(--color-dark-bg);

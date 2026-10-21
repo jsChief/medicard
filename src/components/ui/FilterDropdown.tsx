@@ -15,13 +15,29 @@ interface FilterDropdownProps {
   options: { value: string; label: string }[]
   label?: string
   className?: string
+  /** Trigger button size. Defaults to the Button default ("md"). */
+  size?: "sm" | "md" | "lg"
+  /**
+   * Drop the full-width stretch. The default fills its container, which is what
+   * the stacked filter panels want; a compact dropdown sits inline next to other
+   * controls (e.g. the Visit Queue toolbar) at its natural width instead.
+   */
+  compact?: boolean
 }
 
-export function FilterDropdown({ value, onChange, options, label, className }: FilterDropdownProps) {
+export function FilterDropdown({
+  value,
+  onChange,
+  options,
+  label,
+  className,
+  size,
+  compact = false,
+}: FilterDropdownProps) {
   const selectedLabel = options.find((option) => option.value === value)?.label ?? value
 
   return (
-    <div className="flex w-full flex-col">
+    <div className={cn("flex flex-col", compact ? "w-auto" : "w-full")}>
       {label && (
         <span className="mb-1.5 text-sm font-medium text-text">{label}</span>
       )}
@@ -29,8 +45,9 @@ export function FilterDropdown({ value, onChange, options, label, className }: F
         <DropdownMenuTrigger asChild>
           <Button
             variant="outline"
+            size={size}
             aria-label={label}
-            className={cn("w-full justify-between font-normal", className)}
+            className={cn("justify-between font-normal", !compact && "w-full", className)}
           >
             {selectedLabel}
             <ChevronDown className="h-4 w-4 text-text-muted" />

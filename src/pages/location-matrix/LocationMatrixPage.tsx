@@ -371,16 +371,17 @@ export function LocationMatrixPage() {
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
                 <Input
+                  compact
                   placeholder="Search locations or wings..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-9"
                 />
               </div>
             </div>
-            <FilterDropdown label="Type" value={typeFilter} onChange={setTypeFilter} options={typeOptions} />
-            <FilterDropdown label="Status" value={statusFilter} onChange={setStatusFilter} options={statusOptions} />
-            <FilterDropdown label="Floor" value={floorFilter} onChange={setFloorFilter} options={floorOptions} />
+            <FilterDropdown compact label="Type" value={typeFilter} onChange={setTypeFilter} options={typeOptions} />
+            <FilterDropdown compact label="Status" value={statusFilter} onChange={setStatusFilter} options={statusOptions} />
+            <FilterDropdown compact label="Floor" value={floorFilter} onChange={setFloorFilter} options={floorOptions} />
           </div>
         </CardContent>
       </Card>
