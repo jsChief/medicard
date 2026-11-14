@@ -6,7 +6,8 @@ import { cn } from "cn"
 import { MenuIcon } from "lucide-react"
 import { Slot } from "radix-ui"
 
-//import { useIsMobile } from "@/hooks/use-mobile"
+import appLogo from "@/assets/cardease.png"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Separator } from "@/components/ui/Separator"
@@ -51,27 +52,6 @@ function useSidebar() {
   }
 
   return context
-}
-
-function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean>(() => {
-    if (typeof window === "undefined") return false
-
-    return window.matchMedia("(max-width: 768px)").matches
-  })
-
-  React.useEffect(() => {
-    if (typeof window === "undefined") return
-
-    const mediaQuery = window.matchMedia("(max-width: 768px)")
-    const onChange = (event: MediaQueryListEvent) => setIsMobile(event.matches)
-
-    mediaQuery.addEventListener("change", onChange)
-
-    return () => mediaQuery.removeEventListener("change", onChange)
-  }, [])
-
-  return isMobile
 }
 
 function SidebarProvider({
@@ -331,7 +311,7 @@ function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
       data-slot="sidebar-inset"
       className={cn(
         "relative flex w-full flex-1 flex-col bg-background",
-        "md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2",
+        "md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[inset]:peer-data-[state=collapsed]:ml-2",
         className
       )}
       {...props}
