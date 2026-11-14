@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from "react"
+import { useRef, useState, type FormEvent } from "react"
 import {
   Beaker,
   Ban,
   CheckCircle2,
+  CreditCard,
   ExternalLink,
   FileCheck2,
   FileUp,
@@ -19,7 +20,7 @@ import { Badge } from "@/components/ui/Badge"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
 import { Select } from "@/components/ui/Select"
-import { TagInput } from "@/components/ui/MultiSelect"
+import { TagInput, type TagInputHandle } from "@/components/ui/MultiSelect"
 import { EmptyState } from "@/components/ui/EmptyState"
 import {
   Dialog,
@@ -37,8 +38,10 @@ import {
   decideOrder,
   dispensePrescription,
   fulfilLabOrder,
+  recordOrderPayment,
   resubmitOrder,
   syncVisitStatus,
+  waiveOrderPayment,
   ORDER_STATUS_LABELS,
   type LabOrder,
   type OrderKind,
@@ -47,16 +50,22 @@ import {
   type VisitWithPatient,
 } from "@/lib/visits"
 import {
+  canCollectPayments,
   canCreateOrders,
   canDecideOrders,
   canDispensePrescriptions,
   canFulfilLabOrders,
+  canWaivePayments,
 } from "@/lib/permissions"
 import { describeError } from "@/lib/errors"
 import { formatRelativeTime } from "@/lib/utils"
 import { uploadPatientDocument } from "@/lib/patientDocuments"
 import { toast } from "sonner"
-import { ORDER_STATUS_VARIANT } from "./statusMeta"
+import {
+  ORDER_STATUS_VARIANT,
+  PAYMENT_STATUS_LABELS,
+  PAYMENT_STATUS_VARIANT,
+} from "./statusMeta"
 
 interface OrdersTabProps {
   visit: VisitWithPatient
@@ -70,6 +79,8 @@ const EMPTY_ITEM: PrescriptionItem = { name: "", dosage: "", frequency: "", dura
 type DialogState =
   | { kind: "reject"; orderKind: OrderKind; id: string }
   | { kind: "external"; id: string }
+  | { kind: "payment"; orderKind: OrderKind; id: string; title: string }
+  | { kind: "waive"; orderKind: OrderKind; id: string; title: string }
   | null
 
 export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTabProps) {
@@ -80,11 +91,14 @@ export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTa
   const canDecide = canDecideOrders(user?.role)
   const canFulfil = canFulfilLabOrders(user?.role)
   const canDispense = canDispensePrescriptions(user?.role)
+  const canCollect = canCollectPayments(user?.role)
+  const canWaive = canWaivePayments(user?.role)
 
   /* ------------------------------------------------------ lab order form */
   const [tests, setTests] = useState<string[]>([])
   const [labNotes, setLabNotes] = useState("")
   const [isCreatingLab, setIsCreatingLab] = useState(false)
+  const labTestsRef = useRef<TagInputHandle>(null)
 
   /* -------------------------------------------------- prescription form */
   const [items, setItems] = useState<PrescriptionItem[]>([{ ...EMPTY_ITEM }])
@@ -97,6 +111,9 @@ export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTa
   const [dialog, setDialog] = useState<DialogState>(null)
   const [decisionNote, setDecisionNote] = useState("")
   const [externalPharmacy, setExternalPharmacy] = useState("")
+  const [paymentAmount, setPaymentAmount] = useState("")
+  const [paymentReference, setPaymentReference] = useState("")
+  const [waiverReason, setWaiverReason] = useState("")
   const [isDialogBusy, setIsDialogBusy] = useState(false)
 
   /* -------------------------------------------------------- result upload */
@@ -116,7 +133,12 @@ export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTa
   const handleCreateLab = async (e: FormEvent) => {
     e.preventDefault()
     if (!user) return
-    if (tests.length === 0) {
+    // Flush any test the doctor typed but did not confirm with Enter. Without
+    // this, clicking "Send lab request" blurs the input and submits the list
+    // from before the blur - which is empty - so the validation below fires
+    // even though the field looks filled in.
+    const flushedTests = labTestsRef.current?.flush() ?? tests
+    if (flushedTests.length === 0) {
       setError("Add at least one test to the request.")
       return
     }
@@ -127,7 +149,7 @@ export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTa
         visitId: visit.id,
         patientId: visit.patientId,
         hospitalId: visit.hospitalId,
-        tests,
+        tests: flushedTests,
         notes: labNotes.trim(),
         requestedBy: user.id,
         requestedByName: user.name,
@@ -145,9 +167,16 @@ export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTa
         await notify({
           type: "team",
           title: "New lab request",
-          description: `Lab request for ${patientLabel} (${visit.patient.mrn}): ${tests.join(", ")}.`,
+          description: `Lab request for ${patientLabel} (${visit.patient.mrn}): ${flushedTests.join(", ")}.`,
           link: `/visits/${visit.id}`,
           roles: ["lab_technician", "admin"],
+        })
+        await notify({
+          type: "team",
+          title: "Payment needed",
+          description: `Lab request for ${patientLabel} (${visit.patient.mrn}) needs payment before the lab can start.`,
+          link: `/visits/${visit.id}`,
+          roles: ["receptionist", "admin"],
         })
       }
 
@@ -206,6 +235,17 @@ export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTa
           link: `/visits/${visit.id}`,
           roles: ["pharmacist", "admin"],
         })
+        // External prescriptions are waived by the DB; only in-house ones need
+        // the front desk to collect money.
+        if (destination !== "external") {
+          await notify({
+            type: "team",
+            title: "Payment needed",
+            description: `Prescription for ${patientLabel} (${visit.patient.mrn}) needs payment before it can be dispensed.`,
+            link: `/visits/${visit.id}`,
+            roles: ["receptionist", "admin"],
+          })
+        }
       }
 
       await afterOrderEvent("Prescription created")
@@ -358,6 +398,59 @@ export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTa
     }
   }
 
+  /**
+   * The money gate. `recordOrderPayment`/`waiveOrderPayment` call the same RPC,
+   * which re-checks the role and the current status server-side, so the UI
+   * cannot settle a request twice or let a non-reception role write payments.
+   */
+  const handlePayment = async () => {
+    if (!dialog || (dialog.kind !== "payment" && dialog.kind !== "waive")) return
+    try {
+      setIsDialogBusy(true)
+
+      if (dialog.kind === "waive") {
+        if (!waiverReason.trim()) {
+          toast.error("Give a reason for waiving the payment.")
+          return
+        }
+        await waiveOrderPayment(dialog.orderKind, dialog.id, waiverReason.trim())
+      } else {
+        const amount = paymentAmount.trim() === "" ? null : Number(paymentAmount)
+        if (amount !== null && (!Number.isFinite(amount) || amount < 0)) {
+          toast.error("Enter a valid payment amount.")
+          return
+        }
+        await recordOrderPayment({
+          kind: dialog.orderKind,
+          id: dialog.id,
+          amount,
+          reference: paymentReference.trim(),
+        })
+      }
+
+      const settled = dialog.kind === "waive" ? "Payment waived" : "Payment recorded"
+      const nextStop = dialog.orderKind === "lab" ? "lab" : "pharmacy"
+      await notify({
+        type: "team",
+        title: settled,
+        description: `${patientLabel} (${visit.patient.mrn}) is ready for ${nextStop}.`,
+        link: `/visits/${visit.id}`,
+        roles: dialog.orderKind === "lab" ? ["lab_technician", "admin"] : ["pharmacist", "admin"],
+      })
+
+      await afterOrderEvent(settled)
+      setDialog(null)
+      setPaymentAmount("")
+      setPaymentReference("")
+      setWaiverReason("")
+    } catch (err) {
+      console.error("Payment update failed:", err)
+      toast.error(describeError(err, "update the payment"))
+    } finally {
+      setIsDialogBusy(false)
+    }
+  }
+
   const triggerResultUpload = (orderId: string) => {
     const input = document.createElement("input")
     input.type = "file"
@@ -388,12 +481,14 @@ export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTa
 
               <form onSubmit={handleCreateLab} className="space-y-4">
                 <TagInput
+                  ref={labTestsRef}
                   label="Tests"
                   placeholder="e.g. FBC, malaria RDT, urinalysis..."
                   value={tests}
                   onChange={setTests}
                   suggestions={["FBC", "Malaria RDT", "Urinalysis", "Blood glucose", "Lipid profile", "Liver function test", "X-ray chest"]}
                   maxTags={15}
+                  helperText="Type a test and press Enter (or click Add) for each one."
                 />
                 <Input
                   label="Notes for the lab"
@@ -573,6 +668,12 @@ export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTa
                   approvedAt: order.approvedAt,
                   decisionNote: order.decisionNote,
                   createdAt: order.createdAt,
+                  paymentStatus: order.paymentStatus,
+                  amount: order.amount,
+                  paymentReference: order.paymentReference,
+                  paidAt: order.paidAt,
+                  paidByName: order.paidByName,
+                  waiverReason: order.waiverReason,
                   extra:
                     order.status === "fulfilled" && order.completedAt
                       ? `completed ${formatRelativeTime(order.completedAt.toISOString())}`
@@ -581,6 +682,8 @@ export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTa
                 visitPayer={visit.payerType}
                 canDecide={canDecide}
                 canFulfil={canFulfil}
+                canCollectPayment={canCollect}
+                canWaivePayment={canWaive}
                 busy={uploadingId === order.id}
                 onDecide={decision => {
                   setDecisionNote("")
@@ -589,6 +692,25 @@ export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTa
                   } else {
                     setDialog({ kind: "reject", orderKind: "lab", id: order.id })
                   }
+                }}
+                onRecordPayment={() => {
+                  setPaymentAmount("")
+                  setPaymentReference("")
+                  setDialog({
+                    kind: "payment",
+                    orderKind: "lab",
+                    id: order.id,
+                    title: order.tests.join(", ") || "Lab request",
+                  })
+                }}
+                onWaivePayment={() => {
+                  setWaiverReason("")
+                  setDialog({
+                    kind: "waive",
+                    orderKind: "lab",
+                    id: order.id,
+                    title: order.tests.join(", ") || "Lab request",
+                  })
                 }}
                 onFulfil={() => triggerResultUpload(order.id)}
                 onFulfilWithoutFile={() => void handleFulfil(order, null)}
@@ -622,6 +744,12 @@ export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTa
                   approvedAt: order.approvedAt,
                   decisionNote: order.decisionNote,
                   createdAt: order.createdAt,
+                  paymentStatus: order.paymentStatus,
+                  amount: order.amount,
+                  paymentReference: order.paymentReference,
+                  paidAt: order.paidAt,
+                  paidByName: order.paidByName,
+                  waiverReason: order.waiverReason,
                   extra:
                     order.status === "dispensed" && order.dispensedAt
                       ? `dispensed ${formatRelativeTime(order.dispensedAt.toISOString())}`
@@ -630,6 +758,8 @@ export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTa
                 visitPayer={visit.payerType}
                 canDecide={canDecide}
                 canDispense={canDispense}
+                canCollectPayment={canCollect}
+                canWaivePayment={canWaive}
                 busy={isDialogBusy}
                 onDecide={decision => {
                   setDecisionNote("")
@@ -638,6 +768,25 @@ export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTa
                   } else {
                     setDialog({ kind: "reject", orderKind: "prescription", id: order.id })
                   }
+                }}
+                onRecordPayment={() => {
+                  setPaymentAmount("")
+                  setPaymentReference("")
+                  setDialog({
+                    kind: "payment",
+                    orderKind: "prescription",
+                    id: order.id,
+                    title: order.items.map(i => i.name).join(", ") || "Prescription",
+                  })
+                }}
+                onWaivePayment={() => {
+                  setWaiverReason("")
+                  setDialog({
+                    kind: "waive",
+                    orderKind: "prescription",
+                    id: order.id,
+                    title: order.items.map(i => i.name).join(", ") || "Prescription",
+                  })
                 }}
                 onDispense={() => void handleDispense(order, "dispensed")}
                 onSendExternal={() => {
@@ -715,6 +864,86 @@ export function OrdersTab({ visit, labOrders, prescriptions, refresh }: OrdersTa
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ------------------------------------------------- record payment */}
+      <Dialog open={dialog?.kind === "payment"} onOpenChange={open => !open && setDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record payment</DialogTitle>
+            <DialogDescription>
+              {dialog?.kind === "payment" ? dialog.title : ""} — the request can be fulfilled once payment is recorded.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              label="Amount"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={paymentAmount}
+              onChange={e => setPaymentAmount(e.target.value)}
+              placeholder="Amount received"
+            />
+            <Input
+              label="Reference (optional)"
+              value={paymentReference}
+              onChange={e => setPaymentReference(e.target.value)}
+              placeholder="Receipt or transaction reference"
+            />
+            <p className="text-xs text-text-muted">
+              No price list is configured yet, so the amount is entered manually. The request can be fulfilled as soon
+              as the payment is recorded.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>
+              Cancel
+            </Button>
+            <Button className="gap-2" isLoading={isDialogBusy} onClick={() => void handlePayment()}>
+              {!isDialogBusy && <CreditCard className="h-4 w-4" />}
+              Record payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ------------------------------------------------------- waive */}
+      <Dialog open={dialog?.kind === "waive"} onOpenChange={open => !open && setDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Waive this payment?</DialogTitle>
+            <DialogDescription>
+              {dialog?.kind === "waive" ? dialog.title : ""} — waiving records that no money will be collected. The
+              reason is kept on the request.
+            </DialogDescription>
+          </DialogHeader>
+          <Label htmlFor="waiver-reason">Reason (required)</Label>
+          <textarea
+            id="waiver-reason"
+            rows={3}
+            className="mt-1.5 w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            placeholder="e.g. staff treatment, charity case, hospital policy"
+            value={waiverReason}
+            onChange={e => setWaiverReason(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              className="gap-2"
+              disabled={!waiverReason.trim()}
+              isLoading={isDialogBusy}
+              onClick={() => void handlePayment()}
+            >
+              {!isDialogBusy && <Ban className="h-4 w-4" />}
+              Waive payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -736,19 +965,33 @@ interface OrderCardActionProps {
     approvedAt: Date | null
     decisionNote: string
     createdAt: Date
+    paymentStatus: LabOrder["paymentStatus"]
+    amount: number | null
+    paymentReference: string
+    paidAt: Date | null
+    paidByName: string
+    waiverReason: string
     extra: string | null
   }
   visitPayer: "hmo" | "private"
   canDecide: boolean
   canFulfil?: boolean
   canDispense?: boolean
+  canCollectPayment?: boolean
+  canWaivePayment?: boolean
   busy?: boolean
   onDecide: (decision: "approved" | "rejected") => void
   onFulfil?: () => void
   onFulfilWithoutFile?: () => void
   onDispense?: () => void
   onSendExternal?: () => void
+  onRecordPayment?: () => void
+  onWaivePayment?: () => void
   onResubmit?: () => void
+}
+
+function formatAmount(value: number): string {
+  return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function OrderCard({
@@ -760,16 +1003,22 @@ function OrderCard({
   canDecide,
   canFulfil,
   canDispense,
+  canCollectPayment = false,
+  canWaivePayment = false,
   busy = false,
   onDecide,
   onFulfil,
   onFulfilWithoutFile,
   onDispense,
   onSendExternal,
+  onRecordPayment,
+  onWaivePayment,
   onResubmit,
 }: OrderCardActionProps) {
   const isLab = kind === "lab"
   const Icon = isLab ? Beaker : Pill
+  const active = order.status !== "rejected" && order.status !== "cancelled"
+  const needsPayment = active && order.paymentStatus === "unpaid"
 
   return (
     <Card className="p-0">
@@ -789,10 +1038,16 @@ function OrderCard({
               </p>
             </div>
           </div>
-          <Badge variant={ORDER_STATUS_VARIANT[order.status]} className="gap-1.5">
-            {order.status === "pending-approval" && <ShieldQuestion className="h-3 w-3" />}
-            {ORDER_STATUS_LABELS[order.status]}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={ORDER_STATUS_VARIANT[order.status]} className="gap-1.5">
+              {order.status === "pending-approval" && <ShieldQuestion className="h-3 w-3" />}
+              {ORDER_STATUS_LABELS[order.status]}
+            </Badge>
+            <Badge variant={PAYMENT_STATUS_VARIANT[order.paymentStatus]} className="gap-1.5">
+              {order.paymentStatus === "unpaid" && <CreditCard className="h-3 w-3" />}
+              {PAYMENT_STATUS_LABELS[order.paymentStatus]}
+            </Badge>
+          </div>
         </div>
 
         {subtitle && <p className="text-sm text-text-muted whitespace-pre-wrap">{subtitle}</p>}
@@ -820,6 +1075,34 @@ function OrderCard({
           </p>
         )}
 
+        {/* Payment detail */}
+        {order.paymentStatus === "paid" && (
+          <p className="text-xs text-text-muted">
+            {order.amount !== null ? `Paid ${formatAmount(order.amount)}` : "Paid"}
+            {order.paymentReference ? ` • ref ${order.paymentReference}` : ""}
+            {order.paidByName ? ` • by ${order.paidByName}` : ""}
+            {order.paidAt ? ` ${formatRelativeTime(order.paidAt.toISOString())}` : ""}
+          </p>
+        )}
+        {order.paymentStatus === "covered" && (
+          <p className="text-xs text-text-muted">The HMO plan covers this request; the approval above still applies.</p>
+        )}
+        {order.paymentStatus === "waived" && (
+          <p className="text-xs text-text-muted">
+            Payment waived{order.waiverReason ? ` — ${order.waiverReason}` : ""}
+            {order.paidByName ? ` by ${order.paidByName}` : ""}
+          </p>
+        )}
+
+        {needsPayment && order.status === "approved" && (
+          <div className="rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
+            Payment is required before this {isLab ? "lab request can be run" : "prescription can be dispensed"}.
+            {canCollectPayment
+              ? " Record the payment below, or an admin can waive it."
+              : " Reception records the payment."}
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex flex-wrap gap-2">
           {order.status === "pending-approval" && canDecide && (
@@ -835,13 +1118,42 @@ function OrderCard({
             </>
           )}
 
+          {needsPayment && (canCollectPayment || canWaivePayment) && (
+            <>
+              {canCollectPayment && (
+                <Button size="sm" className="gap-1" disabled={busy} onClick={onRecordPayment}>
+                  <CreditCard className="h-3.5 w-3.5" />
+                  Record payment
+                </Button>
+              )}
+              {canWaivePayment && (
+                <Button size="sm" variant="outline" className="gap-1" disabled={busy} onClick={onWaivePayment}>
+                  <Ban className="h-3.5 w-3.5" />
+                  Waive
+                </Button>
+              )}
+            </>
+          )}
+
           {order.status === "approved" && isLab && canFulfil && (
             <>
-              <Button size="sm" className="gap-1" disabled={busy} onClick={onFulfil}>
+              <Button
+                size="sm"
+                className="gap-1"
+                disabled={busy || needsPayment}
+                title={needsPayment ? "Record payment first" : undefined}
+                onClick={onFulfil}
+              >
                 <FileUp className="h-3.5 w-3.5" />
                 Upload result & fulfil
               </Button>
-              <Button size="sm" variant="outline" disabled={busy} onClick={onFulfilWithoutFile}>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy || needsPayment}
+                title={needsPayment ? "Record payment first" : undefined}
+                onClick={onFulfilWithoutFile}
+              >
                 Mark fulfilled
               </Button>
             </>
@@ -849,7 +1161,13 @@ function OrderCard({
 
           {order.status === "approved" && !isLab && canDispense && (
             <>
-              <Button size="sm" className="gap-1" disabled={busy} onClick={onDispense}>
+              <Button
+                size="sm"
+                className="gap-1"
+                disabled={busy || needsPayment}
+                title={needsPayment ? "Record payment first" : undefined}
+                onClick={onDispense}
+              >
                 <Pill className="h-3.5 w-3.5" />
                 Dispense
               </Button>

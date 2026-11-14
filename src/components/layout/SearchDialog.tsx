@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/Dialog"
 import { Input } from "@/components/ui/Input"
 import { useAuth } from "@/context/AuthContext"
 import { searchPatients, type Patient } from "@/lib/database"
+import { canAccessPage } from "@/lib/permissions"
 import { describeError } from "@/lib/errors"
 
 interface NavLinks {
@@ -14,8 +15,8 @@ interface NavLinks {
 }
 
 const quickResults = [
-  { name: "Location Matrix", detail: "View bed occupancy", href: "/location-matrix", icon: MapPin },
-  { name: "System Settings", detail: "Configure hospital preferences", href: "/settings", icon: Settings },
+  { name: "Location Matrix", detail: "View bed occupancy", href: "/location-matrix", icon: MapPin, page: "locationMatrix" as const },
+  { name: "System Settings", detail: "Configure hospital preferences", href: "/settings", icon: Settings, page: "settings" as const },
 ]
 
 const SEARCH_DEBOUNCE_MS = 250
@@ -36,6 +37,9 @@ export function SearchDialog({ open, onOpenChange, links }: SearchDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const hospitalId = user?.hospitalId
+  // Lab/pharmacy/HMO do not have the patient list, so do not surface patient
+  // results that would only bounce them back to the dashboard.
+  const canSearchPatients = canAccessPage(user?.role, "patients")
 
   const resetOnOpen = (event: Event) => {
     event.preventDefault()
@@ -57,7 +61,7 @@ export function SearchDialog({ open, onOpenChange, links }: SearchDialogProps) {
     if (!open) return
 
     const term = query.trim()
-    if (!term || !hospitalId) {
+    if (!term || !hospitalId || !canSearchPatients) {
       setPatients([])
       setIsSearching(false)
       setSearchError(null)
@@ -84,13 +88,14 @@ export function SearchDialog({ open, onOpenChange, links }: SearchDialogProps) {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [query, hospitalId, open])
+  }, [query, hospitalId, open, canSearchPatients])
 
   const q = query.trim().toLowerCase()
   const navResults = links.filter((l) => l.name.toLowerCase().includes(q))
+  const allowedQuickResults = quickResults.filter((r) => canAccessPage(user?.role, r.page))
   const quickMatches = q
-    ? quickResults.filter((r) => `${r.name} ${r.detail}`.toLowerCase().includes(q))
-    : quickResults
+    ? allowedQuickResults.filter((r) => `${r.name} ${r.detail}`.toLowerCase().includes(q))
+    : allowedQuickResults
 
   const hasResults = navResults.length > 0 || quickMatches.length > 0 || patients.length > 0
   const isBusy = Boolean(q) && isSearching
@@ -129,7 +134,7 @@ export function SearchDialog({ open, onOpenChange, links }: SearchDialogProps) {
             </div>
           ) : (
             <>
-              {q && (
+              {q && canSearchPatients && (
                 <>
                   <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
                     Patients

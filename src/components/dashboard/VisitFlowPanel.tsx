@@ -85,7 +85,7 @@ export function VisitFlowPanel() {
           </div>
         </div>
         <Button variant="ghost" size="sm" className="gap-1" onClick={() => navigate("/visits")}>
-          Queue
+          Check-Ins
           <ArrowRight className="h-3.5 w-3.5" />
         </Button>
       </div>

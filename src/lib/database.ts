@@ -435,7 +435,16 @@ export async function getPatient(id: string): Promise<Patient | null> {
     .maybeSingle()
 
   if (error) throw new Error(`${error.message} [${error.code ?? "select"}]`)
-  return data ? mapPatient(data as unknown as PatientWithRelations) : null
+  if (!data) return null
+
+  // Record the read in the append-only audit trail. Fire-and-forget on purpose:
+  // an audit hiccup must not stop a clinician opening a chart. The server still
+  // rejects the event if the patient belongs to another hospital.
+  void logPatientAccess(id).catch((auditError: unknown) => {
+    console.warn("Failed to record patient access:", auditError)
+  })
+
+  return mapPatient(data as unknown as PatientWithRelations)
 }
 
 export async function updatePatient(id: string, data: Partial<Patient>): Promise<void> {
@@ -461,6 +470,39 @@ export async function updatePatient(id: string, data: Partial<Patient>): Promise
 export async function deletePatient(id: string): Promise<void> {
   const { error } = await getSupabase().from("patients").delete().eq("id", id)
   if (error) throw new Error(`${error.message} [${error.code ?? "delete"}]`)
+}
+
+/* ============================================================================
+ * Patient data export
+ *
+ * hospitals.settings.allowPatientExport was previously a type-only field. The
+ * RPC below is the server-side gate (it also re-checks MFA), and
+ * log_patient_export records the event in the append-only audit trail.
+ * ========================================================================== */
+
+export async function assertPatientExportAllowed(): Promise<void> {
+  const { error } = await getSupabase().rpc("assert_patient_export_allowed")
+  if (error) throw new Error(`${error.message} [${error.code ?? "rpc"}]`)
+}
+
+export async function logPatientExport(count: number, format = "csv"): Promise<void> {
+  const { error } = await getSupabase().rpc("log_patient_export", { p_count: count, p_format: format })
+  if (error) throw new Error(`${error.message} [${error.code ?? "rpc"}]`)
+}
+
+/**
+ * Records a read/export of one patient's chart in the append-only audit trail.
+ * The RPC rejects a patient that belongs to another hospital.
+ */
+export async function logPatientAccess(
+  patientId: string,
+  action: "read" | "export" = "read",
+): Promise<void> {
+  const { error } = await getSupabase().rpc("log_patient_access", {
+    p_patient_id: patientId,
+    p_action: action,
+  })
+  if (error) throw new Error(`${error.message} [${error.code ?? "rpc"}]`)
 }
 
 export interface PatientQueryOptions {

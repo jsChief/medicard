@@ -40,6 +40,8 @@ import {
   type VisitWithPatient,
 } from "@/lib/visits"
 import { describeError } from "@/lib/errors"
+import { canAccessPage } from "@/lib/permissions"
+import { useAuth } from "@/context/AuthContext"
 import { cn, formatDate, formatRelativeTime } from "@/lib/utils"
 
 interface Bundle {
@@ -59,6 +61,7 @@ interface Bundle {
 export function VisitDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [bundle, setBundle] = useState<Bundle | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -121,13 +124,14 @@ export function VisitDetailPage() {
         icon={<ClipboardList className="h-16 w-16" />}
         title="Visit not found"
         description="It may have been removed, or your account cannot see it."
-        action={{ label: "Back to visit queue", onClick: () => navigate("/visits") }}
+        action={{ label: "Back to check-ins", onClick: () => navigate("/visits") }}
       />
     )
   }
 
   const { visit, vitals, consultations, labOrders, prescriptions, verifications } = bundle
   const hasOrders = labOrders.length > 0 || prescriptions.length > 0
+  const canOpenPatient = canAccessPage(user?.role, "patients")
 
   return (
     <div className="space-y-6">
@@ -138,7 +142,7 @@ export function VisitDetailPage() {
           className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-primary"
         >
           <ArrowLeft className="h-4 w-4" />
-          Visit queue
+          Check-Ins
         </Link>
 
         <div className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-surface p-5 sm:flex-row sm:items-start sm:justify-between">
@@ -234,10 +238,15 @@ export function VisitDetailPage() {
                 <SnapshotList title="Conditions" items={visit.patient.conditions} />
                 <SnapshotList title="Regular medications" items={visit.patient.medications} />
                 <p className="text-xs text-text-muted">
-                  <Link to={`/patients/${visit.patient.id}`} className="font-medium text-primary underline-offset-4 hover:underline">
-                    Open the full patient card
-                  </Link>
-                  {" • "}born {formatDate(visit.patient.dob)}
+                  {canOpenPatient && (
+                    <>
+                      <Link to={`/patients/${visit.patient.id}`} className="font-medium text-primary underline-offset-4 hover:underline">
+                        Open the full patient card
+                      </Link>
+                      {" • "}
+                    </>
+                  )}
+                  born {formatDate(visit.patient.dob)}
                 </p>
               </CardContent>
             </Card>

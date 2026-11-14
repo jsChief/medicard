@@ -34,11 +34,11 @@ import {
   type Prescription,
   type VisitWithPatient,
 } from "@/lib/visits"
-import { canArchivePatients, canCheckOut } from "@/lib/permissions"
+import { canAccessPage, canArchivePatients, canCheckOut } from "@/lib/permissions"
 import { describeError } from "@/lib/errors"
 import { formatDate, formatRelativeTime } from "@/lib/utils"
 import { toast } from "sonner"
-import { CARD_STATUS_LABELS, CARD_STATUS_VARIANT, ORDER_STATUS_VARIANT } from "./statusMeta"
+import { CARD_STATUS_LABELS, CARD_STATUS_VARIANT, ORDER_STATUS_VARIANT, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_VARIANT } from "./statusMeta"
 
 interface CheckOutTabProps {
   visit: VisitWithPatient
@@ -76,12 +76,14 @@ export function CheckOutTab({ visit, labOrders, prescriptions, disposition, refr
       kind: "Lab" as const,
       title: o.tests.join(", "),
       status: o.status,
+      paymentStatus: o.paymentStatus,
     })),
     ...prescriptions.map(o => ({
       id: o.id,
       kind: "Prescription" as const,
       title: o.items.map(i => i.name).join(", "),
       status: o.status,
+      paymentStatus: o.paymentStatus,
     })),
   ].filter(o => o.status === "pending-approval" || o.status === "approved")
 
@@ -175,10 +177,14 @@ export function CheckOutTab({ visit, labOrders, prescriptions, disposition, refr
           </div>
 
           {visit.checkoutId ? (
-            <Link to="/checkouts" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline">
-              Discharge record
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
+            canAccessPage(user?.role, "checkouts") ? (
+              <Link to="/checkouts" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline">
+                Discharge record
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            ) : (
+              <p className="text-xs text-text-muted">Discharge record available at the front desk.</p>
+            )
           ) : (
             <p className="text-xs text-text-muted">
               No discharge record was created for this visit.
@@ -225,7 +231,14 @@ export function CheckOutTab({ visit, labOrders, prescriptions, disposition, refr
                     <span className="text-sm text-text">
                       <span className="text-text-muted">{order.kind}:</span> {order.title}
                     </span>
-                    <Badge variant={ORDER_STATUS_VARIANT[order.status]}>{ORDER_STATUS_LABELS[order.status]}</Badge>
+                    <span className="flex flex-wrap items-center gap-2">
+                      {order.paymentStatus === "unpaid" && (
+                        <Badge variant={PAYMENT_STATUS_VARIANT.unpaid}>
+                          {PAYMENT_STATUS_LABELS.unpaid}
+                        </Badge>
+                      )}
+                      <Badge variant={ORDER_STATUS_VARIANT[order.status]}>{ORDER_STATUS_LABELS[order.status]}</Badge>
+                    </span>
                   </li>
                 ))}
               </ul>

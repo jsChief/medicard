@@ -1,10 +1,12 @@
-import { useState, type ReactNode } from "react"
+import { type ReactNode } from "react"
 import { Sun, Moon, Bell, Shield, Database } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useNotifications } from "@/context/NotificationContext"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Separator } from "@/components/ui/Separator"
+import { MfaSettings } from "@/components/security/MfaSettings"
+import { ActiveSessions } from "@/components/security/ActiveSessions"
 import { cn } from "@/lib/utils"
 import { describeError } from "@/lib/errors"
 import type { NotificationPreferences } from "@/lib/notifications"
@@ -84,7 +86,6 @@ function SettingsRow({
 export function SettingsPage() {
   const { resolvedTheme, setTheme } = useTheme()
   const { preferences, updatePreferences } = useNotifications()
-  const [twoFactor, setTwoFactor] = useState(false)
 
   const handleThemeChange = (newTheme: "light" | "dark") => {
     setTheme(newTheme)
@@ -180,17 +181,13 @@ export function SettingsPage() {
         title="Security"
         description="Manage your account security settings"
       >
-        <SettingsRow title="Two-Factor Authentication" description="Add an extra layer of security to your account">
-          <Switch checked={twoFactor} onChange={setTwoFactor} />
-        </SettingsRow>
+        <MfaSettings />
         <Separator />
         <SettingsRow title="Change Password" description="Update your account password">
           <Button variant="outline" size="sm">Change Password</Button>
         </SettingsRow>
         <Separator />
-        <SettingsRow title="Active Sessions" description="View and manage your active login sessions">
-          <Button variant="outline" size="sm">View Sessions</Button>
-        </SettingsRow>
+        <ActiveSessions />
       </SettingsCard>
 
       {/* Data & Privacy */}

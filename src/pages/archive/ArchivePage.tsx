@@ -27,6 +27,8 @@ import {
   restoreArchivedPatient,
   queryPatients,
   archivePatient,
+  assertPatientExportAllowed,
+  logPatientExport,
   type ArchivedPatient,
   type ArchiveStatus,
 } from "@/lib/database"
@@ -206,14 +208,20 @@ export function ArchivePage() {
     [patients, selectedItems],
   )
 
-  const handleExport = (rows: ArchivedPatientView[]) => {
+  const handleExport = async (rows: ArchivedPatientView[]) => {
     if (rows.length === 0) {
       toast.info("No records to export")
       return
     }
-    const csv = buildCsv(ARCHIVE_CSV_COLUMNS, rows.map(archiveToCsvRow))
-    downloadCsv(`archive-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
-    toast.success(`Exported ${rows.length} record${rows.length === 1 ? "" : "s"}`)
+    try {
+      await assertPatientExportAllowed()
+      const csv = buildCsv(ARCHIVE_CSV_COLUMNS, rows.map(archiveToCsvRow))
+      downloadCsv(`archive-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+      await logPatientExport(rows.length)
+      toast.success(`Exported ${rows.length} record${rows.length === 1 ? "" : "s"}`)
+    } catch (error) {
+      toast.error(describeError(error, "export archived records"))
+    }
   }
 
   const handleSort = (field: string) => {

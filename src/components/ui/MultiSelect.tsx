@@ -242,36 +242,59 @@ interface TagInputProps {
   name?: string
 }
 
-export function TagInput({
-  label,
-  error,
-  helperText,
-  placeholder = "Add tags...",
-  value,
-  onChange,
-  suggestions = [],
-  disabled = false,
-  maxTags,
-  className,
-  id,
-  name,
-}: TagInputProps) {
+export interface TagInputHandle {
+  /**
+   * Commits text that has been typed but not yet confirmed with Enter.
+   * Returns the resulting tag list so a form can submit the flushed value
+   * immediately: the parent's onChange from a blur is not guaranteed to have
+   * landed by the time a submit click handler reads its own state.
+   */
+  flush: () => string[]
+}
+
+export const TagInput = React.forwardRef<TagInputHandle, TagInputProps>(function TagInput(
+  {
+    label,
+    error,
+    helperText,
+    placeholder = "Add tags...",
+    value,
+    onChange,
+    suggestions = [],
+    disabled = false,
+    maxTags,
+    className,
+    id,
+    name,
+  }: TagInputProps,
+  ref,
+) {
   const [inputValue, setInputValue] = React.useState("")
   const [showSuggestions, setShowSuggestions] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
+  // Escape should discard what was typed, not commit it on the way out.
+  const cancelOnBlur = React.useRef(false)
   const inputId = id || label?.toLowerCase().replace(/\s+/g, "-") || "taginput"
 
-  const handleAddTag = () => {
+  const commitTag = React.useCallback((): string[] => {
     const tag = inputValue.trim()
-    if (!tag) return
+    if (!tag) return value
     if (value.includes(tag)) {
       setInputValue("")
-      return
+      return value
     }
-    if (maxTags && value.length >= maxTags) return
-    onChange([...value, tag])
+    if (maxTags && value.length >= maxTags) return value
+    const next = [...value, tag]
+    onChange(next)
     setInputValue("")
     setShowSuggestions(false)
+    return next
+  }, [inputValue, maxTags, onChange, value])
+
+  React.useImperativeHandle(ref, () => ({ flush: commitTag }), [commitTag])
+
+  const handleAddTag = () => {
+    commitTag()
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -282,6 +305,7 @@ export function TagInput({
       onChange(value.slice(0, -1))
     } else if (e.key === "Escape") {
       setShowSuggestions(false)
+      cancelOnBlur.current = true
       inputRef.current?.blur()
     }
   }
@@ -309,7 +333,7 @@ export function TagInput({
   }
 
   return (
-    <div className={cn("w-full", className)}>
+    <div className={cn("relative w-full", className)}>
       {label && (
         <label htmlFor={inputId} className="block text-sm font-medium text-text mb-1.5">
           {label}
@@ -349,13 +373,36 @@ export function TagInput({
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onFocus={() => setShowSuggestions(true)}
-          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+          onBlur={() => {
+            // Clicking the form's submit button blurs the input before the
+            // click fires, so commit here as well as on Enter - otherwise the
+            // typed text is silently dropped and the form sees an empty list.
+            if (cancelOnBlur.current) {
+              cancelOnBlur.current = false
+              setInputValue("")
+            } else {
+              commitTag()
+            }
+            setTimeout(() => setShowSuggestions(false), 200)
+          }}
           placeholder={value.length === 0 ? placeholder : ""}
           disabled={!!(disabled || (maxTags && value.length >= maxTags))}
           className="flex-1 min-w-20 bg-transparent border-none outline-none text-sm text-text placeholder:text-text-muted"
           aria-label={label}
           aria-describedby={error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined}
         />
+        {inputValue.trim() && !disabled && !(maxTags && value.length >= maxTags) && (
+          <button
+            type="button"
+            // Keep focus in the input so the blur handler cannot add the same
+            // tag a second time before this click runs.
+            onMouseDown={e => e.preventDefault()}
+            onClick={handleAddTag}
+            className="shrink-0 rounded px-2 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+          >
+            Add
+          </button>
+        )}
       </div>
       {showSuggestions && filteredSuggestions.length > 0 && (
         <div className="absolute z-50 mt-1 w-full max-h-40 overflow-auto rounded-lg border border-border bg-surface shadow-lg">
@@ -395,4 +442,4 @@ export function TagInput({
       )}
     </div>
   )
-}
+})

@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { getDashboardCounts, getSystemStatusTotals, type DashboardCounts, type DashboardRange } from "@/lib/database";
+import { canAccessPage } from "@/lib/permissions";
 import { describeError } from "@/lib/errors";
 
 const timeRanges: { value: DashboardRange; label: string }[] = [
@@ -93,7 +94,7 @@ export function DashboardPage() {
           iconColor: "text-primary",
           iconBg: "bg-primary/10",
           trend: counts.totalPatientsChange > 0 ? ("up" as const) : counts.totalPatientsChange < 0 ? ("down" as const) : ("neutral" as const),
-          href: "/patients",
+          href: canAccessPage(user?.role, "patients") ? "/patients" : undefined,
         },
         {
           title: "Archive Balance",
@@ -104,7 +105,7 @@ export function DashboardPage() {
           iconColor: "text-warning",
           iconBg: "bg-warning/10",
           trend: counts.archiveBalanceChange > 0 ? ("up" as const) : counts.archiveBalanceChange < 0 ? ("down" as const) : ("neutral" as const),
-          href: "/archive",
+          href: canAccessPage(user?.role, "archive") ? "/archive" : undefined,
         },
         {
           title: "Active Cards Checked Out",
@@ -115,7 +116,7 @@ export function DashboardPage() {
           iconColor: "text-success",
           iconBg: "bg-success/10",
           trend: counts.activeCheckoutsChange > 0 ? ("up" as const) : counts.activeCheckoutsChange < 0 ? ("down" as const) : ("neutral" as const),
-          href: "/checkouts",
+          href: canAccessPage(user?.role, "checkouts") ? "/checkouts" : undefined,
         },
         {
           title: "Team Size",
@@ -140,6 +141,7 @@ export function DashboardPage() {
       icon: Users,
       iconBg: "bg-primary/10 text-primary",
       href: "/patients/new",
+      page: "patients" as const,
     },
     {
       label: "Import Patients",
@@ -147,6 +149,7 @@ export function DashboardPage() {
       icon: Upload,
       iconBg: "bg-success/10 text-success",
       href: "/patients",
+      page: "patients" as const,
     },
     {
       label: "Manage Archive",
@@ -154,8 +157,9 @@ export function DashboardPage() {
       icon: Archive,
       iconBg: "bg-purple-500/10 text-purple-500",
       href: "/archive",
+      page: "archive" as const,
     },
-  ];
+  ].filter((action) => canAccessPage(user?.role, action.page));
 
   useEffect(() => {
     let cancelled = false;
@@ -321,41 +325,43 @@ export function DashboardPage() {
 
         {/* Sidebar - 5 cols */}
         <div className="space-y-6 lg:col-span-5">
-          {/* Quick Actions */}
-          <Card className="overflow-hidden p-0">
-            <div className="border-b border-border px-4 py-3">
-              <p className="text-sm font-medium text-text">Quick Actions</p>
-            </div>
-            <CardContent className="space-y-1 p-2">
-              {quickActions.map((action) => {
-                const Icon = action.icon;
-                return (
-                  <button
-                    key={action.label}
-                    onClick={() => navigate(action.href)}
-                    className="group flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-bg"
-                  >
-                    <span
-                      className={cn(
-                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors group-hover:brightness-105",
-                        action.iconBg,
-                      )}
+          {/* Quick Actions - empty for roles that cannot open any of them. */}
+          {quickActions.length > 0 && (
+            <Card className="overflow-hidden p-0">
+              <div className="border-b border-border px-4 py-3">
+                <p className="text-sm font-medium text-text">Quick Actions</p>
+              </div>
+              <CardContent className="space-y-1 p-2">
+                {quickActions.map((action) => {
+                  const Icon = action.icon;
+                  return (
+                    <button
+                      key={action.label}
+                      onClick={() => navigate(action.href)}
+                      className="group flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-bg"
                     >
-                      <Icon className="h-5 w-5" aria-hidden="true" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block font-medium text-text">
-                        {action.label}
+                      <span
+                        className={cn(
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors group-hover:brightness-105",
+                          action.iconBg,
+                        )}
+                      >
+                        <Icon className="h-5 w-5" aria-hidden="true" />
                       </span>
-                      <span className="block text-xs text-text-muted">
-                        {action.description}
+                      <span className="min-w-0">
+                        <span className="block font-medium text-text">
+                          {action.label}
+                        </span>
+                        <span className="block text-xs text-text-muted">
+                          {action.description}
+                        </span>
                       </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </CardContent>
-          </Card>
+                    </button>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
 
           {/* System Status */}
           <Card className="overflow-hidden p-0">

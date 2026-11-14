@@ -25,6 +25,9 @@ import {
   ShieldCheck,
   FlaskConical,
   Pill,
+  Stethoscope,
+  CreditCard,
+  ScrollText,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTheme } from "next-themes";
@@ -38,6 +41,7 @@ import {
 import { NotificationsMenu } from "@/components/layout/NotificationsMenu";
 import { useAuth } from "@/context/AuthContext";
 import type { AppRole } from "@/lib/auth";
+import { PAGE_ACCESS } from "@/lib/permissions";
 import type { LucideIcon } from "lucide-react";
 import { getHospital } from "@/lib/database";
 import { describeError } from "@/lib/errors";
@@ -61,28 +65,68 @@ import {CustomTrigger} from "@/components/ui/SidebarTrigger";
 
 // Settings is appended separately so the admin-only "Team" and "Organization"
 // entries can slot in just before it without reordering the module-level list.
-const baseNavigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Visit Queue", href: "/visits", icon: ClipboardList },
-  { name: "Patients", href: "/patients", icon: Users },
-  { name: "Archive", href: "/archive", icon: Archive },
-  { name: "Active Checkouts", href: "/checkouts", icon: Clock },
-  { name: "Location Matrix", href: "/location-matrix", icon: MapPin },
-  { name: "Reports", href: "/reports", icon: BarChart3 },
+// Each entry declares the roles that may see it; PAGE_ACCESS is the same source
+// of truth the route guards in src/App.tsx use.
+interface NavItem {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+  roles: AppRole[];
+}
+
+const baseNavigation: NavItem[] = [
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: PAGE_ACCESS.dashboard },
+  { name: "Check-Ins", href: "/visits", icon: ClipboardList, roles: PAGE_ACCESS.checkIns },
+  { name: "Patients", href: "/patients", icon: Users, roles: PAGE_ACCESS.patients },
+  { name: "Archive", href: "/archive", icon: Archive, roles: PAGE_ACCESS.archive },
+  { name: "Active Checkouts", href: "/checkouts", icon: Clock, roles: PAGE_ACCESS.checkouts },
+  { name: "Location Matrix", href: "/location-matrix", icon: MapPin, roles: PAGE_ACCESS.locationMatrix },
+  { name: "Reports", href: "/reports", icon: BarChart3, roles: PAGE_ACCESS.reports },
 ];
 
-const settingsNavigation = { name: "Settings", href: "/settings", icon: Settings };
-const teamNavigation = { name: "Team", href: "/settings/team", icon: UserCog };
-const organizationNavigation = { name: "Organization", href: "/settings/organization", icon: Building2 };
+const settingsNavigation: NavItem = {
+  name: "Settings",
+  href: "/settings",
+  icon: Settings,
+  roles: PAGE_ACCESS.settings,
+};
+const teamNavigation: NavItem = {
+  name: "Team",
+  href: "/settings/team",
+  icon: UserCog,
+  roles: PAGE_ACCESS.teamSettings,
+};
+const organizationNavigation: NavItem = {
+  name: "Organization",
+  href: "/settings/organization",
+  icon: Building2,
+  roles: PAGE_ACCESS.organizationSettings,
+};
+const auditNavigation: NavItem = {
+  name: "Audit Log",
+  href: "/settings/audit",
+  icon: ScrollText,
+  roles: PAGE_ACCESS.auditLog,
+};
+
+const allNavigation = [...baseNavigation, teamNavigation, organizationNavigation, auditNavigation, settingsNavigation];
 
 /**
  * Sub-queues: the same queue page pinned to the stage a role actually works in.
  *
  * Showing all of them to everyone would be noise - a lab tech does not need the
- * pharmacy stop - so each entry declares the roles it is for. The visit queue
+ * pharmacy stop - so each entry declares the roles it is for. The check-ins list
  * itself stays in baseNavigation for everyone; these are shortcuts into it.
  */
 const subQueues: Array<{ name: string; href: string; icon: LucideIcon; roles: AppRole[] }> = [
+  {
+    // `waiting` is a view over both `vitals` and `waiting-doctor` (see
+    // VisitsQueuePage) - the doctor's actual worklist for the day.
+    name: "Waiting List",
+    href: "/visits?status=waiting",
+    icon: Stethoscope,
+    roles: ["admin", "doctor", "nurse"],
+  },
   {
     name: "Awaiting Approval",
     href: "/visits?status=awaiting-approval",
@@ -91,6 +135,14 @@ const subQueues: Array<{ name: string; href: string; icon: LucideIcon; roles: Ap
   },
   { name: "Lab Worklist", href: "/visits?status=at-lab", icon: FlaskConical, roles: ["admin", "lab_technician"] },
   { name: "Pharmacy", href: "/visits?status=at-pharmacy", icon: Pill, roles: ["admin", "pharmacist"] },
+  {
+    // Money gate worklist: visits that still have an unpaid request. The page
+    // fetches today's lab orders + prescriptions and filters the visit list.
+    name: "Pending Payments",
+    href: "/visits?payment=unpaid",
+    icon: CreditCard,
+    roles: ["admin", "receptionist"],
+  },
   {
     name: "Ready for Check-out",
     href: "/visits?status=ready-for-checkout",
@@ -118,14 +170,12 @@ export function DashboardLayout() {
   const { user, logout } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
 
-  // Only admins can manage the team or the organization, so those entries (and
-  // their pages) are hidden for everyone else. The server enforces this too:
-  // invite/role/remove RPCs require is_admin(), and the hospitals RLS policy
-  // scopes organization edits to the owner.
-  const navigation =
-    user?.role === "admin"
-      ? [...baseNavigation, teamNavigation, organizationNavigation, settingsNavigation]
-      : [...baseNavigation, settingsNavigation];
+  // Only the entries this role may open. The same PAGE_ACCESS lists guard the
+  // routes, so a link can never lead to a page that bounces the user back.
+  const navigation = useMemo(
+    () => allNavigation.filter(item => user?.role && item.roles.includes(user.role)),
+    [user?.role],
+  );
 
   // Only the sub-queues for this role. `user` can be null for a beat while the
   // session resolves, in which case nothing role-specific is offered yet.

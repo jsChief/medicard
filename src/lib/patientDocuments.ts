@@ -1,4 +1,5 @@
 import { getSupabase } from "./supabase"
+import { logPatientAccess } from "./database"
 
 const PATIENT_DOCUMENTS_BUCKET = "patient-documents"
 
@@ -181,6 +182,18 @@ export async function queryPatientDocuments(
 export async function getPatientDocumentDownloadUrl(storagePath: string): Promise<string> {
   const { data, error } = await getSupabase().storage.from(PATIENT_DOCUMENTS_BUCKET).createSignedUrl(storagePath, 300)
   if (error) throw new Error(`${error.message} [${error.status ?? "sign"}]`)
+
+  // A signed URL is the only way to read a document blob, so issuing one is a
+  // chart read. The key layout is hospital/patient/documentId/file; segment 2
+  // is the patient. Fire-and-forget: an audit hiccup must not stop a clinician
+  // opening a document, and the RPC rejects a foreign-tenant patient anyway.
+  const patientId = storagePath.split("/")[1]
+  if (patientId) {
+    void logPatientAccess(patientId).catch((auditError: unknown) => {
+      console.warn("Failed to record document access:", auditError)
+    })
+  }
+
   return data.signedUrl
 }
 
