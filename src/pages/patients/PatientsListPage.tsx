@@ -25,7 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/Dialog"
 import { useNotifications } from "@/context/NotificationContext"
-import { queryPatients, bulkCreatePatients, getExistingMrns, archivePatient, type Patient, type PatientQueryOptions, type PageCursor } from "@/lib/database"
+import { queryPatients, bulkCreatePatients, getExistingMrns, archivePatient, assertPatientExportAllowed, logPatientExport, type Patient, type PatientQueryOptions, type PageCursor } from "@/lib/database"
 import { patientsToCsv, parsePatientImportCsv, importIssuesToCsv, type ImportIssue } from "@/lib/patientCsv"
 import { toast } from "sonner"
 import { describeError } from "@/lib/errors"
@@ -220,6 +220,7 @@ export function PatientsListPage() {
     if (!user?.hospitalId) return
     setIsExporting(true)
     try {
+      await assertPatientExportAllowed()
       const all: Patient[] = []
       let lastDoc: PageCursor | null = null
       do {
@@ -234,6 +235,7 @@ export function PatientsListPage() {
         lastDoc = result.lastDoc
       } while (lastDoc)
       downloadCsvFile(`patients-export-${new Date().toISOString().slice(0, 10)}.csv`, patientsToCsv(all))
+      await logPatientExport(all.length)
       toast.success(`Exported ${all.length} patient(s)`)
     } catch (error) {
       console.error("Failed to export patients:", error)

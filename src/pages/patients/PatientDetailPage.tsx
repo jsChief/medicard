@@ -30,7 +30,7 @@ import { EmptyState } from "@/components/ui/EmptyState"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { cn, formatDate } from "@/lib/utils"
 import { buildCsv, downloadCsv } from "@/lib/csv"
-import { getPatient, updatePatient, archivePatient, restoreArchivedPatient, type Patient as FirestorePatient } from "@/lib/database"
+import { getPatient, updatePatient, archivePatient, restoreArchivedPatient, assertPatientExportAllowed, logPatientExport, type Patient as FirestorePatient } from "@/lib/database"
 import { useAuth } from "@/context/AuthContext"
 import { toast } from "sonner"
 import { describeError } from "@/lib/errors"
@@ -524,28 +524,34 @@ export function PatientDetailPage() {
     window.print()
   }
 
-  const handleExport = () => {
-    const csv = buildCsv(["Field", "Value"], [
-      { Field: "Name", Value: patient.name },
-      { Field: "MRN", Value: patient.mrn },
-      { Field: "Date of birth", Value: formatDate(patient.dob) },
-      { Field: "Age", Value: String(patient.age) },
-      { Field: "Gender", Value: patient.gender },
-      { Field: "Status", Value: patient.status },
-      { Field: "Department", Value: patient.department },
-      { Field: "Attending physician", Value: patient.attendingPhysician },
-      { Field: "Phone", Value: patient.phone },
-      { Field: "Email", Value: patient.email },
-      { Field: "Address", Value: patient.address },
-      { Field: "City", Value: patient.city },
-      { Field: "State", Value: patient.state },
-      { Field: "Postal code", Value: patient.postalCode },
-      { Field: "Country", Value: patient.country },
-      { Field: "Blood type", Value: patient.bloodType },
-      { Field: "Admission date", Value: formatDate(patient.admissionDate) },
-    ])
-    downloadCsv(`patient-${patient.mrn}.csv`, csv)
-    toast.success("Patient data exported")
+  const handleExport = async () => {
+    try {
+      await assertPatientExportAllowed()
+      const csv = buildCsv(["Field", "Value"], [
+        { Field: "Name", Value: patient.name },
+        { Field: "MRN", Value: patient.mrn },
+        { Field: "Date of birth", Value: formatDate(patient.dob) },
+        { Field: "Age", Value: String(patient.age) },
+        { Field: "Gender", Value: patient.gender },
+        { Field: "Status", Value: patient.status },
+        { Field: "Department", Value: patient.department },
+        { Field: "Attending physician", Value: patient.attendingPhysician },
+        { Field: "Phone", Value: patient.phone },
+        { Field: "Email", Value: patient.email },
+        { Field: "Address", Value: patient.address },
+        { Field: "City", Value: patient.city },
+        { Field: "State", Value: patient.state },
+        { Field: "Postal code", Value: patient.postalCode },
+        { Field: "Country", Value: patient.country },
+        { Field: "Blood type", Value: patient.bloodType },
+        { Field: "Admission date", Value: formatDate(patient.admissionDate) },
+      ])
+      downloadCsv(`patient-${patient.mrn}.csv`, csv)
+      await logPatientExport(1)
+      toast.success("Patient data exported")
+    } catch (err) {
+      toast.error(describeError(err, "export patient"))
+    }
   }
 
   const handleArchive = async () => {

@@ -55,7 +55,6 @@ export function CheckInPage() {
   const [provider, setProvider] = useState("")
   const [memberId, setMemberId] = useState("")
   const [result, setResult] = useState<VerificationResult>("verified")
-  const [note, setNote] = useState("")
   const [openVisitId, setOpenVisitId] = useState<string | null>(null)
   const [isCheckingOpen, setIsCheckingOpen] = useState(false)
 
@@ -105,7 +104,6 @@ export function CheckInPage() {
     setProvider(patient.insurance?.provider ?? "")
     setMemberId(patient.insurance?.memberId ?? "")
     setResult("verified")
-    setNote("")
     setStep("confirm")
 
     // Second open visit would violate the partial unique index; find it up
@@ -136,7 +134,7 @@ export function CheckInPage() {
 
     if (isHmo && (result === "rejected")) {
       setFormError(
-        "The plan could not be confirmed, so this patient cannot be checked in on it. Re-confirm with the HMO or use manual confirmation with a note.",
+        "The plan could not be confirmed, so this patient cannot be checked in on it. Re-confirm with the HMO or record a manual confirmation if the plan was confirmed another way.",
       )
       return
     }
@@ -160,11 +158,11 @@ export function CheckInPage() {
         memberId: memberId.trim(),
         planType: selected.insurance?.planType ?? "Other",
         result,
-        note:
-          note.trim() ||
-          (isHmo
-            ? "HMO plan confirmed active at check-in"
-            : "Private patient - card on record confirmed"),
+        // System note only: the front desk performs the check-in, so asking
+        // for free text here adds work without adding information.
+        note: isHmo
+          ? "HMO plan confirmed active at check-in"
+          : "Private patient - card on record confirmed",
         performedBy: user.id,
         performedByName: user.name,
       })
@@ -414,16 +412,6 @@ export function CheckInPage() {
                 </p>
               )}
 
-              <div>
-                <Label htmlFor="verification-note">Note (optional)</Label>
-                <Input
-                  id="verification-note"
-                  className="mt-1.5"
-                  value={note}
-                  onChange={e => setNote(e.target.value)}
-                  placeholder={isHmo ? "Reference number from the HMO, who you spoke to..." : "Anything front desk should know"}
-                />
-              </div>
             </CardContent>
           </Card>
 

@@ -1,4 +1,4 @@
-import type { VisitStatus, OrderStatus, CardStatus, VisitStage } from "@/lib/visits"
+import type { VisitStatus, OrderStatus, CardStatus, VisitStage, PaymentStatus } from "@/lib/visits"
 
 /** Badge variant names shared by every visit-flow surface. */
 export type BadgeVariant = "primary" | "secondary" | "success" | "warning" | "danger"
@@ -24,6 +24,20 @@ export const ORDER_STATUS_VARIANT: Record<OrderStatus, BadgeVariant> = {
   dispensed: "success",
   external: "secondary",
   cancelled: "secondary",
+}
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  unpaid: "Unpaid",
+  paid: "Paid",
+  covered: "Covered by HMO",
+  waived: "Payment waived",
+}
+
+export const PAYMENT_STATUS_VARIANT: Record<PaymentStatus, BadgeVariant> = {
+  unpaid: "danger",
+  paid: "success",
+  covered: "primary",
+  waived: "secondary",
 }
 
 export const CARD_STATUS_LABELS: Record<CardStatus, string> = {

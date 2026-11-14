@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState"
 import { useAuth } from "@/context/AuthContext"
 import { useNotifications } from "@/context/NotificationContext"
 import {
+  reopenConsultation,
   saveConsultation,
   syncVisitStatus,
   updateVisit,
@@ -205,11 +206,15 @@ export function ConsultTab({ visit, consultations, hasOrders, refresh }: Consult
           className="gap-2"
           disabled={isSaving}
           onClick={() => {
-            // Reopen: clearing ended_at puts the visit back in the consult stage.
+            // Reopen both the visit and the consultation row - the UI reads
+            // the row's endedAt, so clearing only the visit leaves the
+            // completed card on screen after the refresh.
             void (async () => {
               try {
                 setIsSaving(true)
-                await updateVisit(visit.id, { status: "in-consult", consultEndedAt: null })
+                setError(null)
+                await reopenConsultation(visit.id)
+                toast.success("Consultation reopened")
                 await refresh()
               } catch (err) {
                 setError(describeError(err, "reopen the consultation"))

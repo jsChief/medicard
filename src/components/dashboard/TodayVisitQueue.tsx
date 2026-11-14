@@ -66,7 +66,7 @@ export function TodayVisitQueue() {
         <div className="flex items-center gap-2">
           <ClipboardList className="h-4 w-4 text-primary" />
           <div>
-            <p className="text-sm font-medium text-text">Today's visits</p>
+            <p className="text-sm font-medium text-text">Today's check-ins</p>
             <p className="text-xs text-text-muted">Checked in since midnight</p>
           </div>
         </div>
@@ -129,7 +129,7 @@ export function TodayVisitQueue() {
             </ul>
             {visits.length > shown.length && (
               <p className="border-t border-border px-4 py-2 text-center text-xs text-text-muted">
-                +{visits.length - shown.length} more in the queue
+                +{visits.length - shown.length} more checked in
               </p>
             )}
           </>

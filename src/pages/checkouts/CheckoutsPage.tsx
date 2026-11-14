@@ -28,6 +28,8 @@ import { useNotifications } from "@/context/NotificationContext"
 import {
   queryCheckouts,
   updateCheckout,
+  assertPatientExportAllowed,
+  logPatientExport,
   type Checkout,
   type CheckoutStatus,
 } from "@/lib/database"
@@ -208,14 +210,20 @@ export function CheckoutsPage() {
       return sortOrder === "asc" ? cmp : -cmp
     })
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (filteredCheckouts.length === 0) {
       toast.info("No checkouts to export")
       return
     }
-    const csv = buildCsv(CHECKOUT_CSV_COLUMNS, filteredCheckouts.map(checkoutToCsvRow))
-    downloadCsv(`checkouts-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
-    toast.success(`Exported ${filteredCheckouts.length} checkout(s)`)
+    try {
+      await assertPatientExportAllowed()
+      const csv = buildCsv(CHECKOUT_CSV_COLUMNS, filteredCheckouts.map(checkoutToCsvRow))
+      downloadCsv(`checkouts-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+      await logPatientExport(filteredCheckouts.length)
+      toast.success(`Exported ${filteredCheckouts.length} checkout(s)`)
+    } catch (error) {
+      toast.error(describeError(error, "export checkouts"))
+    }
   }
 
   const handleSort = (field: string) => {

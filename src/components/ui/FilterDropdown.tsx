@@ -20,7 +20,7 @@ interface FilterDropdownProps {
   /**
    * Drop the full-width stretch. The default fills its container, which is what
    * the stacked filter panels want; a compact dropdown sits inline next to other
-   * controls (e.g. the Visit Queue toolbar) at its natural width instead.
+   * controls (e.g. the Check-Ins toolbar) at its natural width instead.
    */
   compact?: boolean
 }

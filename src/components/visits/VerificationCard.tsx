@@ -39,7 +39,6 @@ export function VerificationCard({ visit, verifications, refresh }: Verification
   const [provider, setProvider] = useState("")
   const [memberId, setMemberId] = useState("")
   const [result, setResult] = useState<VerificationResult>("verified")
-  const [note, setNote] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -60,12 +59,11 @@ export function VerificationCard({ visit, verifications, refresh }: Verification
         memberId: memberId.trim(),
         planType: "HMO",
         result,
-        note: note.trim() || "HMO plan confirmed active",
+        note: "HMO plan confirmed active",
         performedBy: user.id,
         performedByName: user.name,
       })
       toast.success("Plan confirmed - check-in complete")
-      setNote("")
       await refresh()
     } catch (err) {
       console.error("Verification failed:", err)
@@ -118,12 +116,6 @@ export function VerificationCard({ visit, verifications, refresh }: Verification
                 { value: "manual", label: "Confirmed manually (phone/letter)" },
                 { value: "rejected", label: "Not confirmed — plan inactive" },
               ]}
-            />
-            <Input
-              label="Note"
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              placeholder="Reference number, who you spoke to..."
             />
             {error && (
               <p className="rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger" role="alert">

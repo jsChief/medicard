@@ -1,9 +1,10 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
 import { AuthProvider, useAuth } from "@/context/AuthContext"
 import { NotificationProvider } from "@/context/NotificationContext"
 import { Layout } from "./components/layout/Layout"
 import { AuthLayout } from "./components/layout/AuthLayout"
 import { DashboardLayout } from "./components/layout/DashboardLayout"
+import { MfaGate } from "./components/security/MfaGate"
 import { ScrollToTop } from "./components/layout/ScrollToTop"
 import { HomePage } from "./pages/HomePage"
 import { LoginPage } from "./pages/auth/LoginPage"
@@ -19,6 +20,7 @@ import { EditPatientPage } from "./pages/patients/EditPatientPage"
 import { SettingsPage } from "./pages/settings/SettingsPage"
 import { TeamPage } from "./pages/settings/TeamPage"
 import { OrganizationPage } from "./pages/settings/OrganizationPage"
+import { AuditLogPage } from "./pages/settings/AuditLogPage"
 import { ProfilePage } from "./pages/profile/ProfilePage"
 import { NotificationsPage } from "./pages/notifications/NotificationsPage"
 import { ArchivePage } from "./pages/archive/ArchivePage"
@@ -32,8 +34,19 @@ import { ReportsPage } from "./pages/reports/ReportsPage"
 import { Toaster } from "./components/ui/sonner"
 import { Button } from "@/components/ui/Button"
 import type { AppRole } from "@/lib/auth"
+import { PAGE_ACCESS } from "@/lib/permissions"
 import { TriangleAlert } from "lucide-react"
 import React from "react"
+
+/**
+ * The screen is now labelled "Check-Ins"; keep the old URL bookmarks working
+ * and preserve any ?status= role-queue filter on the way through.
+ */
+function CheckInsRedirect() {
+  const location = useLocation()
+  const pathname = location.pathname.replace(/^\/check-ins/, "/visits")
+  return <Navigate to={{ pathname, search: location.search }} replace />
+}
 
 function AuthUnavailable({ message }: { message: string }) {
   const { clearAuthError } = useAuth()
@@ -155,19 +168,65 @@ function App() {
           {/* Protected routes */}
           <Route element={
             <ProtectedRoute>
-              <NotificationProvider>
-                <DashboardLayout />
-              </NotificationProvider>
+              <MfaGate>
+                <NotificationProvider>
+                  <DashboardLayout />
+                </NotificationProvider>
+              </MfaGate>
             </ProtectedRoute>
           }>
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/patients" element={<PatientsListPage />} />
-            <Route path="/patients/new" element={<AddPatientPage />} />
-            <Route path="/patients/:id" element={<PatientDetailPage />} />
-            <Route path="/patients/:id/edit" element={<EditPatientPage />} />
-            <Route path="/archive" element={<ArchivePage />} />
-            <Route path="/checkouts" element={<CheckoutsPage />} />
+            <Route
+              path="/patients"
+              element={
+                <ProtectedRoute allowedRoles={PAGE_ACCESS.patients}>
+                  <PatientsListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/patients/new"
+              element={
+                <ProtectedRoute allowedRoles={PAGE_ACCESS.patients}>
+                  <AddPatientPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/patients/:id"
+              element={
+                <ProtectedRoute allowedRoles={PAGE_ACCESS.patients}>
+                  <PatientDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/patients/:id/edit"
+              element={
+                <ProtectedRoute allowedRoles={PAGE_ACCESS.patients}>
+                  <EditPatientPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/archive"
+              element={
+                <ProtectedRoute allowedRoles={PAGE_ACCESS.archive}>
+                  <ArchivePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/checkouts"
+              element={
+                <ProtectedRoute allowedRoles={PAGE_ACCESS.checkouts}>
+                  <CheckoutsPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/visits" element={<VisitsQueuePage />} />
+            <Route path="/check-ins" element={<CheckInsRedirect />} />
+            <Route path="/check-ins/:id" element={<CheckInsRedirect />} />
             {/* Check-in is front desk work; the page also guards itself, and the
                 visits RLS policies enforce the tenant boundary server-side. */}
             <Route
@@ -179,15 +238,29 @@ function App() {
               }
             />
             <Route path="/visits/:id" element={<VisitDetailPage />} />
-            <Route path="/location-matrix" element={<LocationMatrixPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
+            <Route
+              path="/location-matrix"
+              element={
+                <ProtectedRoute allowedRoles={PAGE_ACCESS.locationMatrix}>
+                  <LocationMatrixPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute allowedRoles={PAGE_ACCESS.reports}>
+                  <ReportsPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/settings" element={<SettingsPage />} />
             {/* Admin-only: the RLS policies and set_staff_role()/remove_staff()
                 enforce this server-side as well. */}
             <Route
               path="/settings/team"
               element={
-                <ProtectedRoute allowedRoles={["admin"]}>
+                <ProtectedRoute allowedRoles={PAGE_ACCESS.teamSettings}>
                   <TeamPage />
                 </ProtectedRoute>
               }
@@ -195,8 +268,18 @@ function App() {
             <Route
               path="/settings/organization"
               element={
-                <ProtectedRoute allowedRoles={["admin"]}>
+                <ProtectedRoute allowedRoles={PAGE_ACCESS.organizationSettings}>
                   <OrganizationPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Admin-only: audit_events RLS only lets hospital admins read the
+                trail, so a non-admin sees nothing even if they reach the URL. */}
+            <Route
+              path="/settings/audit"
+              element={
+                <ProtectedRoute allowedRoles={PAGE_ACCESS.auditLog}>
+                  <AuditLogPage />
                 </ProtectedRoute>
               }
             />

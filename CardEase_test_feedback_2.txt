@@ -1,0 +1,11 @@
+1. Under my Queues, the doctor should be able to see a list of patients on the waiting list.
+
+2. The reopen consultation button is not working
+
+3. I don't think there should be a need for any note since patients are checked in at the front desk.
+
+4. I will suggest you change Visit Queue to Check-Ins or something similar. Like, I'm suggesting you change the name.
+
+5. The send lab request button is not working. Then the button also need to be subjected to payment (whether HMO or private) just like you did for prescriptions.
+
+6. "Add at least one test to the request" is the error I get each time I try to use send lab request button.

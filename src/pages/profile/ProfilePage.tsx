@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/Badge"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { describeError } from "@/lib/errors"
+import { MfaSettings } from "@/components/security/MfaSettings"
 import type { AppRole } from "@/lib/auth"
 
 // Typed against AppRole so a new role cannot ship without a badge here.
@@ -20,28 +21,6 @@ const roleConfig: Record<AppRole, { label: string; variant: "primary" | "warning
   lab_technician: { label: "Lab Technician", variant: "secondary" },
   pharmacist: { label: "Pharmacist", variant: "secondary" },
   hmo: { label: "HMO Approver", variant: "primary" },
-}
-
-function Switch({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
-        checked ? "bg-primary" : "bg-border",
-      )}
-    >
-      <span
-        className={cn(
-          "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
-          checked ? "translate-x-5.5" : "translate-x-0.5",
-        )}
-      />
-    </button>
-  )
 }
 
 function ProfileCard({
@@ -92,7 +71,6 @@ export function ProfilePage() {
   const [email, setEmail] = useState(user?.email || "")
   const [isSaving, setIsSaving] = useState(false)
   const [isSendingReset, setIsSendingReset] = useState(false)
-  const [twoFactor, setTwoFactor] = useState(false)
   const [copied, setCopied] = useState(false)
 
   if (isLoading || !user) {
@@ -299,15 +277,7 @@ export function ProfilePage() {
           title="Account & Security"
           description="Manage your account security settings"
         >
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p className="font-medium text-text">Two-Factor Authentication</p>
-              <p className="text-sm text-text-muted">Add an extra layer of security to your account</p>
-            </div>
-            <div className="shrink-0">
-              <Switch checked={twoFactor} onChange={setTwoFactor} />
-            </div>
-          </div>
+          <MfaSettings />
           <Separator />
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">

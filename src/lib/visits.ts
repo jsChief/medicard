@@ -46,6 +46,25 @@ export type OrderStatus =
   | "external"
   | "cancelled"
 
+/**
+ * The money gate that sits beside orderStatus:
+ *   unpaid  - private order, reception still has to take payment
+ *   paid    - payment recorded by reception/admin
+ *   covered - HMO plan pays (clinical approval is still a separate gate)
+ *   waived  - admin waived payment, or an external-pharmacy prescription
+ */
+export type PaymentStatus = "unpaid" | "paid" | "covered" | "waived"
+
+/** Fields shared by lab orders and prescriptions. */
+export interface OrderPayment {
+  paymentStatus: PaymentStatus
+  amount: number | null
+  paymentReference: string
+  paidAt: Date | null
+  paidByName: string
+  waiverReason: string
+}
+
 export type ConsultationDisposition =
   | "lab"
   | "pharmacy"
@@ -142,7 +161,7 @@ export interface Consultation {
   createdAt: Date
 }
 
-export interface LabOrder {
+export interface LabOrder extends OrderPayment {
   id: string
   visitId: string
   patientId: string
@@ -166,7 +185,7 @@ export interface PrescriptionItem {
   quantity: string
 }
 
-export interface Prescription {
+export interface Prescription extends OrderPayment {
   id: string
   visitId: string
   patientId: string
@@ -599,6 +618,35 @@ export async function saveConsultation(input: SaveConsultationInput): Promise<vo
   }
 }
 
+/**
+ * Puts a completed consultation back into edit mode.
+ *
+ * Clearing only `visits.consult_ended_at` is not enough: ConsultTab decides
+ * whether a consultation is finished from `consultations.ended_at`, so leaving
+ * that row stamped makes the page re-render the read-only card after refresh
+ * and the Reopen button look broken. Both timestamps must move together.
+ *
+ * If the visit already has orders, a later order event runs syncVisitStatus()
+ * and may move it out of 'in-consult' again. That is intentional: the orders
+ * decide where the patient goes next once the doctor releases them.
+ */
+export async function reopenConsultation(visitId: string): Promise<void> {
+  const rows = throwIfError(
+    await getSupabase().from("consultations").select("id").eq("visit_id", visitId),
+  ) as Array<{ id: string }>
+
+  if (rows.length > 0) {
+    throwIfError(
+      await getSupabase()
+        .from("consultations")
+        .update({ ended_at: null })
+        .in("id", rows.map(r => r.id)),
+    )
+  }
+
+  await updateVisit(visitId, { status: "in-consult", consultEndedAt: null })
+}
+
 export async function getVisitConsultations(visitId: string): Promise<Consultation[]> {
   const rows = throwIfError(
     await getSupabase()
@@ -700,6 +748,12 @@ interface LabOrderRow {
   tests: string[]
   notes: string
   status: OrderStatus
+  payment_status: PaymentStatus
+  amount: number | null
+  payment_reference: string
+  paid_at: string | null
+  paid_by_name: string
+  waiver_reason: string
   requested_by_name: string
   approved_by_name: string
   approved_at: string | null
@@ -717,6 +771,12 @@ function mapLabOrder(row: LabOrderRow): LabOrder {
     tests: row.tests ?? [],
     notes: row.notes ?? "",
     status: row.status,
+    paymentStatus: row.payment_status ?? "unpaid",
+    amount: row.amount === null ? null : Number(row.amount),
+    paymentReference: row.payment_reference ?? "",
+    paidAt: row.paid_at ? new Date(row.paid_at) : null,
+    paidByName: row.paid_by_name ?? "",
+    waiverReason: row.waiver_reason ?? "",
     requestedByName: row.requested_by_name ?? "",
     approvedByName: row.approved_by_name ?? "",
     approvedAt: row.approved_at ? new Date(row.approved_at) : null,
@@ -728,7 +788,7 @@ function mapLabOrder(row: LabOrderRow): LabOrder {
 }
 
 const LAB_ORDER_COLUMNS =
-  "id, visit_id, patient_id, tests, notes, status, requested_by_name, approved_by_name, approved_at, decision_note, result_document_id, completed_at, created_at"
+  "id, visit_id, patient_id, tests, notes, status, payment_status, amount, payment_reference, paid_at, paid_by_name, waiver_reason, requested_by_name, approved_by_name, approved_at, decision_note, result_document_id, completed_at, created_at"
 
 export async function getVisitLabOrders(visitId: string): Promise<LabOrder[]> {
   const rows = throwIfError(
@@ -769,6 +829,12 @@ interface PrescriptionRow {
   external_name: string
   notes: string
   status: OrderStatus
+  payment_status: PaymentStatus
+  amount: number | null
+  payment_reference: string
+  paid_at: string | null
+  paid_by_name: string
+  waiver_reason: string
   requested_by_name: string
   approved_by_name: string
   approved_at: string | null
@@ -788,6 +854,12 @@ function mapPrescription(row: PrescriptionRow): Prescription {
     externalName: row.external_name ?? "",
     notes: row.notes ?? "",
     status: row.status,
+    paymentStatus: row.payment_status ?? "unpaid",
+    amount: row.amount === null ? null : Number(row.amount),
+    paymentReference: row.payment_reference ?? "",
+    paidAt: row.paid_at ? new Date(row.paid_at) : null,
+    paidByName: row.paid_by_name ?? "",
+    waiverReason: row.waiver_reason ?? "",
     requestedByName: row.requested_by_name ?? "",
     approvedByName: row.approved_by_name ?? "",
     approvedAt: row.approved_at ? new Date(row.approved_at) : null,
@@ -799,7 +871,7 @@ function mapPrescription(row: PrescriptionRow): Prescription {
 }
 
 const PRESCRIPTION_COLUMNS =
-  "id, visit_id, patient_id, items, destination, external_name, notes, status, requested_by_name, approved_by_name, approved_at, decision_note, dispensed_by_name, dispensed_at, created_at"
+  "id, visit_id, patient_id, items, destination, external_name, notes, status, payment_status, amount, payment_reference, paid_at, paid_by_name, waiver_reason, requested_by_name, approved_by_name, approved_at, decision_note, dispensed_by_name, dispensed_at, created_at"
 
 export async function getVisitPrescriptions(visitId: string): Promise<Prescription[]> {
   const rows = throwIfError(
@@ -909,6 +981,50 @@ export async function resubmitOrder(kind: OrderKind, id: string): Promise<void> 
       .from(kind === "lab" ? "lab_orders" : "prescriptions")
       .update({ status: "pending-approval", decision_note: "", approved_by: null, approved_by_name: "", approved_at: null })
       .eq("id", id),
+  )
+}
+
+/* ============================================================================
+ * Step 4a/4b - payments
+ * ========================================================================== */
+
+export interface RecordOrderPaymentInput {
+  kind: OrderKind
+  id: string
+  /** Free-entry for now; a service price list can prefill it later. */
+  amount: number | null
+  reference?: string
+}
+
+/**
+ * Records money received at the front desk. The DB function re-checks the role
+ * (admin/receptionist), the hospital scope and the current payment status, so a
+ * stale card cannot settle the same request twice.
+ */
+export async function recordOrderPayment(input: RecordOrderPaymentInput): Promise<void> {
+  throwIfError(
+    await getSupabase().rpc("record_order_payment", {
+      p_kind: input.kind,
+      p_id: input.id,
+      p_amount: input.amount,
+      p_reference: input.reference ?? "",
+      p_waive: false,
+      p_reason: "",
+    }),
+  )
+}
+
+/** Admin-only: settle without money, with a mandatory reason. */
+export async function waiveOrderPayment(kind: OrderKind, id: string, reason: string): Promise<void> {
+  throwIfError(
+    await getSupabase().rpc("record_order_payment", {
+      p_kind: kind,
+      p_id: id,
+      p_amount: null,
+      p_reference: "",
+      p_waive: true,
+      p_reason: reason,
+    }),
   )
 }
 
@@ -1214,22 +1330,52 @@ function mean(values: number[]): number | null {
  * Stage boundaries come from the timestamps the flow already stamps:
  *   check-in  -> checked_in_at
  *   vitals    -> first vitals.recorded_at
- *   consult   -> consult_started_at / consult_ended_at
- *   orders    -> consult_ended_at -> last order completion
+ *   consult   -> consultations.started_at / ended_at
+ *   orders    -> consult end -> last order completion
  *   check-out -> last completion -> checked_out_at
  *
  * Visits missing a boundary are skipped for that stage only, so a partial
  * encounter still contributes to the stages it did reach.
+ *
+ * The four child tables are embedded in the visit query instead of fetched
+ * separately. That does the filtering once and keeps "/vitals" out of the
+ * request path: EasyPrivacy ships a `/v1/vitals?` rule (aimed at Web Vitals
+ * beacons) which also matches `/rest/v1/vitals?`, so browsers applying it
+ * cancel the request with net::ERR_BLOCKED_BY_CLIENT. Embedding sidesteps that
+ * false positive and also removes the long `.in.(...)` id list from the URL.
  */
+interface StageVisitRow {
+  id: string
+  checked_in_at: string
+  checked_out_at: string | null
+  vitals: { recorded_at: string }[] | null
+  consultations: {
+    created_at: string
+    started_at: string | null
+    ended_at: string | null
+  }[] | null
+  lab_orders: { completed_at: string | null }[] | null
+  prescriptions: { dispensed_at: string | null }[] | null
+}
+
 export async function getStageTimings(hospitalId: string, days = 30): Promise<StageTiming[]> {
   const since = new Date()
   since.setDate(since.getDate() - days)
 
-  const visits = (
-    await queryVisits({ hospitalId, limit: 500, orderBy: "recent" })
-  ).filter(v => v.checkedInAt >= since)
+  const rows =
+    (throwIfError(
+      await getSupabase()
+        .from("visits")
+        .select(
+          "id, checked_in_at, checked_out_at, vitals(recorded_at), consultations(created_at, started_at, ended_at), lab_orders(completed_at), prescriptions(dispensed_at)",
+        )
+        .eq("hospital_id", hospitalId)
+        .gte("checked_in_at", since.toISOString())
+        .order("checked_in_at", { ascending: false })
+        .limit(500),
+    ) ?? []) as unknown as StageVisitRow[]
 
-  if (visits.length === 0) {
+  if (rows.length === 0) {
     return (Object.keys(STAGE_LABELS) as VisitStage[]).map(stage => ({
       stage,
       label: STAGE_LABELS[stage].label,
@@ -1239,93 +1385,42 @@ export async function getStageTimings(hospitalId: string, days = 30): Promise<St
     }))
   }
 
-  const visitIds = visits.map(v => v.id)
-
-  // Four bulk queries, not four per visit. Pulling 500 encounters through
-  // getVisitVitals() et al. would be up to 2000 round-trips on one page load.
-  // Only the boundary columns are selected - the full row shapes are irrelevant
-  // here, which also keeps the payload small.
-  const [vitalRows, consultRows, labRows, rxRows] = await Promise.all([
-    throwIfError(
-      await getSupabase()
-        .from("vitals")
-        .select("visit_id, recorded_at")
-        .in("visit_id", visitIds),
-    ),
-    throwIfError(
-      await getSupabase()
-        .from("consultations")
-        .select("visit_id, started_at, ended_at, created_at")
-        .in("visit_id", visitIds),
-    ),
-    throwIfError(
-      await getSupabase()
-        .from("lab_orders")
-        .select("visit_id, completed_at")
-        .in("visit_id", visitIds),
-    ),
-    throwIfError(
-      await getSupabase()
-        .from("prescriptions")
-        .select("visit_id, dispensed_at")
-        .in("visit_id", visitIds),
-    ),
-  ])
-
   const parse = (value: string | null): Date | null => (value ? new Date(value) : null)
 
-  // Earliest vitals reading per visit.
-  const firstVitals = new Map<string, Date>()
-  for (const row of vitalRows as { visit_id: string; recorded_at: string }[]) {
-    const at = parse(row.recorded_at)
-    if (!at) continue
-    const current = firstVitals.get(row.visit_id)
-    if (!current || at < current) firstVitals.set(row.visit_id, at)
-  }
+  const earliest = (values: (Date | null)[]): Date | null =>
+    values.reduce<Date | null>((best, at) => (at && (!best || at < best) ? at : best), null)
 
-  // Earliest consultation per visit (the one that defines the consult stage).
-  const firstConsult = new Map<string, { at: Date; startedAt: Date | null; endedAt: Date | null }>()
-  for (const row of consultRows as {
-    visit_id: string
-    started_at: string | null
-    ended_at: string | null
-    created_at: string
-  }[]) {
-    const at = parse(row.created_at)
-    if (!at) continue
-    const current = firstConsult.get(row.visit_id)
-    if (current && current.at <= at) continue
-    firstConsult.set(row.visit_id, {
-      at,
-      startedAt: parse(row.started_at),
-      endedAt: parse(row.ended_at),
-    })
-  }
+  const latest = (values: (Date | null)[]): Date | null =>
+    values.reduce<Date | null>((best, at) => (at && (!best || at > best) ? at : best), null)
 
-  // Last completion per visit across both order kinds.
-  const lastCompletion = new Map<string, Date>()
-  const markCompletion = (visitId: string, at: Date | null) => {
-    if (!at) return
-    const current = lastCompletion.get(visitId)
-    if (!current || at > current) lastCompletion.set(visitId, at)
-  }
-  for (const row of labRows as { visit_id: string; completed_at: string | null }[]) {
-    markCompletion(row.visit_id, parse(row.completed_at))
-  }
-  for (const row of rxRows as { visit_id: string; dispensed_at: string | null }[]) {
-    markCompletion(row.visit_id, parse(row.dispensed_at))
-  }
+  const results = rows.map(visit => {
+    const firstVitalsAt = earliest((visit.vitals ?? []).map(row => parse(row.recorded_at)))
 
-  const results = visits.map(visit => {
-    const consultation = firstConsult.get(visit.id) ?? { startedAt: null, endedAt: null }
-    const completed = lastCompletion.get(visit.id) ?? null
+    // The earliest consultation is the one that defines the consult stage.
+    const consultation = (visit.consultations ?? [])
+      .map(row => ({
+        at: parse(row.created_at),
+        startedAt: parse(row.started_at),
+        endedAt: parse(row.ended_at),
+      }))
+      .filter(row => row.at !== null)
+      .sort((a, b) => a.at!.getTime() - b.at!.getTime())[0] ?? {
+      startedAt: null,
+      endedAt: null,
+    }
+
+    // Last completion per visit across both order kinds.
+    const completed = latest([
+      ...(visit.lab_orders ?? []).map(row => parse(row.completed_at)),
+      ...(visit.prescriptions ?? []).map(row => parse(row.dispensed_at)),
+    ])
 
     return {
-      "check-in": minutesBetween(visit.checkedInAt, firstVitals.get(visit.id) ?? null),
-      vitals: minutesBetween(firstVitals.get(visit.id) ?? null, consultation.startedAt),
+      "check-in": minutesBetween(parse(visit.checked_in_at), firstVitalsAt),
+      vitals: minutesBetween(firstVitalsAt, consultation.startedAt),
       consult: minutesBetween(consultation.startedAt, consultation.endedAt),
       orders: minutesBetween(consultation.endedAt, completed),
-      "check-out": minutesBetween(completed ?? consultation.endedAt, visit.checkedOutAt),
+      "check-out": minutesBetween(completed ?? consultation.endedAt, parse(visit.checked_out_at)),
     } as Record<VisitStage, number | null>
   })
 
@@ -1383,7 +1478,11 @@ export async function getApprovalTurnaround(hospitalId: string, days = 30): Prom
     kind: OrderKind,
     rows: { status: OrderStatus; created_at: string; approved_at: string | null }[],
   ): ApprovalTurnaround => {
-    const decided = rows.filter(r => r.approved_at && (r.status === "approved" || r.status === "rejected"))
+    // `approved_at` is the decision timestamp (it is also stamped on a
+    // rejection). A later fulfilment moves status to "fulfilled"/"dispensed",
+    // so filtering on the decision statuses would silently drop every order
+    // that was approved and then dispensed - i.e. almost all of them.
+    const decided = rows.filter(r => r.approved_at)
     const durations = decided
       .map(r => minutesBetween(new Date(r.created_at), new Date(r.approved_at!)))
       .filter((v): v is number => v !== null)

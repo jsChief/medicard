@@ -10,6 +10,7 @@ import {
   Loader2,
   ClipboardList,
   CreditCard,
+  type LucideIcon,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
@@ -19,8 +20,18 @@ import { FilterDropdown } from "@/components/ui/FilterDropdown"
 import { EmptyState } from "@/components/ui/EmptyState"
 import { ErrorState } from "@/components/common/ErrorState"
 import { useAuth } from "@/context/AuthContext"
-import { queryVisits, isVisitOpen, VISIT_STATUS_LABELS, type VisitWithPatient, type VisitStatus } from "@/lib/visits"
-import { canCheckIn } from "@/lib/permissions"
+import {
+  isVisitOpen,
+  queryLabOrders,
+  queryPrescriptions,
+  queryVisits,
+  VISIT_STATUS_LABELS,
+  type OrderStatus,
+  type PaymentStatus,
+  type VisitStatus,
+  type VisitWithPatient,
+} from "@/lib/visits"
+import { canCheckIn, canCollectPayments } from "@/lib/permissions"
 import { describeError } from "@/lib/errors"
 import { cn, formatRelativeTime } from "@/lib/utils"
 import {
@@ -29,8 +40,17 @@ import {
   CARD_STATUS_VARIANT,
 } from "@/components/visits/statusMeta"
 
-const STATUS_FILTERS: Array<"All" | VisitStatus> = [
+/**
+ * "waiting" is a view, not a database status: a patient waiting for the doctor
+ * is either `vitals` (readings taken but not yet sent on) or `waiting-doctor`.
+ * It is kept separate from VisitStatus so the URL stays readable and the
+ * single-status filters keep working unchanged.
+ */
+type QueueFilter = "All" | "waiting" | VisitStatus
+
+const STATUS_FILTERS: QueueFilter[] = [
   "All",
+  "waiting",
   "checked-in",
   "vitals",
   "waiting-doctor",
@@ -41,6 +61,28 @@ const STATUS_FILTERS: Array<"All" | VisitStatus> = [
   "ready-for-checkout",
   "checked-out",
 ]
+
+/** The statuses that count as "waiting for the doctor" across the page. */
+function isWaitingForDoctor(status: VisitStatus): boolean {
+  return status === "vitals" || status === "waiting-doctor"
+}
+
+/**
+ * A request still needs money until it is settled. Cancelled/rejected requests
+ * no longer need payment, and fulfilled/dispensed/external ones are past the
+ * gate (the DB prevents them from ever being fulfilled while unpaid).
+ */
+const PAYMENT_TERMINAL_STATUSES: OrderStatus[] = [
+  "rejected",
+  "cancelled",
+  "fulfilled",
+  "dispensed",
+  "external",
+]
+
+function needsPayment(status: OrderStatus, paymentStatus: PaymentStatus): boolean {
+  return paymentStatus === "unpaid" && !PAYMENT_TERMINAL_STATUSES.includes(status)
+}
 
 export function VisitsQueuePage() {
   const { user } = useAuth()
@@ -60,6 +102,13 @@ export function VisitsQueuePage() {
   const [scope, setScope] = useState<"today" | "all">(
     searchParams.get("scope") === "all" ? "all" : "today",
   )
+  // The receptionist/admin worklist: visits that still have an unpaid request.
+  // Kept in the URL so the sidebar sub-queue can deep-link into it.
+  const [paymentFilter, setPaymentFilter] = useState<boolean>(
+    () => searchParams.get("payment") === "unpaid",
+  )
+  const [paymentVisitIds, setPaymentVisitIds] = useState<Set<string>>(new Set())
+  const canSeePayments = canCollectPayments(user?.role)
 
   const fetchVisits = useCallback(async () => {
     if (!user?.hospitalId) {
@@ -69,20 +118,44 @@ export function VisitsQueuePage() {
     try {
       setIsLoading(true)
       setLoadError(null)
-      const rows = await queryVisits({
-        hospitalId: user.hospitalId,
-        todayOnly: scope === "today",
-        orderBy: "queue",
-        limit: 300,
-      })
+
+      // Payment is not encoded in visits.status, so when this role can collect
+      // it (or the worklist filter is on) look up today's requests and collect
+      // the visit ids that still owe money.
+      const [rows, unpaidVisitIds] = await Promise.all([
+        queryVisits({
+          hospitalId: user.hospitalId,
+          todayOnly: scope === "today",
+          orderBy: "queue",
+          limit: 300,
+        }),
+        canSeePayments || paymentFilter
+          ? Promise.all([
+              queryLabOrders({ hospitalId: user.hospitalId, todayOnly: scope === "today", limit: 300 }),
+              queryPrescriptions({ hospitalId: user.hospitalId, todayOnly: scope === "today", limit: 300 }),
+            ]).then(([labOrders, prescriptions]) => {
+              const ids = new Set<string>()
+              for (const order of labOrders) {
+                if (needsPayment(order.status, order.paymentStatus)) ids.add(order.visitId)
+              }
+              for (const order of prescriptions) {
+                if (needsPayment(order.status, order.paymentStatus)) ids.add(order.visitId)
+              }
+              return ids
+            })
+          : Promise.resolve(new Set<string>()),
+      ])
+
       setVisits(rows)
+      setPaymentVisitIds(unpaidVisitIds)
     } catch (error) {
-      setLoadError(describeError(error, "fetch the visit queue"))
+      setLoadError(describeError(error, "fetch check-ins"))
       setVisits([])
+      setPaymentVisitIds(new Set())
     } finally {
       setIsLoading(false)
     }
-  }, [user?.hospitalId, scope])
+  }, [user?.hospitalId, scope, canSeePayments, paymentFilter])
 
   useEffect(() => {
     fetchVisits()
@@ -97,6 +170,7 @@ export function VisitsQueuePage() {
       requestedStatus && (STATUS_FILTERS as string[]).includes(requestedStatus) ? requestedStatus : "All",
     )
     setScope(searchParams.get("scope") === "all" ? "all" : "today")
+    setPaymentFilter(searchParams.get("payment") === "unpaid")
   }, [searchParams])
 
   const filtered = useMemo(() => {
@@ -104,17 +178,20 @@ export function VisitsQueuePage() {
     return visits.filter(v => {
       const name = `${v.patient.firstName} ${v.patient.lastName}`.toLowerCase()
       const matchesSearch = !q || name.includes(q) || v.patient.mrn.toLowerCase().includes(q)
-      const matchesStatus = statusFilter === "All" || v.status === statusFilter
-      return matchesSearch && matchesStatus
+      const matchesStatus =
+        statusFilter === "All" ||
+        (statusFilter === "waiting" ? isWaitingForDoctor(v.status) : v.status === statusFilter)
+      const matchesPayment = !paymentFilter || paymentVisitIds.has(v.id)
+      return matchesSearch && matchesStatus && matchesPayment
     })
-  }, [visits, searchQuery, statusFilter])
+  }, [visits, searchQuery, statusFilter, paymentFilter, paymentVisitIds])
 
   const openVisits = visits.filter(v => isVisitOpen(v.status))
-  const stats = [
+  const stats: Array<{ label: string; value: number; icon: LucideIcon; iconBg: string }> = [
     { label: "In the building", value: openVisits.length, icon: Users, iconBg: "bg-primary/10 text-primary" },
     {
       label: "Waiting for doctor",
-      value: visits.filter(v => v.status === "waiting-doctor" || v.status === "vitals").length,
+      value: visits.filter(v => isWaitingForDoctor(v.status)).length,
       icon: Stethoscope,
       iconBg: "bg-warning/10 text-warning",
     },
@@ -132,16 +209,30 @@ export function VisitsQueuePage() {
     },
   ]
 
+  if (canSeePayments) {
+    stats.push({
+      label: "Awaiting payment",
+      value: paymentVisitIds.size,
+      icon: CreditCard,
+      iconBg: "bg-warning/10 text-warning",
+    })
+  }
+
   const statusOptions = STATUS_FILTERS.map(s => ({
     value: s,
-    label: s === "All" ? "All statuses" : VISIT_STATUS_LABELS[s],
+    label:
+      s === "All"
+        ? "All statuses"
+        : s === "waiting"
+          ? "Waiting for doctor"
+          : VISIT_STATUS_LABELS[s],
   }))
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-text-muted">Check in, vitals, consultation, orders and check-out in one queue</p>
+          <p className="text-text-muted">Check in, vitals, consultation, orders and check-out in one list</p>
         </div>
         <div className="flex flex-nowrap items-center gap-2">
           <FilterDropdown
@@ -165,7 +256,12 @@ export function VisitsQueuePage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <div
+        className={cn(
+          "grid grid-cols-2 gap-3 sm:gap-4",
+          canSeePayments ? "lg:grid-cols-5" : "lg:grid-cols-4",
+        )}
+      >
         {stats.map(stat => (
           <Card key={stat.label} className="p-0">
             <CardContent className="flex items-center gap-2 p-3 sm:gap-3 sm:p-4">
@@ -180,6 +276,15 @@ export function VisitsQueuePage() {
           </Card>
         ))}
       </div>
+
+      {paymentFilter && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-text">
+          <span>Showing visits with at least one unpaid lab request or prescription.</span>
+          <Button size="sm" variant="outline" onClick={() => navigate("/visits")}>
+            Clear filter
+          </Button>
+        </div>
+      )}
 
       {/* Filters */}
       <Card className="p-0">
@@ -207,7 +312,11 @@ export function VisitsQueuePage() {
       <Card className="overflow-hidden p-0">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <p className="text-sm font-medium text-text">
-            {scope === "today" ? "Today's visit queue" : "Visit history"}
+            {paymentFilter
+              ? "Visits awaiting payment"
+              : scope === "today"
+                ? "Today's check-ins"
+                : "Check-in history"}
           </p>
           <p className="text-xs text-text-muted">{filtered.length} visit(s)</p>
         </div>
@@ -298,15 +407,23 @@ export function VisitsQueuePage() {
             <p className="text-lg font-medium text-text">Loading the queue...</p>
           </div>
         ) : loadError ? (
-          <ErrorState title="Could not load the visit queue" message={loadError} onRetry={fetchVisits} isRetrying={isLoading} />
+          <ErrorState title="Could not load check-ins" message={loadError} onRetry={fetchVisits} isRetrying={isLoading} />
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={<ClipboardList className="h-16 w-16" />}
-            title={scope === "today" ? "No visits today" : "No visits yet"}
+            title={
+              paymentFilter
+                ? "Nothing awaiting payment"
+                : scope === "today"
+                  ? "No visits today"
+                  : "No visits yet"
+            }
             description={
-              canCheckIn(user?.role)
-                ? "Check a patient in to start the flow: vitals, doctor, orders and check-out."
-                : "Patients will appear here once reception checks them in."
+              paymentFilter
+                ? "Every request raised today has been paid, covered by the plan, or waived."
+                : canCheckIn(user?.role)
+                  ? "Check a patient in to start the flow: vitals, doctor, orders and check-out."
+                  : "Patients will appear here once reception checks them in."
             }
             {...(canCheckIn(user?.role)
               ? { action: { label: "Check in patient", onClick: () => navigate("/visits/check-in"), icon: <UserPlus className="h-4 w-4" /> } }

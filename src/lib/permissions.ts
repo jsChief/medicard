@@ -1,4 +1,4 @@
-import type { AppRole } from "@/lib/auth"
+import { APP_ROLES, type AppRole } from "@/lib/auth"
 
 /**
  * Client-side capability checks.
@@ -32,6 +32,46 @@ export const PATIENT_ARCHIVE_ROLES: AppRole[] = ["admin", "doctor"]
 
 export function canArchivePatients(role: AppRole | null | undefined): boolean {
   return !!role && PATIENT_ARCHIVE_ROLES.includes(role)
+}
+
+/* ===========================================================================
+ * Page-level access
+ *
+ * Which roles may open which screen. The routes in src/App.tsx use these lists
+ * through ProtectedRoute, and DashboardLayout filters the sidebar with the same
+ * data so a hidden page is never advertised as a link.
+ *
+ * Dashboard and the account screens are open to every role on purpose:
+ * ProtectedRoute redirects unauthorised users to /dashboard, so it has to be a
+ * page every role can land on. Everything else is limited to the people who
+ * actually work there.
+ *
+ * This is UX only - Supabase RLS remains the security boundary.
+ * ======================================================================== */
+
+export const PAGE_ACCESS = {
+  dashboard: APP_ROLES,
+  checkIns: APP_ROLES,
+  patients: ["admin", "doctor", "nurse", "receptionist"],
+  archive: ["admin", "doctor", "receptionist"],
+  checkouts: ["admin", "doctor", "nurse", "receptionist"],
+  locationMatrix: ["admin", "doctor", "nurse", "receptionist"],
+  reports: ["admin", "doctor"],
+  settings: APP_ROLES,
+  profile: APP_ROLES,
+  notifications: APP_ROLES,
+  teamSettings: ["admin"],
+  organizationSettings: ["admin"],
+  auditLog: ["admin"],
+} satisfies Record<string, AppRole[]>
+
+export function canAccessPage(
+  role: AppRole | null | undefined,
+  page: keyof typeof PAGE_ACCESS,
+): boolean {
+  // The union of per-page literal arrays makes `.includes` demand the
+  // intersection of all roles; widen it to AppRole[] for the membership test.
+  return !!role && (PAGE_ACCESS[page] as AppRole[]).includes(role)
 }
 
 /* ===========================================================================
@@ -82,6 +122,24 @@ export const DISPENSE_ROLES: AppRole[] = ["admin", "pharmacist", "doctor"]
 
 export function canDispensePrescriptions(role: AppRole | null | undefined): boolean {
   return !!role && DISPENSE_ROLES.includes(role)
+}
+
+/**
+ * Step 4a/4b: take payment at the front desk (DB: record_order_payment()).
+ *
+ * Separate from HMO approval: reception collects money, but only an HMO
+ * approver/admin can approve a request, and only an admin can waive a charge.
+ */
+export const COLLECT_PAYMENT_ROLES: AppRole[] = ["admin", "receptionist"]
+
+export function canCollectPayments(role: AppRole | null | undefined): boolean {
+  return !!role && COLLECT_PAYMENT_ROLES.includes(role)
+}
+
+export const WAIVE_PAYMENT_ROLES: AppRole[] = ["admin"]
+
+export function canWaivePayments(role: AppRole | null | undefined): boolean {
+  return !!role && WAIVE_PAYMENT_ROLES.includes(role)
 }
 
 /** Step 4c: check the patient out and withdraw the card. */

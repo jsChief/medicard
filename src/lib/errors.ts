@@ -45,7 +45,8 @@ const TECHNICAL_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
   },
   {
     pattern: /failed to fetch|networkerror|network request failed|load failed/i,
-    message: "Could not reach the server. Check your internet connection and try again.",
+    message:
+      "Could not reach the server. Check your internet connection, VPN, or browser extensions (an ad/tracker blocker can cancel the request).",
   },
   {
     pattern: /jwt|token.*expired|invalid.*token|invalid.*session|auth session missing/i,
