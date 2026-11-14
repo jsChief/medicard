@@ -6,7 +6,6 @@ import { cn } from "cn"
 import { MenuIcon } from "lucide-react"
 import { Slot } from "radix-ui"
 
-import appLogo from "@/assets/cardease.png"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
